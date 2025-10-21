@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "description": "Jetton registry mapping: contract address -> { verified, rateUsd, symbol, name }",
+    "note": "Addresses must be user-friendly (bounceable or non-bounceable) as returned by tonapi for jetton.jetton.address.toString()"
+  },
+  "EQBObyiP7EtGDBxWV--eZYAB-o8U8RuGL7kPZELbu-cTufNr": {
+    "verified": true,
+    "symbol": "STK",
+    "name": "Stakers Token",
+    "decimals": 18,
+    "image": "https://storage.dyor.io/jettons/images/1759255309/19733916.png",
+    "rateUsd": 0.0000012
+  },
+  "EQAUKh4-GWW_WHNzd_2QBR1MJIOplG685gE-SlHf9mC0WDQx": {
+    "verified": true,
+    "symbol": "STK",
+    "name": "Stakers Token",
+    "rateUsd": 0,
+    "image": "https://storage.dyor.io/jettons/images/1759255309/19733916.png",
+    "raw": "0:4e6f288fec4b460c1c5657ef9e658001fa8f14f11b862fb90f6442dbbbe713b9",
+    "decimals": 18
+  },
+  "0:4e6f288fec4b460c1c5657ef9e658001fa8f14f11b862fb90f6442dbbbe713b9": {
+    "verified": true,
+    "symbol": "STK",
+    "name": "Stakers Token",
+    "rateUsd": 0,
+    "image": "https://storage.dyor.io/jettons/images/1759255309/19733916.png",
+    "alias": "EQBObyiP7EtGDBxWV--eZYAB-o8U8RuGL7kPZELbu-cTufNr",
+    "decimals": 18
+  },
+  "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs": {
+    "verified": true,
+    "symbol": "USD₮",
+    "name": "Tether USD",
+    "decimals": 6,
+    "image": "https://tether.to/images/logoCircle.png",
+    "description": "Tether Token for Tether USD",
+    "rateUsd": 1.00,
+    "raw": "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe"
+  },
+  "0:b113a994b5024a16719f69139328eb759596c38a25f59028b146fecdc3621dfe": {
+    "verified": true,
+    "symbol": "USD₮",
+    "name": "Tether USD",
+    "decimals": 6,
+    "image": "https://tether.to/images/logoCircle.png",
+    "description": "Tether Token for Tether USD",
+    "rateUsd": 1.00,
+    "alias": "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs"
+  }
+}
