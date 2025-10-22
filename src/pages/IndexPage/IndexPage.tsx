@@ -2716,7 +2716,7 @@ const handleDeposit = async (amount: number) => {
   // Update the main return statement to handle loading, new user, and no stake states
   if (isLoading || isInitializing) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-[#FFFFFF]">
         <div className="text-center">
           <div className="w-20 h-20 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-blue-400">{isInitializing ? 'Initializing your account...' : 'Loading...'}</p>
@@ -2741,22 +2741,22 @@ const handleDeposit = async (amount: number) => {
   // Show sponsor gate if user doesn't have a sponsor
   if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="w-full max-w-md mx-4">
           {/* Sponsor Code Gate */}
-          <div className="p-8 rounded-2xl bg-gray-800 border border-green-700/50 shadow-lg">
+          <div className="p-8 rounded-2xl bg-white border border-slate-200 shadow-lg">
             <div className="text-center space-y-6">
               {/* Icon */}
-              <div className="w-20 h-20 bg-green-900/50 rounded-full flex items-center justify-center mx-auto border-2 border-green-600/70">
-                <svg className="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
               
               {/* Title and Description */}
               <div>
-                <h1 className="text-2xl font-bold text-green-300 mb-3">🔐 Join a Team First</h1>
-                <p className="text-gray-400 text-sm leading-relaxed">
+                <h1 className="text-2xl font-bold text-slate-900 mb-3">🔐 Join a Team First</h1>
+                <p className="text-slate-600 text-sm leading-relaxed">
                   To access TAPPs, you need to join a team by entering a sponsor code. 
                   This helps build our community and ensures everyone has a sponsor to guide them.
                 </p>
@@ -2769,11 +2769,11 @@ const handleDeposit = async (amount: number) => {
                     value={applyCode}
                     onChange={(e) => setApplyCode(e.target.value)} 
                     placeholder="Enter sponsor code" 
-                    className="flex-1 px-4 py-3 rounded-lg border border-green-700/50 bg-gray-900 text-green-300 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500/50 transition-all"
+                    className="flex-1 px-4 py-3 rounded-lg border border-slate-200 text-slate-900 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                   />
                   <button 
                     onClick={handleApplySponsorCode}
-                    className="px-6 py-3 rounded-lg bg-green-600 text-white text-sm font-semibold disabled:opacity-60 hover:bg-green-700 transition-colors flex items-center gap-2"
+                    className="px-6 py-3 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-60 hover:bg-blue-700 transition-colors flex items-center gap-2"
                     disabled={isApplying || !applyCode.trim()}
                   >
                     {isApplying ? (
@@ -2789,15 +2789,15 @@ const handleDeposit = async (amount: number) => {
                 
                 {/* Help Text */}
                 <div className="text-center">
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-slate-500">
                     Don't have a sponsor code? Ask a friend who's already using TAPPs!
                   </p>
                 </div>
                 
                 {/* Benefits */}
-                <div className="bg-green-900/50 rounded-lg p-4 border border-green-700/50">
-                  <h3 className="text-sm font-semibold text-green-300 mb-2">✨ Benefits of Joining a Team</h3>
-                  <ul className="text-xs text-green-400 space-y-1">
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <h3 className="text-sm font-semibold text-blue-900 mb-2">✨ Benefits of Joining a Team</h3>
+                  <ul className="text-xs text-blue-700 space-y-1">
                     <li>• Get guidance from experienced users</li>
                     <li>• Access to team rewards and bonuses</li>
                     <li>• Build your own referral network</li>
@@ -2810,7 +2810,7 @@ const handleDeposit = async (amount: number) => {
           
           {/* Footer */}
           <div className="text-center mt-6">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-slate-500">
             <a href="https://t.me/Tapps_chat"> Need help? Contact our support team</a>
             </p>
           </div>
@@ -2820,33 +2820,138 @@ const handleDeposit = async (amount: number) => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-green-400 font-mono antialiased mb-[3.7rem]">
-      <div className="absolute inset-0 bg-grid-green-500/10 bg-grid-18 [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
-      <div className="absolute inset-0 scanline"></div>
+    <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 antialiased mb-[3.7rem]">
       {!isLoading && user && showOnboarding && <OnboardingScreen />}
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-green-700/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {user?.photo_url ? (
-              <img src={user.photo_url} alt="User" className="w-10 h-10 rounded-full border-2 border-green-600/70" />
-            ) : (
-              <div className="w-10 h-10 bg-green-900/50 rounded-full flex items-center justify-center border-2 border-green-600/70 shadow-neon-green-sm">
-                <span className="text-green-400 font-bold">{user?.username?.[0]?.toUpperCase()}</span>
+      {/* Ultra Modern Header with Advanced Glassmorphism */}
+      <div className="px-4 py-4 sticky top-0 z-50">
+        <div className="relative bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-blue-500/20 overflow-hidden">
+          {/* Multi-layer animated background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-purple-500/5 to-cyan-500/8 animate-gradient"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
+
+          {/* Subtle border glow */}
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-blue-400/20 via-purple-400/10 to-cyan-400/20 blur-sm -z-10"></div>
+
+          {/* Header content */}
+          <div className="relative flex justify-between items-center p-5">
+            <div className="flex items-center gap-4">
+              {/* Enhanced User Profile Section */}
+              <div className="flex items-center gap-4">
+                {/* Ultra Modern Avatar with Enhanced Effects */}
+                <div className="relative group">
+                  {/* Enhanced glow effect for premium users */}
+                  {user?.is_premium && (
+                    <div className="absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-3xl blur-lg opacity-40 group-hover:opacity-60 transition-all duration-500"></div>
+                  )}
+
+                  {/* Standard user glow */}
+                  {!user?.is_premium && (
+                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-purple-500 rounded-3xl blur opacity-20 group-hover:opacity-30 transition-all duration-300"></div>
+                  )}
+
+                  <div className={`relative w-16 h-16 rounded-3xl overflow-hidden border-3 transition-all duration-500 group-hover:scale-110 ${
+                    user?.is_premium
+                      ? 'border-yellow-400/60 shadow-2xl shadow-yellow-400/30'
+                      : 'border-white/50 shadow-xl shadow-blue-500/20'
+                  }`}>
+                    {user?.photoUrl ? (
+                      <img
+                        src={user.photoUrl}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-full flex items-center justify-center ${
+                        user?.is_premium
+                          ? 'bg-gradient-to-br from-yellow-400 to-orange-500'
+                          : 'bg-gradient-to-br from-blue-500 to-purple-600'
+                      }`}>
+                        <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    )}
+
+                    {/* Premium crown overlay */}
+                    {user?.is_premium && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                        <MdDiamond className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Enhanced Status Indicator */}
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-r from-emerald-400 to-green-500 rounded-full border-2 border-white shadow-lg animate-pulse">
+                    <div className="w-full h-full rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-ping opacity-75"></div>
+                  </div>
+                </div>
+
+                {/* Ultra Modern User Info */}
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-700 bg-clip-text text-transparent tracking-tight">
+                      {user?.username ? `@${user.username}` : '@username'}
+                    </span>
+
+                    {/* Ultra Modern Premium Badge */}
+                    {user?.is_premium && (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-yellow-400/30 to-orange-500/30 rounded-2xl border-2 border-yellow-400/50 shadow-lg shadow-yellow-400/20 backdrop-blur-sm">
+                        <MdDiamond className="w-4 h-4 text-yellow-700 animate-pulse" />
+                        <span className="text-xs font-bold text-yellow-800 tracking-wider">PREMIUM</span>
+                      </div>
+                    )}
+
+                    {/* Enhanced Verified Badge */}
+                    <div className="relative">
+                      <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl border-2 border-white/50">
+                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      </div>
+                      {/* Subtle pulse ring */}
+                      <div className="absolute inset-0 w-6 h-6 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl animate-ping opacity-20"></div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      if (user?.telegram_id) {
+                        try {
+                          await navigator.clipboard.writeText(user.telegram_id.toString());
+                          showSnackbar({
+                            message: 'Telegram ID Copied!',
+                            description: 'Your Telegram ID has been copied to clipboard'
+                          });
+                        } catch (error) {
+                          showSnackbar({
+                            message: 'Copy Failed',
+                            description: 'Please try again or copy manually'
+                          });
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-2 text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-3 py-1.5 rounded-xl font-medium transition-all duration-300 cursor-pointer hover:scale-105 shadow-lg shadow-blue-500/25 backdrop-blur-sm"
+                    title="Click to copy Telegram ID"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    ID: {user?.telegram_id || 'Loading...'}
+                  </button>
+                </div>
               </div>
-            )}
-            <div>
-              <h3 className="font-bold text-lg text-shadow-green">{user?.username}</h3>
-              <p className="text-green-500/80 text-sm">RZC Miner</p>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-3 px-5 py-3 bg-green-900/50 rounded-2xl border-2 border-green-700/50">
-              <div className="relative">
-                <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-pulse shadow-lg"></div>
-                <div className="absolute inset-0 w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-ping opacity-60"></div>
+
+            {/* Ultra Modern Right Section */}
+            <div className="flex items-center gap-4">
+              {/* Enhanced Network Status Badge */}
+              <div className="hidden sm:flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-emerald-500/15 to-green-500/15 rounded-2xl border-2 border-emerald-500/30 hover:from-emerald-500/25 hover:to-green-500/25 transition-all duration-500 backdrop-blur-sm shadow-lg shadow-emerald-500/10">
+                <div className="relative">
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-pulse shadow-lg"></div>
+                  <div className="absolute inset-0 w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-ping opacity-60"></div>
+                </div>
+                <span className="text-sm font-bold bg-gradient-to-r from-emerald-700 to-green-700 bg-clip-text text-transparent tracking-wide">Mainnet</span>
               </div>
-              <span className="text-sm font-bold text-green-300 tracking-wide">Mainnet</span>
             </div>
           </div>
         </div>
@@ -2854,6 +2959,9 @@ const handleDeposit = async (amount: number) => {
 
       {/* Ultra Modern Main Content Area */}
       <div className="flex-1 relative">
+        {/* Global content background with subtle gradients */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50/90 via-white/90 to-blue-50/30 backdrop-blur-sm"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-purple-50/20 to-transparent"></div>
         
         {currentTab === 'home' && (
           <div className="relative space-y-6 p-custom px-6 pb-6 overflow-y-auto">
@@ -3339,36 +3447,132 @@ const handleDeposit = async (amount: number) => {
         </div>
       )} */}
 
-      {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/50 border-t-2 border-green-700/50 backdrop-blur-sm safe-area-pb">
+      {/* Ultra Modern Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl border-t-2 border-white/70 shadow-2xl shadow-blue-500/20 safe-area-pb">
+        {/* Multi-layer gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/50 to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50/40 via-purple-50/30 to-cyan-50/40 pointer-events-none"></div>
+
+        {/* Subtle border glow */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-300/50 to-transparent"></div>
+
+        {/* Enhanced Premium user indicator */}
+        {user?.is_premium && (
+          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 z-10">
+            <div className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl shadow-xl border-2 border-white/50 backdrop-blur-sm">
+              <MdDiamond className="w-4 h-4 text-white animate-pulse" />
+              <span className="text-[11px] font-bold text-white tracking-wider">PREMIUM</span>
+            </div>
+          </div>
+        )}
+
         <div className="max-w-lg mx-auto px-6 relative z-10">
           <div className="grid grid-cols-4 items-center py-3">
             {[
-              { id: 'home', text: 'Mining', Icon: FaMagento, gradient: 'from-green-500 to-teal-500' },
-              { id: 'wallet', text: 'Wallet', Icon: FaWallet, gradient: 'from-orange-500 to-red-500' },
-              { id: 'network', text: 'Dapp', Icon: FaNetworkWired, gradient: 'from-indigo-500 to-purple-500' },
-              { id: 'whale', text: 'Settings', Icon: FaGem, gradient: 'from-purple-500 to-pink-500' },
-            ].map(({ id, text, Icon, gradient }) => (
+              {
+                id: 'home',
+                text: 'Mining',
+                Icon: FaMagento,
+                premium: false,
+                gradient: 'from-blue-500 to-cyan-500'
+              },
+              {
+                id: 'wallet',
+                text: 'Wallet',
+                Icon: FaWallet,
+                premium: false,
+                gradient: 'from-orange-500 to-red-500'
+              },
+
+              {
+                id: 'network',
+                text: 'Dapp',
+                Icon: FaNetworkWired,
+                premium: false,
+                gradient: 'from-indigo-500 to-purple-500'
+              },
+              {
+                id: 'whale',
+                text: 'Settings',
+                Icon: FaGem,
+                premium: true,
+                gradient: 'from-purple-500 to-pink-500'
+              },
+            ].map(({ id, text, Icon, premium, gradient }) => (
               <button
                 key={id}
                 onClick={() => setCurrentTab(id)}
-                className={`group flex flex-col items-center py-2 w-full transition-all duration-300 relative ${
-                  currentTab === id ? 'text-green-300' : 'text-gray-500 hover:text-green-400'
+                className={`group flex flex-col items-center py-4 w-full transition-all duration-500 relative ${
+                  currentTab === id
+                    ? 'text-blue-600'
+                    : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
+                {/* Ultra Modern active tab background */}
                 {currentTab === id && (
-                  <div className={`absolute inset-x-2 -top-1 h-1 bg-gradient-to-r ${gradient} rounded-full shadow-neon-green-sm`}></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50/90 to-cyan-50/70 rounded-3xl mx-2 shadow-xl border-2 border-blue-200/60 backdrop-blur-sm">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-3xl"></div>
+                  </div>
                 )}
-                <div className={`relative p-3 rounded-2xl transition-all duration-300 ${currentTab === id ? 'scale-110' : 'group-hover:scale-105'}`}>
-                  <Icon size={24} className="transition-all duration-300" />
+
+                <div className={`relative transition-all duration-500 ${
+                  currentTab === id ? 'scale-125' : 'group-hover:scale-110'
+                }`}>
+                  {/* Enhanced Premium badge */}
+                  {premium && user?.is_premium && (
+                    <div className="absolute -top-3 -right-3 z-10">
+                      <div className="w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/50">
+                        <MdDiamond className="w-3 h-3 text-white animate-pulse" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`relative p-3 rounded-2xl transition-all duration-500 ${
+                    currentTab === id
+                      ? `bg-gradient-to-br ${gradient} shadow-xl border-2 border-white/50`
+                      : 'group-hover:bg-slate-100/60 border-2 border-transparent'
+                  }`}>
+                    <Icon
+                      size={currentTab === id ? 24 : 22}
+                      className={`transition-all duration-500 ${
+                        currentTab === id
+                          ? 'text-white drop-shadow-lg'
+                          : 'text-slate-500 group-hover:text-slate-700'
+                      }`}
+                    />
+
+                    {/* Enhanced glow effect for active tab */}
+                    {currentTab === id && (
+                      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-2xl opacity-30 animate-pulse`}></div>
+                    )}
+                  </div>
+
+                  {/* Ultra Modern active indicator */}
+                  {currentTab === id && (
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+                      <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full shadow-xl animate-bounce border-2 border-white/50"></div>
+                    </div>
+                  )}
                 </div>
-                <span className={`text-xs font-bold tracking-wider transition-all duration-300 ${currentTab === id ? 'text-green-300' : 'text-gray-500 group-hover:text-green-400'}`}>
+
+                <span className={`text-[11px] font-bold tracking-wider truncate max-w-[75px] text-center mt-2 transition-all duration-500 relative z-10 ${
+                  currentTab === id ? 'text-blue-700 font-extrabold' : 'text-slate-600 group-hover:text-slate-800'
+                }`}>
                   {text}
                 </span>
+
+                {/* Enhanced Premium text glow */}
+                {premium && user?.is_premium && currentTab === id && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/25 to-transparent rounded-3xl pointer-events-none"></div>
+                )}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Enhanced bottom glow effect */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-300/60 to-transparent"></div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-200/40 to-transparent"></div>
       </div>
 
         {/* Add Snackbar component before closing div */}
