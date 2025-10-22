@@ -28,14 +28,11 @@ interface ArcadeMiningUIProps {
 // A compact, arcade-style mining UI that preserves existing actions
 export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   const {
-    balanceTon,
     tonPrice,
-    currentEarningsTon,
     isClaiming,
     claimCooldown,
     cooldownText,
     onClaim,
-    onOpenDeposit,
     // onOpenWithdraw,
     airdropBalanceNova,
     // potentialEarningsTon,
@@ -60,8 +57,65 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
     pendingWithdrawalId?: number;
   }>({ canWithdraw: false, nextWithdrawalDate: null, daysUntilWithdrawal: 0, hasPendingWithdrawal: false });
 
-  const isStaked = Number(balanceTon) > 0;
-  const canClaim = isStaked && !isClaiming && currentEarningsTon > 0 && claimCooldown <= 0;
+  // Free mining - no staking required
+  const [isMining, setIsMining] = useState(false);
+  const [miningStartTime, setMiningStartTime] = useState<Date | null>(null);
+  const [accumulatedRZC, setAccumulatedRZC] = useState(0);
+  const [claimableRZC, setClaimableRZC] = useState(0);
+  
+  // Mining rate: 1 RZC per day (0.00001157 RZC per second)
+  const RZC_PER_DAY = 1;
+  const RZC_PER_SECOND = RZC_PER_DAY / (24 * 60 * 60);
+  
+  const canClaim = accumulatedRZC > 0 && !isClaiming && claimCooldown <= 0;
+
+  // LocalStorage keys for persistent mining data
+  const getMiningDataKey = (userId: number) => `mining_data_${userId}`;
+  const getClaimableKey = (userId: number) => `claimable_rzc_${userId}`;
+
+  // Save mining data to localStorage
+  const saveMiningData = (userId: number, startTime: Date, accumulated: number) => {
+    const miningData = {
+      startTime: startTime.toISOString(),
+      accumulatedRZC: accumulated,
+      lastUpdate: Date.now()
+    };
+    localStorage.setItem(getMiningDataKey(userId), JSON.stringify(miningData));
+  };
+
+  // Load mining data from localStorage
+  const loadMiningData = (userId: number) => {
+    try {
+      const data = localStorage.getItem(getMiningDataKey(userId));
+      if (data) {
+        const parsed = JSON.parse(data);
+        return {
+          startTime: new Date(parsed.startTime),
+          accumulatedRZC: parsed.accumulatedRZC || 0,
+          lastUpdate: parsed.lastUpdate || Date.now()
+        };
+      }
+    } catch (error) {
+      console.error('Error loading mining data:', error);
+    }
+    return null;
+  };
+
+  // Save claimable RZC to localStorage
+  const saveClaimableRZC = (userId: number, amount: number) => {
+    localStorage.setItem(getClaimableKey(userId), amount.toString());
+  };
+
+  // Load claimable RZC from localStorage
+  const loadClaimableRZC = (userId: number) => {
+    try {
+      const data = localStorage.getItem(getClaimableKey(userId));
+      return data ? parseFloat(data) : 0;
+    } catch (error) {
+      console.error('Error loading claimable RZC:', error);
+      return 0;
+    }
+  };
 
   // Check withdrawal eligibility
   const checkWithdrawalEligibility = async () => {
@@ -125,11 +179,158 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
     checkWithdrawalEligibility();
   }, [userId]);
 
-  return (
-    <div className="relative overflow-visible">
+  // Load persistent mining data on component mount
+  useEffect(() => {
+    if (!userId) return;
+
+    // Load claimable RZC
+    const savedClaimable = loadClaimableRZC(userId);
+    setClaimableRZC(savedClaimable);
+
+    // Load mining data and auto-resume mining
+    const miningData = loadMiningData(userId);
+    if (miningData) {
+      const now = new Date();
+      const timeDiff = (now.getTime() - miningData.startTime.getTime()) / 1000;
+      const earnedRZC = timeDiff * RZC_PER_SECOND;
+      const totalAccumulated = miningData.accumulatedRZC + earnedRZC;
       
-      <div className="relative p-4 rounded-lg bg-white border-2 border-slate-300 shadow-sm" style={{borderImage: 'linear-gradient(90deg, #e2e8f0, #cbd5e1, #94a3b8, #cbd5e1, #e2e8f0) 1'}}>
+      setMiningStartTime(miningData.startTime);
+      setAccumulatedRZC(totalAccumulated);
+      setIsMining(true);
+      
+      // Save updated data
+      saveMiningData(userId, miningData.startTime, totalAccumulated);
+    } else {
+      // Auto-start mining if no data exists (ultimate idle mining)
+      const now = new Date();
+      setIsMining(true);
+      setMiningStartTime(now);
+      setAccumulatedRZC(0);
+      saveMiningData(userId, now, 0);
+    }
+  }, [userId]);
+
+  // Calculate accumulated RZC based on mining time
+  useEffect(() => {
+    let miningInterval: NodeJS.Timeout;
+    
+    if (isMining && miningStartTime && userId) {
+      // Update accumulated RZC every second
+      miningInterval = setInterval(() => {
+        const now = new Date();
+        const elapsedSeconds = (now.getTime() - miningStartTime.getTime()) / 1000;
+        const earnedRZC = elapsedSeconds * RZC_PER_SECOND;
+        setAccumulatedRZC(earnedRZC);
+        
+        // Save mining data every 5 seconds
+        if (Math.floor(elapsedSeconds) % 5 === 0) {
+          saveMiningData(userId, miningStartTime, earnedRZC);
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (miningInterval) {
+        clearInterval(miningInterval);
+      }
+    };
+  }, [isMining, miningStartTime, userId]);
+
+  // Start mining function
+  const startMining = () => {
+    if (!userId) return;
+    
+    // If already mining, don't reset
+    if (isMining) return;
+    
+    const now = new Date();
+    setIsMining(true);
+    setMiningStartTime(now);
+    setAccumulatedRZC(0);
+    
+    // Save initial mining data
+    saveMiningData(userId, now, 0);
+  };
+
+  // Stop mining function
+  const stopMining = () => {
+    if (!userId) return;
+    
+    setIsMining(false);
+    setMiningStartTime(null);
+    
+    // Save accumulated RZC as claimable
+    if (accumulatedRZC > 0) {
+      const newClaimable = claimableRZC + accumulatedRZC;
+      setClaimableRZC(newClaimable);
+      saveClaimableRZC(userId, newClaimable);
+      setAccumulatedRZC(0);
+    }
+  };
+
+  // Claim rewards function
+  const claimRewards = async () => {
+    if (!userId || !accumulatedRZC) return;
+    
+    const totalToClaim = accumulatedRZC;
+    
+    try {
+      // Call the existing claim function which should update totalWithdrawnTon
+      await onClaim();
+      
+      // Clear accumulated RZC but keep mining active
+      setAccumulatedRZC(0);
+      
+      // Reset mining start time to continue earning
+      if (isMining) {
+        const now = new Date();
+        setMiningStartTime(now);
+        saveMiningData(userId, now, 0);
+      }
+      
+      // Show success message
+      showSnackbar?.({
+        message: 'RZC Claimed Successfully!',
+        description: `You claimed ${totalToClaim.toFixed(6)} RZC`
+      });
+      
+      // Refresh the page after a short delay to show updated balance
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('Error claiming rewards:', error);
+      showSnackbar?.({
+        message: 'Claim Failed',
+        description: 'Please try again later'
+      });
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden">
+      {/* Multi-layer animated background matching navbar */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-purple-500/5 to-cyan-500/8 animate-gradient"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
+      
+      {/* Subtle border glow matching navbar */}
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-blue-400/20 via-purple-400/10 to-cyan-400/20 blur-sm -z-10"></div>
+      
+      {/* Main content container with navbar styling */}
+      <div className="relative bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-blue-500/20 p-6 
+        hover:bg-white/95 transition-all duration-300">
         <div className="relative">
+          {/* Mining particles effect */}
+          {isMining && (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg">
+              <div className="absolute top-4 left-4 w-1 h-1 bg-emerald-400 rounded-full animate-ping opacity-60"></div>
+              <div className="absolute top-8 right-8 w-1 h-1 bg-green-400 rounded-full animate-ping opacity-40" style={{animationDelay: '0.5s'}}></div>
+              <div className="absolute bottom-6 left-8 w-1 h-1 bg-emerald-300 rounded-full animate-ping opacity-50" style={{animationDelay: '1s'}}></div>
+              <div className="absolute bottom-4 right-4 w-1 h-1 bg-green-300 rounded-full animate-ping opacity-30" style={{animationDelay: '1.5s'}}></div>
+            </div>
+          )}
+          
           {/* Compact Header Section */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -139,36 +340,46 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
                 </div>
-                <div className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${isStaked ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                <div className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white ${
+                  isMining ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                }`} />
               </div>
               <div>
-                <div className="text-xs text-slate-500 font-semibold tracking-wide uppercase">MINING POWER</div>
-                <div className="text-lg font-bold text-slate-900">
-                  {balanceTon?.toFixed(2) || '0.00'} <span className="text-slate-600 text-base font-medium">TON</span>
+                <div className="text-xs text-slate-500 font-semibold tracking-wide uppercase">
+                  {isMining ? 'MINING ACTIVE' : 'READY TO MINE'}
                 </div>
+                <div className="text-lg font-bold text-slate-900">
+                  {isMining ? 'MINING' : 'START'} <span className="text-emerald-600 text-base font-medium">RZC</span>
+                </div>
+                <div className="text-xs text-emerald-600 font-medium">
+                  {RZC_PER_DAY} RZC/day
               </div>
             </div>
-            {isStaked ? (
+            </div>
                  <button
-                 onClick={onOpenDeposit}
-                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors duration-200"
-               >
+              onClick={isMining ? stopMining : startMining}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white transition-all duration-200 shadow-lg ${
+                isMining 
+                  ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800' 
+                  : 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700'
+              }`}
+            >
+              {isMining ? (
+                <>
                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                  </svg>
-                 <span className="text-sm font-semibold">TOP UP</span>
-               </button>
+                  <span className="text-sm font-semibold">STOP</span>
+                </>
                 ) : (
-                  <button
-                  onClick={onOpenDeposit}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors duration-200"
-                >
+                <>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
                   </svg>
                   <span className="text-sm font-semibold">START</span>
-                </button>
+                </>
                 )}
+            </button>
           </div>
 
           {/* Compact Tabs */}
@@ -197,32 +408,67 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
           {/* Compact Earnings Display */}
           {activeTab === 'mining' && (
-          <div className="flex items-center justify-center py-4">
-            <div className="relative w-40 h-40">
-              {/* Simple rings */}
+          <div className="flex items-center justify-center py-6">
+            {isMining ? (
+            <div className="relative w-48 h-48 bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-blue-500/20 overflow-hidden">
+          {/* Multi-layer animated background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-purple-500/5 to-cyan-500/8 animate-gradient"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
+          
+          {/* Subtle border glow */}
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-blue-400/20 via-purple-400/10 to-cyan-400/20 blur-sm -z-10"></div>
+          
+                {/* Animated rings when mining */}
+                <div className="absolute inset-0 rounded-full border-2 border-emerald-200 animate-pulse" />
+                <div className="absolute inset-2 rounded-full border border-emerald-300 animate-pulse" style={{animationDelay: '0.5s'}} />
+                
+                {/* Animated background */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-50 to-green-50" />
+                
+                {/* Content */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-slate-900 text-2xl font-black mb-1 tracking-tight animate-pulse">
+                    {accumulatedRZC.toFixed(6)}
+                  </div>
+                  <div className="text-emerald-600 text-sm font-bold mb-1 tracking-wider">
+                    RZC
+                  </div>
+                  <div className="text-emerald-600 text-sm font-semibold">
+                    ≈ ${(accumulatedRZC * (tonPrice || 0)).toFixed(4)}
+                  </div>
+                  <div className="mt-2 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                    <div className="text-xs font-bold tracking-wide text-emerald-600">Mining</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="relative w-48 h-48 bg-white/50 backdrop-blur-sm rounded-3xl border border-slate-200/50 shadow-lg">
+                {/* Static rings when not mining */}
               <div className="absolute inset-0 rounded-full border-2 border-slate-200" />
-              <div className="absolute inset-2 rounded-full border border-blue-200" />
+                <div className="absolute inset-2 rounded-full border border-slate-300" />
               
-              {/* Clean background */}
+                {/* Static background */}
               <div className="absolute inset-0 rounded-full bg-slate-50" />
               
               {/* Content */}
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-slate-900 text-2xl font-black mb-1 tracking-tight">
-                  {currentEarningsTon.toFixed(6)}
+                <div className="text-slate-400 text-3xl font-black mb-2 tracking-tight">
+                  0.000000
                 </div>
-                <div className="text-blue-600 text-sm font-bold mb-1 tracking-wider">
-                  TAPps
+                <div className="text-slate-500 text-base font-bold mb-2 tracking-wider">
+                  RZC
                 </div>
-                <div className="text-emerald-600 text-sm font-semibold">
-                  ≈ ${(currentEarningsTon * tonPrice).toFixed(4)}
+                <div className="text-slate-500 text-sm font-semibold">
+                  ≈ $0.0000
                 </div>
-                <div className="mt-2 flex items-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${isStaked ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                  <div className={`text-xs font-bold tracking-wide ${isStaked ? 'text-emerald-600' : 'text-slate-500'}`}>{isStaked ? 'Active' : 'Inactive'}</div>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-slate-400" />
+                  <div className="text-sm font-bold tracking-wide text-slate-500">Stopped</div>
                 </div>
               </div>
             </div>
+            )}
           </div>
           )}
 
@@ -230,37 +476,37 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             <div className="mt-4 mb-4 space-y-4">
               {/* Withdrawal Activity Summary */}
               {props.withdrawals && props.withdrawals.length > 0 && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 shadow-lg">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500/30 to-purple-500/20 rounded-2xl flex items-center justify-center shadow-lg">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
                     </div>
                     <div>
-                      <div className="text-sm font-bold text-slate-800">Withdrawal Activity</div>
-                      <div className="text-xs text-blue-600">Your withdrawal history</div>
+                      <div className="text-base font-bold text-slate-800">Withdrawal Activity</div>
+                      <div className="text-sm text-blue-600 font-medium">Your withdrawal history</div>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="text-center bg-white rounded-lg p-3 border border-blue-100">
-                      <div className="text-lg font-bold text-emerald-600">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center bg-white/70 rounded-xl p-4 border border-blue-200/50 shadow-md">
+                      <div className="text-xl font-bold text-emerald-600">
                         {props.withdrawals.filter(w => w.status === 'COMPLETED').length}
                       </div>
-                      <div className="text-xs text-slate-500 font-medium">Completed</div>
+                      <div className="text-sm text-slate-600 font-medium">Completed</div>
                     </div>
-                    <div className="text-center bg-white rounded-lg p-3 border border-blue-100">
-                      <div className="text-lg font-bold text-amber-600">
+                    <div className="text-center bg-white/70 rounded-xl p-4 border border-amber-200/50 shadow-md">
+                      <div className="text-xl font-bold text-amber-600">
                         {props.withdrawals.filter(w => w.status === 'PENDING').length}
                       </div>
-                      <div className="text-xs text-slate-500 font-medium">Pending</div>
+                      <div className="text-sm text-slate-600 font-medium">Pending</div>
                     </div>
-                    <div className="text-center bg-white rounded-lg p-3 border border-blue-100">
-                      <div className="text-lg font-bold text-slate-600">
+                    <div className="text-center bg-white/70 rounded-xl p-4 border border-slate-200/50 shadow-md">
+                      <div className="text-xl font-bold text-slate-600">
                         {props.withdrawals.reduce((sum, w) => sum + (w.status === 'COMPLETED' ? w.amount : 0), 0).toFixed(2)}
                       </div>
-                      <div className="text-xs text-slate-500 font-medium">Total Paid</div>
+                      <div className="text-sm text-slate-600 font-medium">Total Paid</div>
                     </div>
                   </div>
                 </div>
@@ -274,19 +520,19 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                 <div className="space-y-3">
                   {/* Regular Activities */}
                   {props.activities && props.activities.length > 0 && props.activities.slice(0, 8).map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                    <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div key={a.id} className="flex items-center gap-4 p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-md hover:shadow-lg transition-all">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center shadow-lg">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm text-slate-900 capitalize font-medium">{a.type.replace(/_/g, ' ')}</div>
-                      <div className="text-xs text-slate-500">{new Date(a.created_at).toLocaleString()}</div>
+                      <div className="text-base text-slate-900 capitalize font-semibold">{a.type.replace(/_/g, ' ')}</div>
+                      <div className="text-sm text-slate-600">{new Date(a.created_at).toLocaleString()}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold text-slate-900">{typeof a.amount === 'number' ? a.amount.toFixed(6) : a.amount} {a.type === 'nova_reward' ? 'TAPPS' : 'TON'}</div>
-                      <div className="text-xs text-slate-500">{a.status}</div>
+                      <div className="text-lg font-bold text-slate-900">{typeof a.amount === 'number' ? a.amount.toFixed(6) : a.amount} {a.type === 'nova_reward' ? 'RZC' : 'TON'}</div>
+                      <div className="text-sm text-slate-600 font-medium">{a.status}</div>
                     </div>
                   </div>
                   ))}
@@ -310,17 +556,17 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
                   {/* Enhanced Withdrawal Activities */}
                   {props.withdrawals && props.withdrawals.length > 0 && props.withdrawals.slice(0, 5).map((w) => (
-                    <div key={`withdrawal-${w.id}`} className={`flex items-center gap-3 p-4 rounded-xl border transition-all duration-200 hover:shadow-sm ${
-                      w.status === 'PENDING' ? 'bg-amber-50 border-amber-200' :
-                      w.status === 'COMPLETED' ? 'bg-emerald-50 border-emerald-200' :
-                      w.status === 'FAILED' ? 'bg-red-50 border-red-200' :
-                      'bg-slate-50 border-slate-200'
+                    <div key={`withdrawal-${w.id}`} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all duration-200 hover:shadow-lg ${
+                      w.status === 'PENDING' ? 'bg-amber-50/50 border-amber-200/50 backdrop-blur-sm' :
+                      w.status === 'COMPLETED' ? 'bg-emerald-50/50 border-emerald-200/50 backdrop-blur-sm' :
+                      w.status === 'FAILED' ? 'bg-red-50/50 border-red-200/50 backdrop-blur-sm' :
+                      'bg-slate-50/50 border-slate-200/50 backdrop-blur-sm'
                     }`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        w.status === 'PENDING' ? 'bg-amber-100' :
-                        w.status === 'COMPLETED' ? 'bg-emerald-100' :
-                        w.status === 'FAILED' ? 'bg-red-100' :
-                        'bg-slate-100'
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
+                        w.status === 'PENDING' ? 'bg-gradient-to-br from-amber-500/30 to-yellow-500/20' :
+                        w.status === 'COMPLETED' ? 'bg-gradient-to-br from-emerald-500/30 to-green-500/20' :
+                        w.status === 'FAILED' ? 'bg-gradient-to-br from-red-500/30 to-pink-500/20' :
+                        'bg-gradient-to-br from-slate-500/30 to-gray-500/20'
                       }`}>
                         {w.status === 'PENDING' ? (
                           <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -376,7 +622,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-slate-900 mb-1">
-                          {w.amount.toFixed(6)} TAPPs
+                          {w.amount.toFixed(6)} RZC
                         </div>
                         <div className={`text-xs font-semibold px-2 py-1 rounded-full ${
                           w.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
@@ -413,7 +659,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                         </svg>
                       </div>
                       <div className="text-slate-500 font-medium mb-1">No Recent Activity</div>
-                      <div className="text-xs text-slate-400">Your mining and withdrawal activities will appear here</div>
+                      <div className="text-xs text-slate-400">Your RZC mining and withdrawal activities will appear here</div>
                     </div>
                   )}
                 </div>
@@ -530,19 +776,43 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
               </div>
             </div>
           )}
-          {/* Not staked prompt */}
-          {!isStaked && (
+          {/* Mining status prompt */}
+          {!isMining && (
             <div className="mb-6">
-              <div className="relative w-full px-5 py-4 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="relative w-full px-5 py-4 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200">
+               
                 <div className="relative flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
                     </svg>
                   </div>
                   <div>
-                    <div className="text-slate-800 text-sm font-medium">Deposit TON to start mining</div>
-                    <div className="text-slate-600 text-xs">Stake TON to activate real-time earnings</div>
+                    <div className="text-emerald-800 text-sm font-medium">Ready to start mining RZC</div>
+                    <div className="text-emerald-600 text-xs">Earn {RZC_PER_DAY} RZC per day - Click START to begin</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mining progress indicator */}
+          {isMining && miningStartTime && (
+            <div className="mb-6">
+              <div className="relative w-full px-5 py-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+                <div className="relative flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-blue-800 text-sm font-medium">Mining Progress</div>
+                    <div className="text-blue-600 text-xs">
+                      Earned: {accumulatedRZC.toFixed(6)} RZC • 
+                      Rate: {RZC_PER_DAY} RZC/day • 
+                      {miningStartTime && `Running for ${Math.floor((Date.now() - miningStartTime.getTime()) / 1000 / 60)} minutes`}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -550,140 +820,75 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           )}
           
 
-          {/* Professional Stats Grid */}
-          <div className={`grid ${typeof estimatedDailyTapps === 'number' ? 'grid-cols-3' : 'grid-cols-3'} gap-4 mb-6`}>
+          {/* Game-like Stats Grid */}
+          <div className={`grid ${typeof estimatedDailyTapps === 'number' ? 'grid-cols-3' : 'grid-cols-3'} gap-3 mb-6`}>
             {/* Claimable Card */}
-            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative p-4">
+            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-cyan-500/10 border border-blue-400/30 shadow-lg hover:shadow-xl transition-all duration-300">
+              {/* Animated gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/10 to-cyan-500/20 animate-gradient"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
+              
+              <div className="relative p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500/40 to-purple-500/30 flex items-center justify-center shadow-lg">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                     </svg>
                   </div>
                   <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                 </div>
-                <div className="text-xs text-blue-600 font-semibold tracking-wide uppercase mb-1">Claimable</div>
-                <div className="text-slate-900 font-bold text-lg leading-tight">
-                  {totalWithdrawnTon.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                <div className="text-xs text-blue-600 font-bold tracking-wide uppercase mb-1">Claimable</div>
+                <div className="text-slate-900 font-black text-lg leading-tight">
+                  {totalWithdrawnTon.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="text-blue-500 text-xs font-medium">TAPps</div>
+                <div className="text-emerald-500 text-xs font-bold">RZC</div>
               </div>
             </div>
             
             {/* Airdrop Card */}
-            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative p-4">
+            <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-orange-500/10 border border-purple-400/30 shadow-lg hover:shadow-xl transition-all duration-300">
+              {/* Animated gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-pink-500/10 to-orange-500/20 animate-gradient"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-purple-50/20"></div>
+              
+              <div className="relative p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500/40 to-pink-500/30 flex items-center justify-center shadow-lg">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
                   </div>
                   <div className="w-2 h-2 rounded-full bg-purple-500" />
                 </div>
-                <div className="text-xs text-purple-600 font-semibold tracking-wide uppercase mb-1">Airdrop</div>
-                <div className="text-slate-900 font-bold text-lg leading-tight">
+                <div className="text-xs text-purple-600 font-bold tracking-wide uppercase mb-1">Airdrop</div>
+                <div className="text-slate-900 font-black text-lg leading-tight">
                   {Number(airdropBalanceNova ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className="text-purple-500 text-xs font-medium">TAPps</div>
+                <div className="text-purple-500 text-xs font-bold">RZC</div>
               </div>
             </div>
-            
-            {/* Withdrawal Status Card */}
-            {/* <div className={`group relative overflow-hidden rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 ${
-              withdrawalEligibility.canWithdraw 
-                ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50' 
-                : withdrawalEligibility.hasPendingWithdrawal
-                ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200/50'
-                : 'bg-gradient-to-br from-orange-50 to-red-50 border-orange-200/50'
-            }`}>
-              <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${
-                withdrawalEligibility.canWithdraw 
-                  ? 'bg-gradient-to-br from-emerald-500/5 to-green-500/5' 
-                  : withdrawalEligibility.hasPendingWithdrawal
-                  ? 'bg-gradient-to-br from-amber-500/5 to-yellow-500/5'
-                  : 'bg-gradient-to-br from-orange-500/5 to-red-500/5'
-              }`} />
-              <div className="relative p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    withdrawalEligibility.canWithdraw 
-                      ? 'bg-emerald-100' 
-                      : withdrawalEligibility.hasPendingWithdrawal
-                      ? 'bg-amber-100'
-                      : 'bg-orange-100'
-                  }`}>
-                    <svg className={`w-4 h-4 ${
-                      withdrawalEligibility.canWithdraw 
-                        ? 'text-emerald-600' 
-                        : withdrawalEligibility.hasPendingWithdrawal
-                        ? 'text-amber-600'
-                        : 'text-orange-600'
-                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                    </svg>
-                  </div>
-                <div className={`w-2 h-2 rounded-full ${
-                    withdrawalEligibility.canWithdraw 
-                      ? 'bg-emerald-500 animate-pulse' 
-                      : withdrawalEligibility.hasPendingWithdrawal
-                      ? 'bg-amber-500 animate-pulse'
-                      : 'bg-orange-500'
-                  }`} />
-                </div>
-                <div className={`text-xs font-semibold tracking-wide uppercase mb-1 ${
-                  withdrawalEligibility.canWithdraw 
-                    ? 'text-emerald-600' 
-                    : withdrawalEligibility.hasPendingWithdrawal
-                    ? 'text-amber-600'
-                    : 'text-orange-600'
-                }`}>
-                {withdrawalEligibility.canWithdraw 
-                  ? 'Available' 
-                  : withdrawalEligibility.hasPendingWithdrawal
-                  ? 'Pending'
-                  : 'Cooldown'
-                }
-              </div>
-                <div className={`font-bold text-lg leading-tight ${
-                withdrawalEligibility.canWithdraw 
-                    ? 'text-emerald-700' 
-                  : withdrawalEligibility.hasPendingWithdrawal
-                    ? 'text-amber-700'
-                  : 'text-orange-700'
-              }`}>
-                {withdrawalEligibility.canWithdraw 
-                  ? 'Ready' 
-                  : withdrawalEligibility.hasPendingWithdrawal
-                  ? 'Processing'
-                  : `${withdrawalEligibility.daysUntilWithdrawal}d`
-                }
-              </div>
-                <div className="text-slate-500 text-xs font-medium">Weekly</div>
-            </div>
-            </div> */}
 
             {/* Estimated Daily Card */}
             {typeof estimatedDailyTapps === 'number' && (
-              <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-50 to-gray-50 border border-slate-200/50 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-gray-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="relative p-4">
+              <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-500/10 via-gray-500/5 to-zinc-500/10 border border-slate-400/30 shadow-lg hover:shadow-xl transition-all duration-300">
+                {/* Animated gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-slate-500/20 via-gray-500/10 to-zinc-500/20 animate-gradient"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-slate-50/20"></div>
+                
+                <div className="relative p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-500/40 to-gray-500/30 flex items-center justify-center shadow-lg">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
                     </div>
                     <div className="w-2 h-2 rounded-full bg-slate-500" />
                   </div>
-                  <div className="text-xs text-slate-600 font-semibold tracking-wide uppercase mb-1">Est. Daily</div>
-                  <div className="text-slate-900 font-bold text-lg leading-tight">
+                  <div className="text-xs text-slate-600 font-bold tracking-wide uppercase mb-1">Est. Daily</div>
+                  <div className="text-slate-900 font-black text-lg leading-tight">
                   {estimatedDailyTapps.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
-                  <div className="text-slate-500 text-xs font-medium">TAPps/day</div>
+                  <div className="text-slate-500 text-xs font-bold">RZC/day</div>
                 </div>
               </div>
             )}
@@ -692,17 +897,18 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           {/* Compact Action Buttons */}
           <div className="space-y-2">
           <button
-              onClick={isStaked ? onClaim : onOpenDeposit}
-              disabled={isStaked ? !canClaim : false}
+              onClick={canClaim ? claimRewards : (isMining ? stopMining : startMining)}
+              disabled={isClaiming || (canClaim && claimCooldown > 0)}
               className={`w-full py-3 px-4 rounded-lg font-semibold text-sm transition-colors duration-200 ${
-                (isStaked && canClaim) 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'bg-slate-100 text-slate-400 border border-slate-200'
+                canClaim
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                  : isMining
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white'
               }`}
             >
               <div className="flex items-center justify-center gap-2">
-                {isStaked ? (
-                  isClaiming ? (
+                {isClaiming ? (
                     <>
                       <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
                       <span>Claiming...</span>
@@ -714,27 +920,33 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                       </svg>
                       <span>{cooldownText}</span>
                     </>
-                  ) : (
+                ) : canClaim ? (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                       </svg>
-                      <span>Claim Rewards</span>
+                      <span>Claim RZC</span>
                     </>
-                  )
+                ) : isMining ? (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Stop Mining</span>
+                  </>
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
                     </svg>
-                    <span>Deposit to Start Mining</span>
+                    <span>Start Mining</span>
                   </>
                 )}
               </div>
             </button>
 
             {/* Decentralized Withdrawal Button */}
-            {isStaked && totalWithdrawnTon > 0 && (
+            {isMining && totalWithdrawnTon > 0 && (
               <div className="relative">
               <button
                 onClick={() => setShowWithdrawModal(true)}
@@ -815,17 +1027,31 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           </div>
 
           {/* Compact Footer Info */}
-          <div className="mt-4">
-            <div className="w-full px-4 py-3 rounded-lg bg-slate-50 border border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="mt-6">
+            <div className={`w-full px-6 py-4 rounded-2xl border transition-all duration-300 backdrop-blur-sm shadow-lg ${
+              isMining 
+                ? 'bg-gradient-to-r from-emerald-50/50 to-green-50/50 border-emerald-200/50' 
+                : 'bg-slate-50/50 border-slate-200/50'
+            }`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${
+                  isMining ? 'bg-gradient-to-br from-emerald-500/30 to-green-500/20' : 'bg-gradient-to-br from-slate-500/30 to-gray-500/20'
+                }`}>
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
                 <div>
-                  <div className="text-slate-900 text-sm font-bold">Real-time Mining</div>
-                  <div className="text-slate-600 text-xs font-semibold">Calculated every second</div>
+                  <div className={`text-base font-bold ${
+                    isMining ? 'text-emerald-900' : 'text-slate-900'
+                  }`}>
+                    {isMining ? 'Ultimate Idle Mining' : 'Free RZC Mining'}
+                  </div>
+                  <div className={`text-sm font-semibold ${
+                    isMining ? 'text-emerald-600' : 'text-slate-600'
+                  }`}>
+                    {isMining ? 'Earning RZC continuously' : 'Auto-starts on load'}
+                  </div>
                 </div>
               </div>
             </div>

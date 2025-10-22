@@ -24,70 +24,69 @@ export const DailyUpdateCard: React.FC<DailyUpdateCardProps> = ({ earningState }
   };
 
   return (
-    <div className="relative p-4 rounded-lg bg-black/30 border border-green-500/20 backdrop-blur-sm">
-      {/* Animated Corner Decorations */}
-      <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-green-400/50" />
-      <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-green-400/50" />
-      <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-green-400/50" />
-      <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-green-400/50" />
+    <div className="relative overflow-hidden">
+      {/* Multi-layer animated background matching navbar */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-purple-500/5 to-cyan-500/8 animate-gradient"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
       
-      {/* Background Grid */}
-      <div className="absolute inset-0 bg-grid-green/[0.02] bg-[length:20px_20px]" />
-      <div className="absolute inset-0 bg-gradient-to-t from-blue-900/10 to-transparent" />
-
-      <div className="relative z-10">
+      {/* Subtle border glow matching navbar */}
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-blue-400/20 via-purple-400/10 to-cyan-400/20 blur-sm -z-10"></div>
+      
+      {/* Main content container with navbar styling */}
+      <div className="relative bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-blue-500/20 p-6 
+        hover:bg-white/95 transition-all duration-300">
+        
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 relative">
-              <div className="absolute inset-0 bg-blue-500/20 rounded-lg rotate-45 animate-pulse" />
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-purple-500/20 rounded-2xl rotate-45 animate-pulse shadow-lg" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <FaRocket className="w-4 h-4 text-blue-400" />
+                <FaRocket className="w-6 h-6 text-blue-600" />
               </div>
             </div>
-            <div className="pixel-corners bg-[#2a2f4c] px-3 py-1">
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Daily Update</span>
+            <div className="px-4 py-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl border border-blue-400/30 shadow-lg">
+              <span className="text-sm font-bold text-blue-700 uppercase tracking-wider">Daily Update</span>
             </div>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-4 mb-6">
           {/* Daily Earnings */}
-          <div className="pixel-corners bg-black/30 p-3 border border-blue-500/20">
+          <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-blue-200/50 shadow-lg">
             <div className="flex items-center gap-2 mb-2">
-              <FaChartLine className="w-4 h-4 text-blue-400" />
-              <span className="text-xs text-white/60">Daily Earnings</span>
+              <FaChartLine className="w-5 h-5 text-blue-600" />
+              <span className="text-sm text-slate-600 font-medium">Daily Earnings</span>
             </div>
-            <div className="text-lg font-medium text-blue-400">
+            <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               {calculateDailyEarnings().toFixed(6)} TON
             </div>
           </div>
 
           {/* Time Active */}
-          <div className="pixel-corners bg-black/30 p-3 border border-green-500/20">
+          <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-green-200/50 shadow-lg">
             <div className="flex items-center gap-2 mb-2">
-              <FaClock className="w-4 h-4 text-green-400" />
-              <span className="text-xs text-white/60">Time Active</span>
+              <FaClock className="w-5 h-5 text-green-600" />
+              <span className="text-sm text-slate-600 font-medium">Time Active</span>
             </div>
-            <div className="text-lg font-medium text-green-400">
+            <div className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
               {formatDuration(earningState.startDate)}
             </div>
           </div>
         </div>
 
         {/* Earnings Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs">
-            <span className="text-white/60">Earnings Progress</span>
-            <span className="text-white/80">
+        <div className="space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600 font-medium">Earnings Progress</span>
+            <span className="text-slate-800 font-semibold">
               {((earningState.currentEarnings / (calculateDailyEarnings() * 100)) * 100).toFixed(2)}%
             </span>
           </div>
-          <div className="relative h-2 bg-blue-900/20 rounded-full overflow-hidden">
-            <div className="absolute inset-0 bg-grid-blue/[0.05] bg-[length:8px_8px]" />
+          <div className="relative h-3 bg-slate-200/50 rounded-full overflow-hidden shadow-inner">
             <motion.div 
-              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+              className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full shadow-lg"
               initial={{ width: "0%" }}
               animate={{ 
                 width: `${(earningState.currentEarnings / (calculateDailyEarnings() * 100)) * 100}%` 
@@ -98,8 +97,8 @@ export const DailyUpdateCard: React.FC<DailyUpdateCardProps> = ({ earningState }
         </div>
 
         {/* Additional Info */}
-        <div className="mt-4 flex items-center gap-2 text-xs text-white/40">
-          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="mt-6 flex items-center gap-2 text-sm text-slate-500">
+          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>Earnings are calculated in real-time</span>

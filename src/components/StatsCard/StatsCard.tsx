@@ -17,55 +17,38 @@ const StatsCard: React.FC<StatsCardProps> = ({
 }) => {
   return (
     <div className={`group relative overflow-hidden ${className}`}>
-      {/* Background with animated gradient */}
-      <div className={`absolute inset-0 bg-gradient-to-br opacity-20 ${bgColor} animate-gradient-slow`} />
+      {/* Multi-layer animated background matching navbar */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-purple-500/5 to-cyan-500/8 animate-gradient"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
       
-      {/* Animated border effect */}
-      <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 
-        opacity-0 group-hover:opacity-100 transition-opacity duration-700 animate-shimmer" />
+      {/* Subtle border glow matching navbar */}
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-blue-400/20 via-purple-400/10 to-cyan-400/20 blur-sm -z-10"></div>
       
-      {/* Main content container */}
-      <div className="relative p-4 rounded-xl border border-white/10 backdrop-blur-sm 
-        bg-black/30 hover:bg-black/40 transition-all duration-300">
-        {/* Corner accents */}
-        <div className="absolute -top-px -left-px w-8 h-8">
-          <div className="absolute top-0 left-0 w-[1px] h-4 bg-gradient-to-b from-white/60 to-transparent" />
-          <div className="absolute top-0 left-0 h-[1px] w-4 bg-gradient-to-r from-white/60 to-transparent" />
-        </div>
-        <div className="absolute -top-px -right-px w-8 h-8">
-          <div className="absolute top-0 right-0 w-[1px] h-4 bg-gradient-to-b from-white/60 to-transparent" />
-          <div className="absolute top-0 right-0 h-[1px] w-4 bg-gradient-to-l from-white/60 to-transparent" />
-        </div>
-        <div className="absolute -bottom-px -left-px w-8 h-8">
-          <div className="absolute bottom-0 left-0 w-[1px] h-4 bg-gradient-to-t from-white/60 to-transparent" />
-          <div className="absolute bottom-0 left-0 h-[1px] w-4 bg-gradient-to-r from-white/60 to-transparent" />
-        </div>
-        <div className="absolute -bottom-px -right-px w-8 h-8">
-          <div className="absolute bottom-0 right-0 w-[1px] h-4 bg-gradient-to-t from-white/60 to-transparent" />
-          <div className="absolute bottom-0 right-0 h-[1px] w-4 bg-gradient-to-l from-white/60 to-transparent" />
-        </div>
-
+      {/* Main content container with navbar styling */}
+      <div className="relative bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-blue-500/20 p-5 
+        hover:bg-white/95 transition-all duration-300">
+        
         {/* Content */}
         <div className="space-y-3">
           {/* Header with icon */}
-          <div className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center
-              group-hover:scale-110 transition-transform duration-300`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl ${bgColor} flex items-center justify-center
+              group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
               {icon}
             </div>
-            <span className="text-sm font-medium text-white/80">{title}</span>
+            <span className="text-sm font-medium text-slate-700">{title}</span>
           </div>
 
           {/* Value with animation */}
           <div className="space-y-1">
-            <div className="text-xl font-bold text-white tracking-tight group-hover:scale-105 
+            <div className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-700 bg-clip-text text-transparent tracking-tight group-hover:scale-105 
               transition-transform duration-300 origin-left">
               {value}
             </div>
             {subValue && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-white/50">{subValue}</span>
-                <div className="flex-grow h-[1px] bg-gradient-to-r from-white/10 to-transparent 
+                <span className="text-sm text-slate-500">{subValue}</span>
+                <div className="flex-grow h-[1px] bg-gradient-to-r from-blue-400/20 to-transparent 
                   transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
               </div>
             )}
@@ -74,7 +57,7 @@ const StatsCard: React.FC<StatsCardProps> = ({
 
         {/* Hover effect overlay */}
         <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-transparent 
-          opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
       </div>
     </div>
   );

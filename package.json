@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "homepage": "https://github.com/tonworkspace/TAPPs/",
+  "homepage": "https://github.com/tonworkspace/Rhizacore/",
   "scripts": {
     "deploy": "gh-pages -d dist",
     "dev": "vite",

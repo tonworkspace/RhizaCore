@@ -1,7 +1,7 @@
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { FC, useState, useEffect, useRef, useMemo } from 'react';
-import { FaAtom, FaGem, FaNetworkWired, FaTasks, FaWallet } from 'react-icons/fa';
+import { FaAtom, FaGem, FaMagento, FaNetworkWired, FaTasks, FaWallet } from 'react-icons/fa';
 import { MdDiamond } from 'react-icons/md';
 // import { BiNetworkChart } from 'react-icons/bi';
 import { TonConnectButton, } from '@tonconnect/ui-react';
@@ -2822,231 +2822,257 @@ const handleDeposit = async (amount: number) => {
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 antialiased mb-[3.7rem]">
       {!isLoading && user && showOnboarding && <OnboardingScreen />}
-      {/* Header */}
-      <div className="px-4 py-4 flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur-md z-50 border-b border-slate-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          {/* User Profile Section */}
-          <div className="flex items-center gap-3">
-            {/* Professional Avatar */}
-            <div className="relative group">
-              <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-slate-200 bg-gradient-to-br from-slate-100 to-slate-200 shadow-sm group-hover:shadow-md transition-all duration-200">
-                {user?.photoUrl ? (
-                  <img 
-                    src={user.photoUrl} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+      {/* Ultra Modern Header with Advanced Glassmorphism */}
+      <div className="px-4 py-4 sticky top-0 z-50">
+        <div className="relative bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-2xl shadow-blue-500/20 overflow-hidden">
+          {/* Multi-layer animated background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-purple-500/5 to-cyan-500/8 animate-gradient"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-blue-50/20"></div>
+          
+          {/* Subtle border glow */}
+          <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-blue-400/20 via-purple-400/10 to-cyan-400/20 blur-sm -z-10"></div>
+          
+          {/* Header content */}
+          <div className="relative flex justify-between items-center p-5">
+            <div className="flex items-center gap-4">
+              {/* Enhanced User Profile Section */}
+              <div className="flex items-center gap-4">
+                {/* Ultra Modern Avatar with Enhanced Effects */}
+                <div className="relative group">
+                  {/* Enhanced glow effect for premium users */}
+                  {user?.is_premium && (
+                    <div className="absolute -inset-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-3xl blur-lg opacity-40 group-hover:opacity-60 transition-all duration-500"></div>
+                  )}
+                  
+                  {/* Standard user glow */}
+                  {!user?.is_premium && (
+                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-purple-500 rounded-3xl blur opacity-20 group-hover:opacity-30 transition-all duration-300"></div>
+                  )}
+                  
+                  <div className={`relative w-16 h-16 rounded-3xl overflow-hidden border-3 transition-all duration-500 group-hover:scale-110 ${
+                    user?.is_premium 
+                      ? 'border-yellow-400/60 shadow-2xl shadow-yellow-400/30' 
+                      : 'border-white/50 shadow-xl shadow-blue-500/20'
+                  }`}>
+                    {user?.photoUrl ? (
+                      <img 
+                        src={user.photoUrl} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-full flex items-center justify-center ${
+                        user?.is_premium 
+                          ? 'bg-gradient-to-br from-yellow-400 to-orange-500' 
+                          : 'bg-gradient-to-br from-blue-500 to-purple-600'
+                      }`}>
+                        <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    )}
+                    
+                    {/* Premium crown overlay */}
+                    {user?.is_premium && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                        <MdDiamond className="w-3 h-3 text-white" />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              {/* Online Status Indicator */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm"></div>
-            </div>
+                  
+                  {/* Enhanced Status Indicator */}
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-r from-emerald-400 to-green-500 rounded-full border-2 border-white shadow-lg animate-pulse">
+                    <div className="w-full h-full rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-ping opacity-75"></div>
+                  </div>
+                </div>
 
-            {/* User Info */}
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-slate-900">
-                  {user?.username ? `@${user.username}` : '@username'}
-                </span>
-                {/* Verified Badge */}
-                <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center">
-                  <svg className="w-2.5 h-2.5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
+                {/* Ultra Modern User Info */}
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-700 bg-clip-text text-transparent tracking-tight">
+                      {user?.username ? `@${user.username}` : '@username'}
+                    </span>
+                    
+                    {/* Ultra Modern Premium Badge */}
+                    {user?.is_premium && (
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-yellow-400/30 to-orange-500/30 rounded-2xl border-2 border-yellow-400/50 shadow-lg shadow-yellow-400/20 backdrop-blur-sm">
+                        <MdDiamond className="w-4 h-4 text-yellow-700 animate-pulse" />
+                        <span className="text-xs font-bold text-yellow-800 tracking-wider">PREMIUM</span>
+                      </div>
+                    )}
+                    
+                    {/* Enhanced Verified Badge */}
+                    <div className="relative">
+                      <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-xl border-2 border-white/50">
+                        <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      </div>
+                      {/* Subtle pulse ring */}
+                      <div className="absolute inset-0 w-6 h-6 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl animate-ping opacity-20"></div>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={async () => {
+                      if (user?.telegram_id) {
+                        try {
+                          await navigator.clipboard.writeText(user.telegram_id.toString());
+                          showSnackbar({
+                            message: 'Telegram ID Copied!',
+                            description: 'Your Telegram ID has been copied to clipboard'
+                          });
+                        } catch (error) {
+                          showSnackbar({
+                            message: 'Copy Failed',
+                            description: 'Please try again or copy manually'
+                          });
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-2 text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-3 py-1.5 rounded-xl font-medium transition-all duration-300 cursor-pointer hover:scale-105 shadow-lg shadow-blue-500/25 backdrop-blur-sm"
+                    title="Click to copy Telegram ID"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    ID: {user?.telegram_id || 'Loading...'}
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={async () => {
-                    if (user?.telegram_id) {
-                      try {
-                        await navigator.clipboard.writeText(user.telegram_id.toString());
-                        showSnackbar({
-                          message: 'Telegram ID Copied!',
-                          description: 'Your Telegram ID has been copied to clipboard'
-                        });
-                      } catch (error) {
-                        showSnackbar({
-                          message: 'Copy Failed',
-                          description: 'Please try again or copy manually'
-                        });
-                      }
-                    }
-                  }}
-                  className="text-xs text-blue-600 hover:text-blue-700 truncate max-w-[140px] font-medium transition-colors cursor-pointer"
-                  title="Click to copy Telegram ID"
-                >
-                  {user?.telegram_id || 'Loading...'}
-                </button>
+            </div>
+
+            {/* Ultra Modern Right Section */}
+            <div className="flex items-center gap-4">
+              {/* Enhanced Network Status Badge */}
+              <div className="hidden sm:flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-emerald-500/15 to-green-500/15 rounded-2xl border-2 border-emerald-500/30 hover:from-emerald-500/25 hover:to-green-500/25 transition-all duration-500 backdrop-blur-sm shadow-lg shadow-emerald-500/10">
+                <div className="relative">
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-pulse shadow-lg"></div>
+                  <div className="absolute inset-0 w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-ping opacity-60"></div>
+                </div>
+                <span className="text-sm font-bold bg-gradient-to-r from-emerald-700 to-green-700 bg-clip-text text-transparent tracking-wide">Mainnet</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Right Section with Connect Button and Optional Menu */}
-        <div className="flex items-center gap-3">
-          {/* Network Status Badge */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors duration-200">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-xs font-medium text-slate-700">Mainnet</span>
-          </div>
-
-          {/* Connect Button with Custom Styling */}
-          <div className="relative">
-            <TonConnectButton />
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1">
+      {/* Ultra Modern Main Content Area */}
+      <div className="flex-1 relative">
+        {/* Global content background with subtle gradients */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50/90 via-white/90 to-blue-50/30 backdrop-blur-sm"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-purple-50/20 to-transparent"></div>
+        
         {currentTab === 'home' && (
-          <div className="space-y-4  p-custom px-4 pb-4 overflow-y-auto">
-           {/* <DailyUpdateCard earningState={earningState} /> */}
-           {/* Estimated Daily Earnings */}
-           <DailyRewardCard
-                userId={user?.id}
-                variant="mini"
-                showSnackbar={showSnackbar}
-                onRewardClaimed={handleRewardClaimed}
-              />        
-            
-            {/* Show engagement component for non-staked users */}
-            {user && Number(user.balance ?? 0) === 0 ? (
-              <NonStakedEngagement
-                onStartStaking={() => setShowDepositModal(true)}
-                airdropBalance={Number(user?.total_sbt ?? 0)}
-                showSnackbar={showSnackbar}
-              />
-            ) : (
-              <ArcadeMiningUI
-                balanceTon={user?.balance ?? 0}
-                tonPrice={tonPrice}
-                currentEarningsTon={earningState.currentEarnings}
-                isClaiming={isClaimingEarnings}
-                claimCooldown={claimCooldown}
-                cooldownText={`Cooldown (${formatCooldownTime(claimCooldown)})`}
-                onClaim={handleClaimEarnings}
-                onOpenDeposit={() => setShowDepositModal(true)}
-                onOpenWithdraw={() => setShowWithdrawalModal(true)}
-                airdropBalanceNova={Number(user?.total_sbt ?? 0)}
-                potentialEarningsTon={Number(calculatePotentialEarnings(user?.balance ?? 0))}
-                totalWithdrawnTon={Number(user?.total_withdrawn ?? 0)}
-                activities={activities}
-                withdrawals={withdrawals}
-                isLoadingActivities={isLoadingActivities || isLoadingWithdrawals}
-                userId={user?.id}
-                showSnackbar={showSnackbar}
-                userUsername={user?.username}
-                referralCode={userReferralCode}
-                estimatedDailyTapps={estimatedDailyTapps}
-              />
-            )}
-            
-            <TwitterEngagementTask
-                userId={user?.id}
-                showSnackbar={showSnackbar}
-                onRewardClaimed={handleRewardClaimed}
-              />
-             
+          <div className="relative space-y-6 p-custom px-6 pb-6 overflow-y-auto">
+            <ArcadeMiningUI
+              balanceTon={user?.balance || 0}
+              tonPrice={tonPrice || 0}
+              currentEarningsTon={earningState?.currentEarnings || 0}
+              isClaiming={false}
+              claimCooldown={0}
+              cooldownText={''}
+              onClaim={() => {}}
+              onOpenDeposit={() => setShowDepositModal(true)}
+              potentialEarningsTon={0}
+              airdropBalanceNova={0}
+              totalWithdrawnTon={user?.total_withdrawn || 0}
+              activities={activities}
+              withdrawals={[]}
+              isLoadingActivities={isLoadingActivities}
+              userId={user?.id}
+              userUsername={user?.username}
+              referralCode={userReferralCode}
+              estimatedDailyTapps={0}
+              showSnackbar={showSnackbar}
+            />
           </div> 
         )}
 
         {currentTab === 'network' && (
-          <div className="flex-1 p-4 p-custom sm:p-6 overflow-y-auto bg-slate-50">
-            <ReferralSystem 
-            />
+          <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
           </div>
         )}
-
 
         {currentTab === 'whale' && (
-          <div className="flex-1 p-4 p-custom  sm:p-6 overflow-y-auto bg-slate-50">
-            {/* Clean background */}
-            <NewsComponent/>
-          </div>
+          <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
+            </div>
         )}
 
-
         {currentTab === 'tasks' && (
-          <div className="flex-1 p-4 p-custom  sm:p-6 overflow-y-auto bg-slate-50">
-            {/* Clean background */}
-            {/* Content */}
-            <div className="relative space-y-6"> 
-             
-              
-              {/* Social Tasks */}
-              <SocialTasks 
-                showSnackbar={showSnackbar}
-                userId={user?.id}
-                onRewardClaimed={handleRewardClaimed}
-              />
+          <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
             </div>
-          </div>
         )}
 
         {currentTab === 'token' && (
-          <div className="flex-1 p-4 p-custom  sm:p-6 overflow-y-auto bg-slate-50">
-            {/* Clean background */}
-            {/* Content */}
-            <div className="relative">
-              <TonWallet />
+          <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
+            <TonWallet/>
             </div>
-          </div>
         )}
 
         {currentTab === 'activity' && (
-          <div className="flex-1 p-4 sm:p-6 overflow-y-auto bg-slate-50">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-slate-100/30" />
-            <div className="relative max-w-lg mx-auto space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 relative">
-                    <div className="absolute inset-0 bg-blue-500/20 rounded-lg rotate-45 animate-pulse" />
+          <div className="relative flex-1 p-6 sm:p-8 overflow-y-auto">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 to-slate-100/40" />
+            <div className="absolute inset-0 bg-gradient-to-t from-transparent via-purple-50/30 to-transparent" />
+            <div className="relative max-w-lg mx-auto space-y-4">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="relative group">
+                    <div className="w-12 h-12 relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/30 to-cyan-500/20 rounded-2xl rotate-45 animate-pulse shadow-lg" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                   </div>
-                  <div className="pixel-corners bg-[#2a2f4c] px-3 py-1">
-                    <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Recent Activity</span>
+                  </div>
+                  <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2 rounded-2xl shadow-lg border-2 border-white/50 backdrop-blur-sm">
+                    <span className="text-sm font-bold text-white uppercase tracking-wider">Recent Activity</span>
                   </div>
                 </div>
               </div>
 
               {isLoadingActivities ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                <div className="flex items-center justify-center py-12">
+                  <div className="relative">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 shadow-lg"></div>
+                    <div className="absolute inset-0 animate-ping rounded-full h-12 w-12 border-4 border-blue-600 opacity-20"></div>
+                  </div>
                 </div>
               ) : activities.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {activities.map((activity) => (
-                    <div key={activity.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/10">
-                      <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div key={activity.id} className="group flex items-center gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border-2 border-white/60 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/10 flex items-center justify-center border-2 border-blue-200/50 shadow-lg">
+                          <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
+                        </div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full border-2 border-white animate-pulse"></div>
                       </div>
                       <div className="flex-1">
-                        <div className="text-sm text-white capitalize">{activity.type.replace(/_/g, ' ')}</div>
-                        <div className="text-xs text-white/40">{new Date(activity.created_at).toLocaleString()}</div>
+                        <div className="text-base font-semibold text-slate-800 capitalize">{activity.type.replace(/_/g, ' ')}</div>
+                        <div className="text-sm text-slate-500">{new Date(activity.created_at).toLocaleString()}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium text-white">{activity.amount?.toFixed ? activity.amount.toFixed(6) : activity.amount} {activity.type === 'nova_reward' ? 'NOVA' : 'TON'}</div>
-                        <div className="text-xs text-white/40">{activity.status}</div>
+                        <div className="text-base font-bold text-slate-800">{activity.amount?.toFixed ? activity.amount.toFixed(6) : activity.amount} {activity.type === 'nova_reward' ? 'NOVA' : 'TON'}</div>
+                        <div className="text-sm text-slate-500 capitalize">{activity.status}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-white/40">No recent activity</div>
+                <div className="text-center py-16">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center shadow-lg">
+                    <svg className="w-10 h-10 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-semibold text-slate-600 mb-2">No Recent Activity</p>
+                  <p className="text-sm text-slate-500">Your transaction history will appear here</p>
+                </div>
               )}
             </div>
           </div>
@@ -3054,24 +3080,28 @@ const handleDeposit = async (amount: number) => {
 
                   </div>
 
-      {/* NFT Minter Modal */}
+      {/* Ultra Modern NFT Minter Modal */}
 {showNFTMinterModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-    <div className="bg-gradient-to-b from-[#1a1c2e] to-[#0d0f1d] rounded-xl w-full max-w-md border-2 border-purple-500/20 shadow-xl shadow-purple-500/10">
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 relative">
-              <div className="absolute inset-0 bg-purple-500/20 rounded-lg rotate-45 animate-pulse" />
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl">
+    <div className="bg-gradient-to-b from-white via-slate-50 to-white rounded-3xl w-full max-w-md border-2 border-white/60 shadow-2xl shadow-purple-500/20 overflow-hidden">
+      {/* Modal header gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-blue-500/5 to-cyan-500/5"></div>
+      <div className="relative p-6">
+        {/* Ultra Modern Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <div className="relative group">
+              <div className="w-12 h-12 relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/30 to-blue-500/20 rounded-2xl rotate-45 animate-pulse shadow-lg" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                 </svg>
                       </div>
                       </div>
-            <div className="pixel-corners bg-[#2a2f4c] px-3 py-1">
-              <span className="text-xs font-bold text-purple-400 uppercase tracking-wider">
+            </div>
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 rounded-2xl shadow-lg border-2 border-white/50 backdrop-blur-sm">
+              <span className="text-sm font-bold text-white uppercase tracking-wider">
                 NovaClub NFT Pass
               </span>
             </div>
@@ -3084,9 +3114,9 @@ const handleDeposit = async (amount: number) => {
                 setNftMintStatus('idle');
               }
             }}
-            className="text-white/60 hover:text-white"
+            className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg border-2 border-white/50"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -3112,20 +3142,29 @@ const handleDeposit = async (amount: number) => {
 )}
              
 
-       {/* Deposit Modal */}
+       {/* Ultra Modern Deposit Modal */}
        {showDepositModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xl">
           <div className="bg-white w-full h-full max-w-none max-h-none shadow-2xl overflow-y-auto">
-            <div className="p-6 max-w-2xl mx-auto">
-              {/* Header */}
-              <div className="flex justify-between items-center mb-8">
+            {/* Modal background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/30 via-white to-purple-50/20"></div>
+            <div className="relative p-8 max-w-2xl mx-auto">
+              {/* Ultra Modern Header */}
+              <div className="flex justify-between items-center mb-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                  </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                     {user?.balance && user.balance > 0 ? 'Add New Staking' : 'Deposit TON'}
                   </h2>
-                  <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-base text-gray-600 mt-2">
                     Stake TON to start earning TAPPS rewards
                   </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => {
@@ -3133,69 +3172,76 @@ const handleDeposit = async (amount: number) => {
                     setDepositStatus('idle');
                     setCustomAmount('');
                   }}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="w-12 h-12 rounded-2xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-lg border-2 border-white/50"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
 
               {depositStatus === 'pending' ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-900 font-medium">Processing Deposit...</p>
-                  <p className="text-sm text-gray-500 mt-2">Please wait while we confirm your transaction</p>
+                <div className="text-center py-16">
+                  <div className="relative mx-auto mb-6">
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 shadow-lg"></div>
+                    <div className="absolute inset-0 animate-ping rounded-full h-16 w-16 border-4 border-blue-600 opacity-20"></div>
+                  </div>
+                  <p className="text-xl font-bold text-gray-900 mb-2">Processing Deposit...</p>
+                  <p className="text-base text-gray-600">Please wait while we confirm your transaction</p>
                 </div>
               ) : (
                 <>
-                  {/* Amount Display */}
-                  <div className="mb-8 text-center">
-                    <div className="flex items-baseline justify-center gap-2 mb-3">
-                      <span className="text-6xl font-bold text-gray-900">
-                        {customAmount || '0'}
-                      </span>
-                      <span className="text-3xl font-medium text-gray-500">TON</span>
+                  {/* Ultra Modern Amount Display */}
+                  <div className="mb-10 text-center">
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-3xl p-8 border-2 border-white/60 shadow-xl">
+                      <div className="flex items-baseline justify-center gap-3 mb-4">
+                        <span className="text-7xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                          {customAmount || '0'}
+                        </span>
+                        <span className="text-4xl font-semibold text-gray-600">TON</span>
+                      </div>
+                      <div className="bg-white/80 rounded-2xl p-4 border border-white/60 shadow-lg">
+                        <p className="text-xl font-bold text-gray-800 mb-1">
+                          ≈ {customAmount && parseFloat(customAmount) >= 1 
+                            ? calculateTotalEarnings(parseFloat(customAmount)).toFixed(1) 
+                            : '0'} TAPPS
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Potential earnings over 135 days
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-lg text-gray-600 font-medium">
-                      ≈ {customAmount && parseFloat(customAmount) >= 1 
-                        ? calculateTotalEarnings(parseFloat(customAmount)).toFixed(1) 
-                        : '0'} TAPPS
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Potential earnings over 135 days
-                    </p>
                   </div>
 
-                  {/* Quick Select Grid */}
-                  <div className="grid grid-cols-3 gap-2 mb-6">
+                  {/* Ultra Modern Quick Select Grid */}
+                  <div className="grid grid-cols-3 gap-4 mb-8">
                     {[1, 5, 10, 50, 100, 500].map((amount) => (
                       <button
                         key={amount}
                         onClick={() => {
                           setCustomAmount(amount.toString());
                         }}
-                        className={`px-3 py-3 border rounded-lg transition-all duration-200 text-center group
+                        className={`px-4 py-4 border-2 rounded-2xl transition-all duration-300 text-center group hover:scale-105 shadow-lg
                           ${customAmount === amount.toString() 
-                            ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                            : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700 hover:text-gray-900'
+                            ? 'bg-gradient-to-br from-blue-50 to-purple-50 border-blue-300 text-blue-700 shadow-blue-200/50' 
+                            : 'bg-white/80 hover:bg-white border-gray-200 text-gray-700 hover:text-gray-900 hover:border-gray-300 shadow-gray-200/50'
                           }`}
                       >
-                        <div className="space-y-1">
-                          <div className="text-sm font-semibold">
+                        <div className="space-y-2">
+                          <div className="text-base font-bold">
                             {amount} TON
+                          </div>
+                          <div className={`text-sm font-semibold ${
+                            customAmount === amount.toString() 
+                              ? 'text-blue-700' 
+                              : 'text-gray-600 group-hover:text-gray-700'
+                          }`}>
+                            ~{calculateTotalEarnings(amount).toFixed(1)} TAPPS
                           </div>
                           <div className={`text-xs font-medium ${
                             customAmount === amount.toString() 
                               ? 'text-blue-600' 
                               : 'text-gray-500 group-hover:text-gray-600'
-                          }`}>
-                            ~{calculateTotalEarnings(amount).toFixed(1)} TAPPS
-                          </div>
-                          <div className={`text-xs ${
-                            customAmount === amount.toString() 
-                              ? 'text-blue-500' 
-                              : 'text-gray-400 group-hover:text-gray-500'
                           }`}>
                             {((calculateTotalEarnings(amount) / amount) * 100).toFixed(0)}% ROI
                           </div>
@@ -3204,8 +3250,8 @@ const handleDeposit = async (amount: number) => {
                     ))}
                   </div>
 
-                  {/* Custom Amount Input */}
-                  <div className="space-y-3 mb-6">
+                  {/* Ultra Modern Custom Amount Input */}
+                  <div className="space-y-4 mb-8">
                     <div className="relative">
                       <input
                         type="number"
@@ -3219,28 +3265,29 @@ const handleDeposit = async (amount: number) => {
                             setCustomAmount(value);
                           }
                         }}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg
+                        className="w-full px-6 py-4 bg-white/80 border-2 border-gray-200 rounded-2xl
                           text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500
-                          focus:ring-2 focus:ring-blue-500/20"
+                          focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 shadow-lg
+                          text-lg font-semibold"
                       />
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 text-base font-bold">
                         TON
                       </div>
                     </div>
                   </div>
 
-                  {/* Minimum Staking Info */}
-                  <div className="flex justify-between items-center mb-6 text-sm">
-                    <span className="text-gray-600">Minimum staking</span>
-                    <span className="font-medium text-gray-900">1 TON</span>
+                  {/* Ultra Modern Minimum Staking Info */}
+                  <div className="flex justify-between items-center mb-8 p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-2xl border-2 border-white/60 shadow-lg">
+                    <span className="text-base font-semibold text-gray-700">Minimum staking</span>
+                    <span className="text-lg font-bold text-gray-900 bg-white/80 px-3 py-1 rounded-xl border border-white/60">1 TON</span>
                   </div>
 
-                  {/* Simple Rewards Section */}
+                  {/* Ultra Modern Rewards Section */}
                   {customAmount && parseFloat(customAmount) >= 1 && (
-                    <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">B</span>
+                    <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-3xl p-6 mb-8 border-2 border-white/60 shadow-xl">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                          <span className="text-white text-lg font-bold">B</span>
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-gray-900">Potential Earnings</p>
@@ -3325,7 +3372,7 @@ const handleDeposit = async (amount: number) => {
       )}
 
 
-      {/* Withdrawal Info Modal */}
+      {/* Withdrawal Info Modal
       <WithdrawalInfoModal
         isOpen={showWithdrawalInfo}
         onClose={() => {
@@ -3345,7 +3392,7 @@ const handleDeposit = async (amount: number) => {
         onSetPayoutWallet={handleSetPayoutWallet}
       />
 
-      {/* Withdraw Modal */}
+     
       <WithdrawModal
         isOpen={showWithdrawalModal}
         onClose={() => setShowWithdrawalModal(false)}
@@ -3356,10 +3403,10 @@ const handleDeposit = async (amount: number) => {
             description: 'Your withdrawal request has been submitted and will be processed by the admin team.'
           });
         }}
-      />
+      /> 
       
 
-      {/* Offline Rewards Modal */}
+      {/* Offline Rewards Modal
       {showOfflineRewardsModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 px-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
@@ -3397,53 +3444,36 @@ const handleDeposit = async (amount: number) => {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
-      {/* Advanced Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 shadow-2xl safe-area-pb">
-        {/* Animated gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-50/80 via-white/20 to-transparent pointer-events-none"></div>
+      {/* Ultra Modern Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl border-t-2 border-white/70 shadow-2xl shadow-blue-500/20 safe-area-pb">
+        {/* Multi-layer gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/50 to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50/40 via-purple-50/30 to-cyan-50/40 pointer-events-none"></div>
         
-        {/* Premium user indicator */}
+        {/* Subtle border glow */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-300/50 to-transparent"></div>
+        
+        {/* Enhanced Premium user indicator */}
         {user?.is_premium && (
-          <div className="absolute -top-1 left-1/2 transform -translate-x-1/2">
-            <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full shadow-lg">
-              <MdDiamond className="w-3 h-3 text-white animate-pulse" />
-              <span className="text-[10px] font-bold text-white">PREMIUM</span>
+          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 z-10">
+            <div className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl shadow-xl border-2 border-white/50 backdrop-blur-sm">
+              <MdDiamond className="w-4 h-4 text-white animate-pulse" />
+              <span className="text-[11px] font-bold text-white tracking-wider">PREMIUM</span>
             </div>
           </div>
         )}
         
-        <div className="max-w-lg mx-auto px-4 relative">
-          <div className="grid grid-cols-5 items-center py-3">
+        <div className="max-w-lg mx-auto px-6 relative z-10">
+          <div className="grid grid-cols-4 items-center py-3">
             {[
               { 
                 id: 'home', 
-                text: 'Earn', 
-                Icon: FaAtom,
+                text: 'Mining', 
+                Icon: FaMagento,
                 premium: false,
                 gradient: 'from-blue-500 to-cyan-500'
-              },
-              { 
-                id: 'network', 
-                text: 'Network', 
-                Icon: FaNetworkWired,
-                premium: false,
-                gradient: 'from-indigo-500 to-purple-500'
-              },
-              { 
-                id: 'whale', 
-                text: 'Airdrop', 
-                Icon: FaGem,
-                premium: true,
-                gradient: 'from-purple-500 to-pink-500'
-              },
-              { 
-                id: 'tasks', 
-                text: 'Bonus', 
-                Icon: FaTasks,
-                premium: false,
-                gradient: 'from-green-500 to-emerald-500'
               },
               { 
                 id: 'token', 
@@ -3452,78 +3482,96 @@ const handleDeposit = async (amount: number) => {
                 premium: false,
                 gradient: 'from-orange-500 to-red-500'
               },
+              
+              { 
+                id: 'network', 
+                text: 'Dapp', 
+                Icon: FaNetworkWired,
+                premium: false,
+                gradient: 'from-indigo-500 to-purple-500'
+              },
+              { 
+                id: 'whale', 
+                text: 'Settings', 
+                Icon: FaGem,
+                premium: true,
+                gradient: 'from-purple-500 to-pink-500'
+              },
             ].map(({ id, text, Icon, premium, gradient }) => (
               <button 
                 key={id} 
                 onClick={() => setCurrentTab(id)}
-                className={`group flex flex-col items-center py-3 w-full transition-all duration-300 relative ${
+                className={`group flex flex-col items-center py-4 w-full transition-all duration-500 relative ${
                   currentTab === id 
                     ? 'text-blue-600' 
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {/* Advanced active tab background with gradient */}
+                {/* Ultra Modern active tab background */}
                 {currentTab === id && (
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-50/60 rounded-2xl mx-1 shadow-lg border border-blue-100/50"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50/90 to-cyan-50/70 rounded-3xl mx-2 shadow-xl border-2 border-blue-200/60 backdrop-blur-sm">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-3xl"></div>
+                  </div>
                 )}
                 
-                <div className={`relative transition-all duration-300 ${
-                  currentTab === id ? 'scale-110' : 'group-hover:scale-105'
+                <div className={`relative transition-all duration-500 ${
+                  currentTab === id ? 'scale-125' : 'group-hover:scale-110'
                 }`}>
-                  {/* Premium badge for certain tabs */}
+                  {/* Enhanced Premium badge */}
                   {premium && user?.is_premium && (
-                    <div className="absolute -top-2 -right-2 z-10">
-                      <div className="w-4 h-4 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full flex items-center justify-center shadow-md">
-                        <MdDiamond className="w-2 h-2 text-white" />
+                    <div className="absolute -top-3 -right-3 z-10">
+                      <div className="w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/50">
+                        <MdDiamond className="w-3 h-3 text-white animate-pulse" />
                       </div>
                     </div>
                   )}
                   
-                  <div className={`relative p-2 rounded-xl transition-all duration-300 ${
+                  <div className={`relative p-3 rounded-2xl transition-all duration-500 ${
                     currentTab === id 
-                      ? `bg-gradient-to-br ${gradient} shadow-lg` 
-                      : 'group-hover:bg-slate-100/50'
+                      ? `bg-gradient-to-br ${gradient} shadow-xl border-2 border-white/50` 
+                      : 'group-hover:bg-slate-100/60 border-2 border-transparent'
                   }`}>
                     <Icon 
-                      size={currentTab === id ? 22 : 20} 
-                      className={`transition-all duration-300 ${
+                      size={currentTab === id ? 24 : 22} 
+                      className={`transition-all duration-500 ${
                         currentTab === id 
-                          ? 'text-white drop-shadow-sm' 
+                          ? 'text-white drop-shadow-lg' 
                           : 'text-slate-500 group-hover:text-slate-700'
                       }`} 
                     />
                     
-                    {/* Animated glow effect for active tab */}
+                    {/* Enhanced glow effect for active tab */}
                     {currentTab === id && (
-                      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-xl opacity-20 animate-pulse`}></div>
+                      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-2xl opacity-30 animate-pulse`}></div>
                     )}
                   </div>
                   
-                  {/* Advanced active indicator */}
+                  {/* Ultra Modern active indicator */}
                   {currentTab === id && (
-                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
-                      <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full shadow-lg animate-bounce"></div>
+                    <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+                      <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full shadow-xl animate-bounce border-2 border-white/50"></div>
                     </div>
                   )}
                 </div>
                 
-                <span className={`text-[10px] font-bold tracking-wide truncate max-w-[70px] text-center mt-1 transition-all duration-300 relative z-10 ${
-                  currentTab === id ? 'text-blue-600' : 'text-slate-500 group-hover:text-slate-700'
+                <span className={`text-[11px] font-bold tracking-wider truncate max-w-[75px] text-center mt-2 transition-all duration-500 relative z-10 ${
+                  currentTab === id ? 'text-blue-700 font-extrabold' : 'text-slate-600 group-hover:text-slate-800'
                 }`}>
                   {text}
                 </span>
                 
-                {/* Premium text glow for premium users */}
+                {/* Enhanced Premium text glow */}
                 {premium && user?.is_premium && currentTab === id && (
-                  <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/20 to-transparent rounded-2xl pointer-events-none"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/25 to-transparent rounded-3xl pointer-events-none"></div>
                 )}
               </button>
             ))}
           </div>
         </div>
         
-        {/* Subtle bottom glow effect */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-200 to-transparent"></div>
+        {/* Enhanced bottom glow effect */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-300/60 to-transparent"></div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-200/40 to-transparent"></div>
       </div>
 
         {/* Add Snackbar component before closing div */}
