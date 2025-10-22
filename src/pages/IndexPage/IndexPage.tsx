@@ -1,10 +1,10 @@
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
-import { FC, useState, useEffect, useRef, useMemo } from 'react';
-import { FaAtom, FaGem, FaMagento, FaNetworkWired, FaTasks, FaWallet } from 'react-icons/fa';
-import { MdDiamond } from 'react-icons/md';
+import { FC, useState, useEffect, useRef } from 'react';
+import { FaCogs, FaMagento, FaNetworkWired, FaWallet } from 'react-icons/fa';
+// import { MdDiamond } from 'react-icons/md';
 // import { BiNetworkChart } from 'react-icons/bi';
-import { TonConnectButton, } from '@tonconnect/ui-react';
+// import { TonConnectButton, } from '@tonconnect/ui-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, processReferralStakingRewards } from '@/lib/supabaseClient';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -12,21 +12,23 @@ import { toNano, fromNano } from "ton";
 import TonWeb from 'tonweb';
 import { Button } from '@telegram-apps/telegram-ui';
 import { Snackbar } from '@telegram-apps/telegram-ui';
-import ReferralSystem from '@/components/ReferralSystem';
+// import ReferralSystem from '@/components/ReferralSystem';
 // import TokenLaunchpad from '@/components/TokenLaunchpad';
-import { WithdrawalInfoModal } from '@/components/WithdrawalInfoModal';
-import SocialTasks from '@/components/SocialTasks';
+// import { WithdrawalInfoModal } from '@/components/WithdrawalInfoModal';
+// import SocialTasks from '@/components/SocialTasks';
 // import DailyRewardCard from '@/components/DailyRewardCard';
-import TwitterEngagementTask from '@/components/TwitterEngagementTask';
+// import TwitterEngagementTask from '@/components/TwitterEngagementTask';
 // import DailyUpdateCard from '@/components/DailyUpdateCard/DailyUpdateCard';
 import { NFTMinter } from '@/components/NFTMinter';
 // import AdminWithdrawalPanel from '@/components/AdminWithdrawalPanel';
 import ArcadeMiningUI from '@/components/ArcadeMiningUI';
-import WithdrawModal from '@/components/WithdrawModal';
-import NewsComponent from '@/components/NewsComponent';
+// import WithdrawModal from '@/components/WithdrawModal';
+// import NewsComponent from '@/components/NewsComponent';
 import TonWallet from '@/components/TonWallet';
-import DailyRewardCard from '@/components/DailyRewardCard';
-import NonStakedEngagement from '@/components/NonStakedEngagement';
+// import DailyRewardCard from '@/components/DailyRewardCard';
+// import NonStakedEngagement from '@/components/NonStakedEngagement';
+import DappExplorer from '@/components/DappExplorer';
+import SettingsComponent from '@/components/SettingsComponent';
 
 // Time-based multipliers as per whitepaper
 const getTimeMultiplier = (daysStaked: number): number => {
@@ -393,7 +395,7 @@ export const IndexPage: FC = () => {
   const [currentTab, setCurrentTab] = useState('home');
   const [userReferralCode, setUserReferralCode] = useState<string>('');
   const [showDepositModal, setShowDepositModal] = useState(false);
-  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+  // const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const { user, isLoading, error, updateUserData } = useAuth();
   
   // Sponsor code gate states
@@ -769,8 +771,8 @@ export const IndexPage: FC = () => {
   // Add state for activities
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
-  const [withdrawals, setWithdrawals] = useState<Array<{ id: number; amount: number; status: string; created_at: string; }>>([]);
-  const [isLoadingWithdrawals, setIsLoadingWithdrawals] = useState(false);
+  // const [withdrawals, setWithdrawals] = useState<Array<{ id: number; amount: number; status: string; created_at: string; }>>([]);
+  // const [isLoadingWithdrawals, setIsLoadingWithdrawals] = useState(false);
 
   const [depositStatus, setDepositStatus] = useState('idle');
 
@@ -796,9 +798,9 @@ export const IndexPage: FC = () => {
   });
 
   // Estimated daily earnings based on current per-second rate
-  const estimatedDailyTapps = useMemo(() => {
-    return Math.max(0, earningState.baseEarningRate * 86400);
-  }, [earningState.baseEarningRate]);
+  // const estimatedDailyTapps = useMemo(() => {
+  //   return Math.max(0, earningState.baseEarningRate * 86400);
+  // }, [earningState.baseEarningRate]);
 
   // Add these state variables to your component
 const [showNFTMinterModal, setShowNFTMinterModal] = useState(false);
@@ -820,46 +822,46 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   });
 };
 
-  const handleSetPayoutWallet = async (walletAddress: string) => {
-    try {
-      // Show loading snackbar
-      showSnackbar({
-        message: 'Updating Wallet',
-        description: 'Setting your payout wallet address...'
-      });
+  // const handleSetPayoutWallet = async (walletAddress: string) => {
+  //   try {
+  //     // Show loading snackbar
+  //     showSnackbar({
+  //       message: 'Updating Wallet',
+  //       description: 'Setting your payout wallet address...'
+  //     });
   
-      // Update the user's payout wallet in the database
-      const { error } = await supabase
-        .from('users')
-        .update({ payout_wallet: walletAddress })
-        .eq('id', user?.id);
+  //     // Update the user's payout wallet in the database
+  //     const { error } = await supabase
+  //       .from('users')
+  //       .update({ payout_wallet: walletAddress })
+  //       .eq('id', user?.id);
   
-      if (error) throw error;
+  //     if (error) throw error;
   
-      // Update local user state
-      if (user) {
-        updateUserData({
-          ...user,
-          payout_wallet: walletAddress
-        });
-      }
+  //     // Update local user state
+  //     if (user) {
+  //       updateUserData({
+  //         ...user,
+  //         payout_wallet: walletAddress
+  //       });
+  //     }
   
-      // Show success message
-      showSnackbar({
-        message: 'Wallet Updated',
-        description: 'Your payout wallet has been successfully set.'
-      });
+  //     // Show success message
+  //     showSnackbar({
+  //       message: 'Wallet Updated',
+  //       description: 'Your payout wallet has been successfully set.'
+  //     });
   
-      return true;
-    } catch (error) {
-      console.error('Failed to set payout wallet:', error);
-      showSnackbar({
-        message: 'Update Failed',
-        description: 'There was an error setting your payout wallet. Please try again.'
-      });
-      throw error;
-    }
-  };
+  //     return true;
+  //   } catch (error) {
+  //     console.error('Failed to set payout wallet:', error);
+  //     showSnackbar({
+  //       message: 'Update Failed',
+  //       description: 'There was an error setting your payout wallet. Please try again.'
+  //     });
+  //     throw error;
+  //   }
+  // };
 
   // Add function to save earning state to localStorage
   const saveEarningState = (state: LocalEarningState) => {
@@ -954,11 +956,11 @@ const [] = useState(() => {
 // };
 
   // Add this state near other state declarations
-const [isClaimingEarnings, setIsClaimingEarnings] = useState(false);
+// const [isClaimingEarnings, setIsClaimingEarnings] = useState(false);
 
 // Add these constants near other constants
 const CLAIM_COOLDOWN_KEY = 'claim_cooldown';
-const CLAIM_COOLDOWN_DURATION = 1800; // 30 minutes in seconds
+// const CLAIM_COOLDOWN_DURATION = 1800; // 30 minutes in seconds
 
 // Update state for cooldown
 const [claimCooldown, setClaimCooldown] = useState(0);
@@ -1039,132 +1041,132 @@ useEffect(() => {
 }, [claimCooldown]);
 
 // Helper function to format time as mm:ss or hh:mm:ss for longer durations
-const formatCooldownTime = (seconds: number): string => {
-  if (seconds <= 0) return '00:00';
+// const formatCooldownTime = (seconds: number): string => {
+//   if (seconds <= 0) return '00:00';
   
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
+//   const hours = Math.floor(seconds / 3600);
+//   const minutes = Math.floor((seconds % 3600) / 60);
+//   const remainingSeconds = seconds % 60;
   
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  } else {
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  }
-};
+//   if (hours > 0) {
+//     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+//   } else {
+//     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+//   }
+// };
 
 // Add this handler function
-const handleClaimEarnings = async () => {
-  if (!user?.id || earningState.currentEarnings <= 0 || isClaimingEarnings || claimCooldown > 0) return;
+// const handleClaimEarnings = async () => {
+//   if (!user?.id || earningState.currentEarnings <= 0 || isClaimingEarnings || claimCooldown > 0) return;
 
-  try {
-    setIsClaimingEarnings(true);
+//   try {
+//     setIsClaimingEarnings(true);
     
-    // Calculate Nova tokens (10% of TON earnings)
-    const novaAmount = earningState.currentEarnings * 0.1;
-    const newNovaBalance = (user.total_sbt || 0) + novaAmount;
+//     // Calculate Nova tokens (10% of TON earnings)
+//     const novaAmount = earningState.currentEarnings * 0.1;
+//     const newNovaBalance = (user.total_sbt || 0) + novaAmount;
     
-    // Reset earnings state
-    const newEarningState = {
-      ...earningState,
-      currentEarnings: 0,
-      lastUpdate: Date.now()
-    };
+//     // Reset earnings state
+//     const newEarningState = {
+//       ...earningState,
+//       currentEarnings: 0,
+//       lastUpdate: Date.now()
+//     };
     
-    // Update local storage first
-    localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(newEarningState));
-    setEarningState(newEarningState);
+//     // Update local storage first
+//     localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(newEarningState));
+//     setEarningState(newEarningState);
     
-    // Update database - simplified to avoid foreign key issues
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        total_earned: (user.total_earned || 0) + earningState.currentEarnings,
-        total_sbt: newNovaBalance,
-        total_withdrawn: (user.total_withdrawn || 0) + earningState.currentEarnings
-      })
-      .eq('id', user.id);
+//     // Update database - simplified to avoid foreign key issues
+//     const { error: updateError } = await supabase
+//       .from('users')
+//       .update({ 
+//         total_earned: (user.total_earned || 0) + earningState.currentEarnings,
+//         total_sbt: newNovaBalance,
+//         total_withdrawn: (user.total_withdrawn || 0) + earningState.currentEarnings
+//       })
+//       .eq('id', user.id);
       
-    if (updateError) {
-      throw updateError;
-    }
+//     if (updateError) {
+//       throw updateError;
+//     }
     
-    // Update earnings table separately
-    const { error: earningsError } = await supabase
-      .from('user_earnings')
-      .update({
-        current_earnings: 0,
-        last_update: new Date().toISOString()
-      })
-      .eq('user_id', user.id);
+//     // Update earnings table separately
+//     const { error: earningsError } = await supabase
+//       .from('user_earnings')
+//       .update({
+//         current_earnings: 0,
+//         last_update: new Date().toISOString()
+//       })
+//       .eq('user_id', user.id);
       
-    if (earningsError) {
-      console.error('Error updating earnings table:', earningsError);
-      // Continue anyway as the main update succeeded
-    }
+//     if (earningsError) {
+//       console.error('Error updating earnings table:', earningsError);
+//       // Continue anyway as the main update succeeded
+//     }
     
-    // Record activity
-    await supabase
-      .from('activities')
-      .insert({
-        user_id: user.id,
-        type: 'claim',
-        amount: earningState.currentEarnings,
-        status: 'completed',
-        created_at: new Date().toISOString()
-      });
+//     // Record activity
+//     await supabase
+//       .from('activities')
+//       .insert({
+//         user_id: user.id,
+//         type: 'claim',
+//         amount: earningState.currentEarnings,
+//         status: 'completed',
+//         created_at: new Date().toISOString()
+//       });
     
-    // Add to local activities state for immediate UI update
-    const newActivity: Activity = {
-      id: Date.now().toString(),
-      user_id: String(user.id),
-      type: 'claim',
-      amount: earningState.currentEarnings,
-      status: 'completed',
-      created_at: new Date().toISOString()
-    };
+//     // Add to local activities state for immediate UI update
+//     const newActivity: Activity = {
+//       id: Date.now().toString(),
+//       user_id: String(user.id),
+//       type: 'claim',
+//       amount: earningState.currentEarnings,
+//       status: 'completed',
+//       created_at: new Date().toISOString()
+//     };
     
-    setActivities(prev => [newActivity, ...prev]);
+//     setActivities(prev => [newActivity, ...prev]);
     
-    // Update local user data without relying on database fetch
-    if (user) {
-      const updatedUser = {
-        ...user,
-        total_earned: (user.total_earned || 0) + earningState.currentEarnings,
-        total_sbt: newNovaBalance,
-        total_withdrawn: (user.total_withdrawn || 0) + earningState.currentEarnings
-      };
+//     // Update local user data without relying on database fetch
+//     if (user) {
+//       const updatedUser = {
+//         ...user,
+//         total_earned: (user.total_earned || 0) + earningState.currentEarnings,
+//         total_sbt: newNovaBalance,
+//         total_withdrawn: (user.total_withdrawn || 0) + earningState.currentEarnings
+//       };
       
-      // Update user state using the hook's function
-      updateUserData(updatedUser);
-    }
+//       // Update user state using the hook's function
+//       updateUserData(updatedUser);
+//     }
     
-    // Show success message
-    showSnackbar({
-      message: 'Rewards Claimed',
-      description: `Added ${earningState.currentEarnings.toFixed(8)} TON + ${novaAmount.toFixed(8)} TAPPS`
-    });
+//     // Show success message
+//     showSnackbar({
+//       message: 'Rewards Claimed',
+//       description: `Added ${earningState.currentEarnings.toFixed(8)} TON + ${novaAmount.toFixed(8)} TAPPS`
+//     });
     
-    // Set cooldown (30 minutes)
-    setClaimCooldown(CLAIM_COOLDOWN_DURATION);
+//     // Set cooldown (30 minutes)
+//     setClaimCooldown(CLAIM_COOLDOWN_DURATION);
     
-  } catch (error) {
-    console.error('Error claiming rewards:', error);
+//   } catch (error) {
+//     console.error('Error claiming rewards:', error);
     
-    // Restore earnings state on error
-    const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
-    if (savedEarnings) {
-      setEarningState(JSON.parse(savedEarnings));
-    }
+//     // Restore earnings state on error
+//     const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
+//     if (savedEarnings) {
+//       setEarningState(JSON.parse(savedEarnings));
+//     }
     
-    showSnackbar({
-      message: 'Claim Failed',
-      description: 'Please try again later'
-    });
-  } finally {
-    setIsClaimingEarnings(false);
-  }
-};
+//     showSnackbar({
+//       message: 'Claim Failed',
+//       description: 'Please try again later'
+//     });
+//   } finally {
+//     setIsClaimingEarnings(false);
+//   }
+// };
 
 // // Add this with your other state declarations
 // const [showPayoutCard, setShowPayoutCard] = useState(false);
@@ -1394,25 +1396,25 @@ useEffect(() => {
   };
 
   // Refresh user after reward claims (updates ArcadeMiningUI props immediately)
-  const handleRewardClaimed = async (amount: number) => {
-    try {
-      if (!user?.id) return;
-      const { data: updatedUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      if (updatedUser) {
-        updateUserData(updatedUser);
-        showSnackbar({
-          message: 'Balance Updated',
-          description: `+${amount.toLocaleString()} TAPPS added to your airdrop balance.`
-        });
-      }
-    } catch (err) {
-      console.error('Failed to refresh user after claim:', err);
-    }
-  };
+  // const handleRewardClaimed = async (amount: number) => {
+  //   try {
+  //     if (!user?.id) return;
+  //     const { data: updatedUser } = await supabase
+  //       .from('users')
+  //       .select('*')
+  //       .eq('id', user.id)
+  //       .single();
+  //     if (updatedUser) {
+  //       updateUserData(updatedUser);
+  //       showSnackbar({
+  //         message: 'Balance Updated',
+  //         description: `+${amount.toLocaleString()} TAPPS added to your airdrop balance.`
+  //       });
+  //     }
+  //   } catch (err) {
+  //     console.error('Failed to refresh user after claim:', err);
+  //   }
+  // };
 
   // Add this effect to fetch and update the wallet balance
   useEffect(() => {
@@ -1789,31 +1791,31 @@ const handleDeposit = async (amount: number) => {
       }
     };
 
-    const fetchWithdrawals = async () => {
-      if (!user?.id) return;
+    // const fetchWithdrawals = async () => {
+    //   if (!user?.id) return;
 
-      setIsLoadingWithdrawals(true);
-      try {
-        const { data, error } = await supabase
-          .from('withdrawals')
-          .select('id, amount, status, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5);
+    //   setIsLoadingWithdrawals(true);
+    //   try {
+    //     const { data, error } = await supabase
+    //       .from('withdrawals')
+    //       .select('id, amount, status, created_at')
+    //       .eq('user_id', user.id)
+    //       .order('created_at', { ascending: false })
+    //       .limit(5);
 
-        if (error) throw error;
-        setWithdrawals(data || []);
-      } catch (error) {
-        console.error('Error fetching withdrawals:', error);
-      } finally {
-        setIsLoadingWithdrawals(false);
-      }
-    };
+    //     if (error) throw error;
+    //     setWithdrawals(data || []);
+    //   } catch (error) {
+    //     console.error('Error fetching withdrawals:', error);
+    //   } finally {
+    //     setIsLoadingWithdrawals(false);
+    //   }
+    // };
 
     // Fetch when activity card is active or when on home (embedded activity list)
     if (activeCard === 'activity' || currentTab === 'home') {
       fetchActivities();
-      fetchWithdrawals();
+      // fetchWithdrawals();
 
       // Set up real-time subscription for activities
       const activitiesSubscription = supabase
@@ -1846,39 +1848,39 @@ const handleDeposit = async (amount: number) => {
         .subscribe();
 
       // Set up real-time subscription for withdrawals
-      const withdrawalsSubscription = supabase
-        .channel('withdrawals-channel')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'withdrawals',
-            filter: `user_id=eq.${user?.id}`
-          },
-          (payload) => {
-            // Handle different types of changes
-            if (payload.eventType === 'INSERT') {
-              setWithdrawals(prev => [payload.new as any, ...prev].slice(0, 5));
-            } else if (payload.eventType === 'UPDATE') {
-              setWithdrawals(prev => 
-                prev.map(withdrawal => 
-                  withdrawal.id === payload.new.id ? payload.new as any : withdrawal
-                )
-              );
-            } else if (payload.eventType === 'DELETE') {
-              setWithdrawals(prev => 
-                prev.filter(withdrawal => withdrawal.id !== payload.old.id)
-              );
-            }
-          }
-        )
-        .subscribe();
+      // const withdrawalsSubscription = supabase
+      //   .channel('withdrawals-channel')
+      //   .on(
+      //     'postgres_changes',
+      //     {
+      //       event: '*',
+      //       schema: 'public',
+      //       table: 'withdrawals',
+      //       filter: `user_id=eq.${user?.id}`
+      //     },
+      //     (payload) => {
+      //       // Handle different types of changes
+      //       if (payload.eventType === 'INSERT') {
+      //         setWithdrawals(prev => [payload.new as any, ...prev].slice(0, 5));
+      //       } else if (payload.eventType === 'UPDATE') {
+      //         setWithdrawals(prev => 
+      //           prev.map(withdrawal => 
+      //             withdrawal.id === payload.new.id ? payload.new as any : withdrawal
+      //           )
+      //         );
+      //       } else if (payload.eventType === 'DELETE') {
+      //         setWithdrawals(prev => 
+      //           prev.filter(withdrawal => withdrawal.id !== payload.old.id)
+      //         );
+      //       }
+      //     }
+      //   )
+      //   .subscribe();
 
         // Cleanup subscriptions
         return () => {
           supabase.removeChannel(activitiesSubscription);
-          supabase.removeChannel(withdrawalsSubscription);
+          // supabase.removeChannel(withdrawalsSubscription);
         };
       }
     }, [user?.id, activeCard, currentTab]);
@@ -2227,158 +2229,158 @@ const handleDeposit = async (amount: number) => {
   }, [user?.id, user?.balance, currentROI]);
 
   // Add this state
-  const [showOfflineRewardsModal, setShowOfflineRewardsModal] = useState(false);
-  const [offlineRewardsAmount, setOfflineRewardsAmount] = useState(0);
+  // const [showOfflineRewardsModal, setShowOfflineRewardsModal] = useState(false);
+  // const [offlineRewardsAmount, setOfflineRewardsAmount] = useState(0);
 
   // Update these constants to be more precise
   const OFFLINE_EARNINGS_KEY = 'offline_earnings_state';
-  const MINIMUM_OFFLINE_TIME = 5 * 60 * 1000; // 5 minutes minimum for offline rewards
+  // const MINIMUM_OFFLINE_TIME = 5 * 60 * 1000; // 5 minutes minimum for offline rewards
 
   // Add this helper function to calculate offline earnings
-  const calculateOfflineEarnings = (
-    lastActiveTime: number,
-    baseRate: number,
-    currentTime: number = Date.now()
-  ): number => {
-    const timeDiff = currentTime - lastActiveTime;
-    if (timeDiff < MINIMUM_OFFLINE_TIME) return 0;
+  // const calculateOfflineEarnings = (
+  //   lastActiveTime: number,
+  //   baseRate: number,
+  //   currentTime: number = Date.now()
+  // ): number => {
+  //   const timeDiff = currentTime - lastActiveTime;
+  //   if (timeDiff < MINIMUM_OFFLINE_TIME) return 0;
     
-    // Ensure we're using sustainable rates (max 1% daily)
-    const maxSustainableRate = 0.01 / 86400; // 1% daily converted to per-second
-    const actualRate = Math.min(baseRate, maxSustainableRate);
+  //   // Ensure we're using sustainable rates (max 1% daily)
+  //   const maxSustainableRate = 0.01 / 86400; // 1% daily converted to per-second
+  //   const actualRate = Math.min(baseRate, maxSustainableRate);
     
-    return (actualRate * timeDiff) / 1000; // Convert to seconds
-  };
+  //   return (actualRate * timeDiff) / 1000; // Convert to seconds
+  // };
 
   // Update the offline earnings effect
-  useEffect(() => {
-    if (!user?.id || !user.balance || !earningState.isActive) return;
+  // useEffect(() => {
+  //   if (!user?.id || !user.balance || !earningState.isActive) return;
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Load offline state
-        const offlineState = loadOfflineEarnings();
-        if (offlineState) {
-          const offlineEarnings = calculateOfflineEarnings(
-            offlineState.lastActiveTimestamp,
-            offlineState.baseEarningRate
-          );
+  //   const handleVisibilityChange = () => {
+  //     if (document.visibilityState === 'visible') {
+  //       // Load offline state
+  //       const offlineState = loadOfflineEarnings();
+  //       if (offlineState) {
+  //         const offlineEarnings = calculateOfflineEarnings(
+  //           offlineState.lastActiveTimestamp,
+  //           offlineState.baseEarningRate
+  //         );
 
-          if (offlineEarnings > 0) {
-            console.log('Offline earnings calculated:', offlineEarnings);
-            setOfflineRewardsAmount(offlineEarnings);
-            setShowOfflineRewardsModal(true);
-          }
-          // Clear offline state after processing
-          localStorage.removeItem(OFFLINE_EARNINGS_KEY);
-        }
-      } else {
-        // Save current state when going offline
-        saveOfflineEarnings({
-          lastActiveTimestamp: Date.now(),
-          baseEarningRate: earningState.baseEarningRate
-        });
-      }
-    };
+  //         if (offlineEarnings > 0) {
+  //           console.log('Offline earnings calculated:', offlineEarnings);
+  //           setOfflineRewardsAmount(offlineEarnings);
+  //           setShowOfflineRewardsModal(true);
+  //         }
+  //         // Clear offline state after processing
+  //         localStorage.removeItem(OFFLINE_EARNINGS_KEY);
+  //       }
+  //     } else {
+  //       // Save current state when going offline
+  //       saveOfflineEarnings({
+  //         lastActiveTimestamp: Date.now(),
+  //         baseEarningRate: earningState.baseEarningRate
+  //       });
+  //     }
+  //   };
 
-    // Also check for offline earnings on component mount
-    const offlineState = loadOfflineEarnings();
-    if (offlineState) {
-      const offlineEarnings = calculateOfflineEarnings(
-        offlineState.lastActiveTimestamp,
-        offlineState.baseEarningRate
-      );
+  //   // Also check for offline earnings on component mount
+  //   const offlineState = loadOfflineEarnings();
+  //   if (offlineState) {
+  //     const offlineEarnings = calculateOfflineEarnings(
+  //       offlineState.lastActiveTimestamp,
+  //       offlineState.baseEarningRate
+  //     );
 
-      if (offlineEarnings > 0) {
-        console.log('Initial offline earnings found:', offlineEarnings);
-        setOfflineRewardsAmount(offlineEarnings);
-        setShowOfflineRewardsModal(true);
-        localStorage.removeItem(OFFLINE_EARNINGS_KEY);
-      }
-    }
+  //     if (offlineEarnings > 0) {
+  //       console.log('Initial offline earnings found:', offlineEarnings);
+  //       setOfflineRewardsAmount(offlineEarnings);
+  //       setShowOfflineRewardsModal(true);
+  //       localStorage.removeItem(OFFLINE_EARNINGS_KEY);
+  //     }
+  //   }
 
-    // Add visibility change listener
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+  //   // Add visibility change listener
+  //   document.addEventListener('visibilitychange', handleVisibilityChange);
     
-    // Save initial state
-    saveOfflineEarnings({
-      lastActiveTimestamp: Date.now(),
-      baseEarningRate: earningState.baseEarningRate
-    });
+  //   // Save initial state
+  //   saveOfflineEarnings({
+  //     lastActiveTimestamp: Date.now(),
+  //     baseEarningRate: earningState.baseEarningRate
+  //   });
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [user?.id, user?.balance, earningState.isActive, earningState.baseEarningRate]);
+  //   return () => {
+  //     document.removeEventListener('visibilitychange', handleVisibilityChange);
+  //   };
+  // }, [user?.id, user?.balance, earningState.isActive, earningState.baseEarningRate]);
 
   // Update handleClaimOfflineRewards
-  const handleClaimOfflineRewards = async () => {
-    if (!user?.id) return;
+  // const handleClaimOfflineRewards = async () => {
+  //   if (!user?.id) return;
 
-    try {
-      const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
-      const currentEarnings = savedEarnings 
-        ? JSON.parse(savedEarnings).currentEarnings 
-        : 0;
+  //   try {
+  //     const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
+  //     const currentEarnings = savedEarnings 
+  //       ? JSON.parse(savedEarnings).currentEarnings 
+  //       : 0;
 
-      const newEarnings = currentEarnings + offlineRewardsAmount;
-      const newNovaBalance = (user.total_sbt || 0) + (offlineRewardsAmount * 0.1);
+  //     const newEarnings = currentEarnings + offlineRewardsAmount;
+  //     const newNovaBalance = (user.total_sbt || 0) + (offlineRewardsAmount * 0.1);
 
-      // Update local storage first with user-specific key
-      const newEarningState = {
-        ...earningState,
-        currentEarnings: newEarnings,
-        lastUpdate: Date.now()
-      };
-      localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(newEarningState));
-      setEarningState(newEarningState);
+  //     // Update local storage first with user-specific key
+  //     const newEarningState = {
+  //       ...earningState,
+  //       currentEarnings: newEarnings,
+  //       lastUpdate: Date.now()
+  //     };
+  //     localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(newEarningState));
+  //     setEarningState(newEarningState);
 
-      // Silent database updates
-      await Promise.all([
-        supabase
-          .from('users')
-          .update({ 
-            total_sbt: newNovaBalance,
-            total_earned: newEarnings
-          })
-          .eq('id', user.id),
+  //     // Silent database updates
+  //     await Promise.all([
+  //       supabase
+  //         .from('users')
+  //         .update({ 
+  //           total_sbt: newNovaBalance,
+  //           total_earned: newEarnings
+  //         })
+  //         .eq('id', user.id),
         
-        supabase
-          .from('user_earnings')
-          .upsert({
-            user_id: user.id,
-            current_earnings: newEarnings,
-            last_update: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
-          }),
+  //       supabase
+  //         .from('user_earnings')
+  //         .upsert({
+  //           user_id: user.id,
+  //           current_earnings: newEarnings,
+  //           last_update: new Date().toISOString()
+  //         }, {
+  //           onConflict: 'user_id'
+  //         }),
 
-        supabase
-          .from('activities')
-          .insert({
-            user_id: user.id,
-            type: 'nova_income',
-            amount: offlineRewardsAmount,
-            status: 'completed',
-            created_at: new Date().toISOString()
-          })
-      ]);
+  //       supabase
+  //         .from('activities')
+  //         .insert({
+  //           user_id: user.id,
+  //           type: 'nova_income',
+  //           amount: offlineRewardsAmount,
+  //           status: 'completed',
+  //           created_at: new Date().toISOString()
+  //         })
+  //     ]);
 
-      showSnackbar({
-        message: 'Rewards Claimed',
-        description: `Added ${offlineRewardsAmount.toFixed(8)} TON + ${(offlineRewardsAmount * 0.1).toFixed(8)} TAPPS`
-      });
+  //     showSnackbar({
+  //       message: 'Rewards Claimed',
+  //       description: `Added ${offlineRewardsAmount.toFixed(8)} TON + ${(offlineRewardsAmount * 0.1).toFixed(8)} TAPPS`
+  //     });
 
-      setShowOfflineRewardsModal(false);
-      setOfflineRewardsAmount(0);
-    } catch (error) {
-      console.error('Error claiming rewards:', error);
-      showSnackbar({
-        message: 'Claim Failed',
-        description: 'Please try again later'
-      });
-    }
-  };
+  //     setShowOfflineRewardsModal(false);
+  //     setOfflineRewardsAmount(0);
+  //   } catch (error) {
+  //     console.error('Error claiming rewards:', error);
+  //     showSnackbar({
+  //       message: 'Claim Failed',
+  //       description: 'Please try again later'
+  //     });
+  //   }
+  // };
 
   // Add this state for live progress
   const [, setStakingProgress] = useState(0);
@@ -2391,26 +2393,26 @@ const handleDeposit = async (amount: number) => {
   }, [user?.last_deposit_date]);
 
   // Add this helper function to calculate potential earnings
-  const calculatePotentialEarnings = (balance: number): number => {
-    let totalEarnings = 0;
-    let currentROI = 0.01; // Starting at 1%
+  // const calculatePotentialEarnings = (balance: number): number => {
+  //   let totalEarnings = 0;
+  //   let currentROI = 0.01; // Starting at 1%
     
-    // Calculate for 100 days with ROI increasing every 5 days
-    for (let day = 1; day <= 100; day++) {
-      // Increase ROI by 0.5% every 5 days
-      if (day % 5 === 0) {
-        currentROI += 0.005; // Add 0.5%
-      }
+  //   // Calculate for 100 days with ROI increasing every 5 days
+  //   for (let day = 1; day <= 100; day++) {
+  //     // Increase ROI by 0.5% every 5 days
+  //     if (day % 5 === 0) {
+  //       currentROI += 0.005; // Add 0.5%
+  //     }
       
-      // Add daily earnings
-      totalEarnings += balance * currentROI;
-    }
+  //     // Add daily earnings
+  //     totalEarnings += balance * currentROI;
+  //   }
     
-    return totalEarnings;
-  };
+  //   return totalEarnings;
+  // };
 
   // Add state
-  const [showWithdrawalInfo, setShowWithdrawalInfo] = useState(false);
+  // const [showWithdrawalInfo, setShowWithdrawalInfo] = useState(false);
 
 
   // Add new state variables at the top with other state declarations
@@ -2556,74 +2558,74 @@ const handleDeposit = async (amount: number) => {
   }, [user?.id, user?.balance, currentROI]);
 
   // Add state for managing withdrawal modal and loading state
-  const [isRestaking, setIsRestaking] = useState(false);
+  // const [isRestaking, setIsRestaking] = useState(false);
 
   // Update handleRestake function
-  const handleRestake = async () => {
-    if (isRestaking) return; // Prevent double clicks
+  // const handleRestake = async () => {
+  //   if (isRestaking) return; // Prevent double clicks
     
-    try {
-      setIsRestaking(true);
-      const totalAmount = (user?.balance || 0) + earningState.currentEarnings;
+  //   try {
+  //     setIsRestaking(true);
+  //     const totalAmount = (user?.balance || 0) + earningState.currentEarnings;
       
-      // Show loading snackbar
-      showSnackbar({
-        message: 'Processing Restake',
-        description: 'Please wait while we process your request...'
-      });
+  //     // Show loading snackbar
+  //     showSnackbar({
+  //       message: 'Processing Restake',
+  //       description: 'Please wait while we process your request...'
+  //     });
 
-      const { error } = await supabase.rpc('update_user_restake', {
-        p_user_id: user?.id,
-        p_amount: totalAmount,
-        p_deposit_date: new Date().toISOString()
-      });
+  //     const { error } = await supabase.rpc('update_user_restake', {
+  //       p_user_id: user?.id,
+  //       p_amount: totalAmount,
+  //       p_deposit_date: new Date().toISOString()
+  //     });
 
-      if (error) throw error;
+  //     if (error) throw error;
 
-      // Reset earnings state
-      setEarningState({
-        lastUpdate: Date.now(),
-        currentEarnings: 0,
-        baseEarningRate: calculateEarningRateLegacy(totalAmount, currentROI, 0), // Restake starts at day 0
-        isActive: true,
-        startDate: Date.now()
-      });
+  //     // Reset earnings state
+  //     setEarningState({
+  //       lastUpdate: Date.now(),
+  //       currentEarnings: 0,
+  //       baseEarningRate: calculateEarningRateLegacy(totalAmount, currentROI, 0), // Restake starts at day 0
+  //       isActive: true,
+  //       startDate: Date.now()
+  //     });
 
-      // Update user data
-      if (user) {
-        updateUserData({
-          ...user,
-          balance: totalAmount,
-          last_deposit_date: new Date().toISOString()
-        });
-      }
+  //     // Update user data
+  //     if (user) {
+  //       updateUserData({
+  //         ...user,
+  //         balance: totalAmount,
+  //         last_deposit_date: new Date().toISOString()
+  //       });
+  //     }
 
-      // Show success message with more details
-      showSnackbar({
-        message: 'Restake Successful! 🎉',
-        description: `Successfully restaked ${totalAmount.toFixed(2)} TON. Your new earnings rate has been updated.`
-      });
+  //     // Show success message with more details
+  //     showSnackbar({
+  //       message: 'Restake Successful! 🎉',
+  //       description: `Successfully restaked ${totalAmount.toFixed(2)} TON. Your new earnings rate has been updated.`
+  //     });
 
-      // Add activity record
-      await supabase.from('activities').insert({
-        user_id: user?.id,
-        type: 'redeposit',
-        amount: totalAmount,
-        status: 'completed',
-        created_at: new Date().toISOString()
-      });
+  //     // Add activity record
+  //     await supabase.from('activities').insert({
+  //       user_id: user?.id,
+  //       type: 'redeposit',
+  //       amount: totalAmount,
+  //       status: 'completed',
+  //       created_at: new Date().toISOString()
+  //     });
 
-    } catch (error) {
-      console.error('Restake failed:', error);
-      showSnackbar({
-        message: 'Restake Failed',
-        description: 'There was an error processing your restake. Please try again later.'
-      });
-    } finally {
-      setIsRestaking(false);
-      setShowWithdrawalInfo(false);
-    }
-  };
+  //   } catch (error) {
+  //     console.error('Restake failed:', error);
+  //     showSnackbar({
+  //       message: 'Restake Failed',
+  //       description: 'There was an error processing your restake. Please try again later.'
+  //     });
+  //   } finally {
+  //     setIsRestaking(false);
+  //     setShowWithdrawalInfo(false);
+  //   }
+  // };
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -2882,11 +2884,13 @@ const handleDeposit = async (amount: number) => {
 
         {currentTab === 'network' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
+            <DappExplorer/>
           </div>
         )}
 
         {currentTab === 'whale' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
+            <SettingsComponent/>
             </div>
         )}
 
@@ -3346,7 +3350,7 @@ const handleDeposit = async (amount: number) => {
               { id: 'home', text: 'Mining', Icon: FaMagento, gradient: 'from-green-500 to-teal-500' },
               { id: 'wallet', text: 'Wallet', Icon: FaWallet, gradient: 'from-orange-500 to-red-500' },
               { id: 'network', text: 'Dapp', Icon: FaNetworkWired, gradient: 'from-indigo-500 to-purple-500' },
-              { id: 'whale', text: 'Settings', Icon: FaGem, gradient: 'from-purple-500 to-pink-500' },
+              { id: 'whale', text: 'Settings', Icon: FaCogs, gradient: 'from-purple-500 to-pink-500' },
             ].map(({ id, text, Icon, gradient }) => (
               <button
                 key={id}
