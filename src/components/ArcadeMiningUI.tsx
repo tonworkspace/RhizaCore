@@ -59,6 +59,8 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   // Free mining - no staking required
   const [isMining, setIsMining] = useState(false);
   const [miningStartTime, setMiningStartTime] = useState<Date | null>(null);
+  const [miningSessionEndTime, setMiningSessionEndTime] = useState<Date | null>(null);
+  const [sessionCountdown, setSessionCountdown] = useState('');
   const [accumulatedRZC, setAccumulatedRZC] = useState(0);
   const [claimableRZC, setClaimableRZC] = useState(0);
   
@@ -66,18 +68,22 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   const RZC_PER_DAY = 1;
   const RZC_PER_SECOND = RZC_PER_DAY / (24 * 60 * 60);
   
-  const canClaim = (accumulatedRZC > 0 || claimableRZC > 0) && !isClaiming && claimCooldown <= 0;
+  const canClaim = claimableRZC > 0 && !isClaiming && claimCooldown <= 0;
 
   // LocalStorage keys for persistent mining data
   const getMiningDataKey = (userId: number) => `mining_data_${userId}`;
   const getClaimableKey = (userId: number) => `claimable_rzc_${userId}`;
 
   // Save mining data to localStorage
-  const saveMiningData = (userId: number, startTime: Date, accumulated: number) => {
+  const saveMiningData = (userId: number, startTime: Date | null, endTime: Date | null, accumulated: number) => {
+    if (!startTime || !endTime) {
+      localStorage.removeItem(getMiningDataKey(userId));
+      return;
+    }
     const miningData = {
       startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
       accumulatedRZC: accumulated,
-      lastUpdate: Date.now()
     };
     localStorage.setItem(getMiningDataKey(userId), JSON.stringify(miningData));
   };
@@ -90,8 +96,8 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         const parsed = JSON.parse(data);
         return {
           startTime: new Date(parsed.startTime),
+          endTime: new Date(parsed.endTime),
           accumulatedRZC: parsed.accumulatedRZC || 0,
-          lastUpdate: parsed.lastUpdate || Date.now()
         };
       }
     } catch (error) {
@@ -182,49 +188,63 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   useEffect(() => {
     if (!userId) return;
 
-    // Load claimable RZC
     const savedClaimable = loadClaimableRZC(userId);
     setClaimableRZC(savedClaimable);
 
-    // Load mining data and auto-resume mining
     const miningData = loadMiningData(userId);
-    if (miningData) {
+    if (miningData && miningData.startTime && miningData.endTime) {
       const now = new Date();
-      const timeDiff = (now.getTime() - miningData.startTime.getTime()) / 1000;
-      const earnedRZC = timeDiff * RZC_PER_SECOND;
-      const totalAccumulated = miningData.accumulatedRZC + earnedRZC;
-      
-      setMiningStartTime(miningData.startTime);
-      setAccumulatedRZC(totalAccumulated);
-      setIsMining(true);
-      
-      // Save updated data
-      saveMiningData(userId, miningData.startTime, totalAccumulated);
-    } else {
-      // Auto-start mining if no data exists (ultimate idle mining)
-      const now = new Date();
-      setIsMining(true);
-      setMiningStartTime(now);
-      setAccumulatedRZC(0);
-      saveMiningData(userId, now, 0);
+      if (now >= miningData.endTime) {
+        // Session expired, move rewards to claimable
+        const finalAccumulated = RZC_PER_DAY;
+        const newClaimable = savedClaimable + finalAccumulated;
+        setClaimableRZC(newClaimable);
+        saveClaimableRZC(userId, newClaimable);
+        saveMiningData(userId, null, null, 0); // Clear mining session
+      } else {
+        // Session active, resume tracking
+        setMiningStartTime(miningData.startTime);
+        setMiningSessionEndTime(miningData.endTime);
+        setIsMining(true);
+      }
     }
-  }, [userId, RZC_PER_SECOND]);
+  }, [userId]);
 
   // Calculate accumulated RZC based on mining time
   useEffect(() => {
     let miningInterval: NodeJS.Timeout;
-    
-    if (isMining && miningStartTime && userId) {
-      // Update accumulated RZC every second
+
+    if (isMining && miningStartTime && miningSessionEndTime && userId) {
       miningInterval = setInterval(() => {
         const now = new Date();
         const elapsedSeconds = (now.getTime() - miningStartTime.getTime()) / 1000;
-        const earnedRZC = elapsedSeconds * RZC_PER_SECOND;
-        setAccumulatedRZC(earnedRZC);
-        
-        // Save mining data every 10 seconds
-        if (Math.floor(elapsedSeconds) % 10 === 0) {
-          saveMiningData(userId, miningStartTime, earnedRZC);
+        const remainingSeconds = (miningSessionEndTime.getTime() - now.getTime()) / 1000;
+
+        if (remainingSeconds <= 0) {
+          setIsMining(false);
+          setMiningStartTime(null);
+          setMiningSessionEndTime(null);
+          setAccumulatedRZC(0);
+
+          const newClaimable = claimableRZC + RZC_PER_DAY;
+          setClaimableRZC(newClaimable);
+          saveClaimableRZC(userId, newClaimable);
+          saveMiningData(userId, null, null, 0);
+
+          showSnackbar?.({
+            message: 'Mining session complete!',
+            description: `You earned 1 RZC. Ready to claim.`
+          });
+
+          clearInterval(miningInterval);
+        } else {
+          const hours = Math.floor(remainingSeconds / 3600);
+          const minutes = Math.floor((remainingSeconds % 3600) / 60);
+          const seconds = Math.floor(remainingSeconds % 60);
+          setSessionCountdown(`${hours}h ${minutes}m ${seconds}s`);
+
+          const earnedRZC = elapsedSeconds * RZC_PER_SECOND;
+          setAccumulatedRZC(earnedRZC > RZC_PER_DAY ? RZC_PER_DAY : earnedRZC);
         }
       }, 1000);
     }
@@ -234,72 +254,42 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         clearInterval(miningInterval);
       }
     };
-  }, [isMining, miningStartTime, RZC_PER_SECOND, userId]);
+  }, [isMining, miningStartTime, miningSessionEndTime, RZC_PER_SECOND, userId, claimableRZC]);
 
   // Start mining function
   const startMining = () => {
-    if (!userId) return;
-    
-    // If already mining, don't reset
-    if (isMining) return;
-    
+    if (!userId || isMining) return;
+
     const now = new Date();
+    const endTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
     setIsMining(true);
     setMiningStartTime(now);
+    setMiningSessionEndTime(endTime);
     setAccumulatedRZC(0);
     
-    // Save initial mining data
-    saveMiningData(userId, now, 0);
-  };
-
-  // Stop mining function
-  const stopMining = () => {
-    if (!userId) return;
-    
-    setIsMining(false);
-    setMiningStartTime(null);
-    
-    // Save accumulated RZC as claimable
-    if (accumulatedRZC > 0) {
-      const newClaimable = claimableRZC + accumulatedRZC;
-      setClaimableRZC(newClaimable);
-      saveClaimableRZC(userId, newClaimable);
-      setAccumulatedRZC(0);
-    }
+    saveMiningData(userId, now, endTime, 0);
   };
 
   // Claim rewards function
   const claimRewards = async () => {
-    if (!userId || (!accumulatedRZC && !claimableRZC)) return;
-    
-    const totalToClaim = accumulatedRZC + claimableRZC;
+    if (!userId || claimableRZC <= 0) return;
     
     try {
-      // Call the existing claim function which should update totalWithdrawnTon
-      await onClaim();
+      await onClaim(); // This should handle the Supabase call
       
-      // Clear accumulated and claimable RZC
-      setAccumulatedRZC(0);
-      setClaimableRZC(0);
-      saveClaimableRZC(userId, 0);
-      
-      // Clear mining data since we claimed everything
-      if (isMining) {
-        setIsMining(false);
-        setMiningStartTime(null);
-        localStorage.removeItem(getMiningDataKey(userId));
-      }
-      
-      // Show success message
       showSnackbar?.({
         message: 'RZC Claimed Successfully!',
-        description: `You claimed ${totalToClaim.toFixed(6)} RZC`
+        description: `You claimed ${claimableRZC.toFixed(6)} RZC`
       });
+
+      setClaimableRZC(0);
+      saveClaimableRZC(userId, 0);
     } catch (error) {
       console.error('Error claiming rewards:', error);
       showSnackbar?.({
         message: 'Claim Failed',
-        description: 'Please try again later'
+        description: 'An error occurred while claiming your RZC.'
       });
     }
   };
@@ -329,11 +319,11 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         {/* Balance Display */}
         <div className="text-center mb-6">
           <div className="text-3xl font-bold text-gray-900 mb-1">
-            {isMining ? accumulatedRZC.toFixed(6) : (claimableRZC > 0 ? claimableRZC.toFixed(6) : '0.000000')}
+            {(isMining ? accumulatedRZC : claimableRZC).toFixed(6)}
           </div>
           <div className="text-gray-600 font-medium">RZC</div>
           <div className="text-sm text-gray-500">
-            ≈ ${((isMining ? accumulatedRZC : claimableRZC) * (tonPrice || 0)).toFixed(4)} USD
+            ≈ ${((isMining ? accumulatedRZC : claimableRZC) * tonPrice).toFixed(4)} USD
           </div>
         </div>
 
@@ -353,14 +343,34 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           
           {isMining && (
             <div className="text-xs text-gray-500">
-              Earning {RZC_PER_SECOND.toFixed(8)} RZC per second
+              Session ends in: {sessionCountdown}
             </div>
           )}
         </div>
 
         {/* Action Buttons */}
         <div className="space-y-3">
-          {canClaim ? (
+          <button
+            onClick={startMining}
+            disabled={isMining}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
+          >
+            {isMining ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Mining...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+                </svg>
+                <span>Start Mining Session</span>
+              </>
+            )}
+          </button>
+
+          {canClaim && (
             <button
               onClick={claimRewards}
               disabled={isClaiming || claimCooldown > 0}
@@ -383,32 +393,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
-                  <span>Claim RZC</span>
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={isMining ? stopMining : startMining}
-              className={`w-full font-semibold py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 ${
-                isMining 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-            >
-              {isMining ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Stop Mining</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
-                  </svg>
-                  <span>Start Mining</span>
+                  <span>Claim {claimableRZC.toFixed(2)} RZC</span>
                 </>
               )}
             </button>
