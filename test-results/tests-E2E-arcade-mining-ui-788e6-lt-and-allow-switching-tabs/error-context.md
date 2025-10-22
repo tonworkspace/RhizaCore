@@ -1,0 +1,62 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e10]:
+    - generic [ref=e12]:
+      - img [ref=e17]
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]: "@sarahj"
+          - img [ref=e26]
+        - 'button "ID: 923481567" [ref=e29] [cursor=pointer]':
+          - img [ref=e30]
+          - text: "ID: 923481567"
+    - generic [ref=e37]: Mainnet
+  - generic [ref=e42]:
+    - generic [ref=e47]:
+      - img [ref=e49]
+      - generic [ref=e51]:
+        - heading "RZC Mining Core" [level=3] [ref=e52]
+        - paragraph [ref=e53]: Decentralized Yield Protocol
+    - generic [ref=e55]:
+      - generic [ref=e56]:
+        - generic [ref=e60]: "0.000000"
+        - generic [ref=e61]: RZC Balance
+        - generic [ref=e62]: ≈ $0.0000 USD
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e67]: SYSTEM STANDBY
+          - generic [ref=e68]: 1 RZC/24h
+        - generic [ref=e69]: SESSION INACTIVE
+      - button "INITIATE MINING SEQUENCE" [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+        - generic [ref=e75]: INITIATE MINING SEQUENCE
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]: "0.00"
+          - generic [ref=e79]: Total Claimed
+        - generic [ref=e80]:
+          - generic [ref=e81]: "0.00"
+          - generic [ref=e82]: Airdrop
+    - generic [ref=e83]:
+      - button "MINING" [ref=e84] [cursor=pointer]
+      - button "ACTIVITY" [ref=e85] [cursor=pointer]
+      - button "NETWORK" [ref=e86] [cursor=pointer]
+    - generic [ref=e88]:
+      - paragraph [ref=e89]: Mining dashboard is shown above.
+      - paragraph [ref=e90]: Switch tabs to see activity and network stats.
+  - generic [ref=e94]:
+    - button "Mining" [ref=e95] [cursor=pointer]:
+      - img [ref=e100]
+      - generic [ref=e105]: Mining
+    - button "Wallet" [ref=e106] [cursor=pointer]:
+      - img [ref=e109]
+      - generic [ref=e111]: Wallet
+    - button "Dapp" [ref=e112] [cursor=pointer]:
+      - img [ref=e115]
+      - generic [ref=e117]: Dapp
+    - button "Settings" [ref=e118] [cursor=pointer]:
+      - img [ref=e121]
+      - generic [ref=e123]: Settings
+```

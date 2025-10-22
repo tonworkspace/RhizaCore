@@ -23,6 +23,7 @@ export default defineConfig({
     'global': 'globalThis',
   },
   optimizeDeps: {
+    include: ['ton-crypto'],
     esbuildOptions: {
       define: {
         global: 'globalThis'

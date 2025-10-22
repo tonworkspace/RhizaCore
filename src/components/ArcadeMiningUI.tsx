@@ -295,55 +295,69 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-      {/* Pi-style Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+    <div className="bg-gray-900 text-green-400 font-mono rounded-2xl shadow-lg border border-green-700 overflow-hidden relative">
+      <div className="absolute inset-0 bg-grid-green-500/10 bg-grid-18 [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
+      <div className="absolute inset-0 scanline"></div>
+
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-green-700/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            <div className="w-10 h-10 bg-green-900/50 rounded-full flex items-center justify-center border-2 border-green-600/70 shadow-neon-green-sm">
+              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div>
-              <h3 className="text-white font-bold text-lg">RZC Wallet</h3>
-              <p className="text-white/80 text-sm">Mine & Earn RZC</p>
+              <h3 className="font-bold text-lg text-shadow-green">RZC Mining Core</h3>
+              <p className="text-green-500/80 text-sm">Decentralized Yield Protocol</p>
             </div>
           </div>
-          <div className={`w-3 h-3 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-400'}`} />
+          <div className={`w-3 h-3 rounded-full ${isMining ? 'bg-green-400 shadow-neon-green' : 'bg-gray-600'} animate-pulse`} />
         </div>
       </div>
 
       {/* Wallet Content */}
-      <div className="p-6">
-        {/* Balance Display */}
-        <div className="text-center mb-6">
-          <div className="text-3xl font-bold text-gray-900 mb-1">
+      <div className="p-6 relative z-10">
+        {/* Futuristic Display */}
+        <div className="bg-black/50 rounded-lg p-6 mb-6 border-2 border-green-700/50 shadow-neon-green-lg text-center backdrop-blur-sm">
+          <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${isMining ? 'bg-green-900/50 border-2 border-green-500 animate-pulse-slow' : 'bg-gray-800/50 border-2 border-gray-600'}`}>
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isMining ? 'bg-green-700/60 border-2 border-green-400' : 'bg-gray-700/60 border-2 border-gray-500'}`}>
+              <div className={`w-8 h-8 rounded-full ${isMining ? 'bg-green-400 shadow-neon-green' : 'bg-gray-600'}`} />
+            </div>
+          </div>
+
+          <div className="text-5xl font-bold text-green-300 text-shadow-green tracking-wider mb-2">
             {(isMining ? accumulatedRZC : claimableRZC).toFixed(6)}
           </div>
-          <div className="text-gray-600 font-medium">RZC</div>
-          <div className="text-sm text-gray-500">
+          <div className="text-green-500/80 font-medium">RZC Balance</div>
+          <div className="text-sm text-green-600/70">
             ≈ ${((isMining ? accumulatedRZC : claimableRZC) * tonPrice).toFixed(4)} USD
           </div>
         </div>
 
         {/* Mining Status */}
-        <div className="bg-gray-50 rounded-xl p-4 mb-6">
-          <div className="flex items-center justify-between mb-3">
+        <div className="bg-black/30 rounded-lg p-4 mb-6 border border-green-800/50">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isMining ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-              <span className="font-medium text-gray-700">
-                {isMining ? 'Mining Active' : 'Mining Stopped'}
+              <div className={`w-2.5 h-2.5 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+              <span className="font-medium text-green-300">
+                {isMining ? 'SYSTEM ONLINE' : 'SYSTEM STANDBY'}
               </span>
             </div>
-            <div className="text-sm text-gray-600">
-              {RZC_PER_DAY} RZC/day
+            <div className="text-sm text-green-500/80">
+              {RZC_PER_DAY} RZC/24h
             </div>
           </div>
           
           {isMining && (
-            <div className="text-xs text-gray-500">
-              Session ends in: {sessionCountdown}
+            <div className="text-xs text-green-400/70 h-4">
+              SESSION ENDS IN: {sessionCountdown}
+            </div>
+          )}
+          {!isMining && (
+             <div className="text-xs text-gray-500 h-4">
+              SESSION INACTIVE
             </div>
           )}
         </div>
@@ -353,19 +367,22 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           <button
             onClick={startMining}
             disabled={isMining}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
+            className="w-full bg-green-900/50 border-2 border-green-600/70 text-green-300 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
+                       hover:bg-green-800/60 hover:border-green-500 hover:shadow-neon-green
+                       disabled:bg-gray-800/50 disabled:border-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             {isMining ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Mining...</span>
+                <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+                <span>SESSION ACTIVE</span>
               </>
             ) : (
               <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>Start Mining Session</span>
+                <span>INITIATE MINING SEQUENCE</span>
               </>
             )}
           </button>
@@ -374,26 +391,22 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             <button
               onClick={claimRewards}
               disabled={isClaiming || claimCooldown > 0}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
+              className="w-full bg-yellow-900/50 border-2 border-yellow-600/70 text-yellow-300 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
+              hover:bg-yellow-800/60 hover:border-yellow-500 hover:shadow-neon-yellow
+              disabled:bg-gray-800/50 disabled:border-gray-700 disabled:text-gray-500"
             >
               {isClaiming ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Claiming...</span>
-                </>
-              ) : claimCooldown > 0 ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{cooldownText}</span>
+                  <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  <span>CLAIMING...</span>
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
                   </svg>
-                  <span>Claim {claimableRZC.toFixed(2)} RZC</span>
+                  <span>CLAIM {claimableRZC.toFixed(2)} RZC</span>
                 </>
               )}
             </button>
@@ -404,21 +417,19 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             <button
               onClick={() => setShowWithdrawModal(true)}
               disabled={!withdrawalEligibility.canWithdraw}
-              className={`w-full font-semibold py-3 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 ${
-                withdrawalEligibility.canWithdraw
-                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
+              className="w-full bg-purple-900/50 border-2 border-purple-600/70 text-purple-300 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
+              hover:bg-purple-800/60 hover:border-purple-500 hover:shadow-neon-purple
+              disabled:bg-gray-800/50 disabled:border-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
               </svg>
               <span>
                 {withdrawalEligibility.canWithdraw 
-                  ? 'Withdraw RZC' 
+                  ? 'ACCESS VAULT'
                   : withdrawalEligibility.hasPendingWithdrawal
-                  ? 'Processing...'
-                  : `Cooldown (${withdrawalEligibility.daysUntilWithdrawal}d)`
+                  ? 'PROCESSING...'
+                  : `COOLDOWN (${withdrawalEligibility.daysUntilWithdrawal}d)`
                 }
               </span>
             </button>
@@ -427,52 +438,83 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
         {/* Stats */}
         <div className="mt-6 grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <div className="text-lg font-bold text-gray-900">{totalWithdrawnTon.toFixed(2)}</div>
-            <div className="text-xs text-gray-600">Total Claimed</div>
+          <div className="bg-black/30 rounded-lg p-3 text-center border border-green-800/50">
+            <div className="text-lg font-bold text-green-300 text-shadow-green">{totalWithdrawnTon.toFixed(2)}</div>
+            <div className="text-xs text-green-500/80">Total Claimed</div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-3 text-center">
-            <div className="text-lg font-bold text-gray-900">{Number(airdropBalanceNova ?? 0).toFixed(2)}</div>
-            <div className="text-xs text-gray-600">Airdrop</div>
+          <div className="bg-black/30 rounded-lg p-3 text-center border border-green-800/50">
+            <div className="text-lg font-bold text-green-300 text-shadow-green">{Number(airdropBalanceNova ?? 0).toFixed(2)}</div>
+            <div className="text-xs text-green-500/80">Airdrop</div>
           </div>
         </div>
       </div>
 
-          {activeTab === 'activity' && (
-            <div className="mt-4 mb-4 space-y-4">
+      {/* Tab Navigation */}
+      <div className="flex bg-black/30 border-t border-green-700/50">
+        <button
+          onClick={() => setActiveTab('mining')}
+          className={`flex-1 py-3 text-sm font-semibold transition-all duration-200 ${activeTab === 'mining' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
+        >
+          MINING
+        </button>
+        <button
+          onClick={() => setActiveTab('activity')}
+          className={`flex-1 py-3 text-sm font-semibold transition-all duration-200 border-l border-r border-green-700/50 ${activeTab === 'activity' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
+        >
+          ACTIVITY
+        </button>
+        <button
+          onClick={() => setActiveTab('referral')}
+          className={`flex-1 py-3 text-sm font-semibold transition-all duration-200 ${activeTab === 'referral' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
+        >
+          NETWORK
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <div className="p-6 bg-black/30">
+        {activeTab === 'mining' && (
+          <div className="text-center text-gray-500">
+            <p>Mining dashboard is shown above.</p>
+            <p>Switch tabs to see activity and network stats.</p>
+          </div>
+        )}
+
+        {activeTab === 'activity' && (
+            <div className="space-y-4">
               {/* Withdrawal Activity Summary */}
               {props.withdrawals && props.withdrawals.length > 0 && (
-                <div className="backdrop-blur-sm rounded-2xl p-6 border border-blue-200/50 shadow-lg">
+                <div className="bg-black/30 rounded-lg p-4 border border-green-800/50">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500/30 to-purple-500/20 rounded-2xl flex items-center justify-center shadow-lg">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    <div className="w-10 h-10 bg-green-900/50 rounded-lg flex items-center justify-center border border-green-700/50">
+                      <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10m16-10v10M9 3h6m-6 18h6" />
                       </svg>
                     </div>
                     <div>
-                      <div className="text-base font-bold text-slate-800">Withdrawal Activity</div>
-                      <div className="text-sm text-blue-600 font-medium">Your withdrawal history</div>
+                      <div className="text-base font-bold text-green-300">Withdrawal Activity</div>
+                      <div className="text-sm text-green-500/80">Your withdrawal history</div>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center bg-white/70 rounded-xl p-4 border border-blue-200/50 shadow-md">
-                      <div className="text-xl font-bold text-emerald-600">
+                    <div className="text-center bg-black/20 rounded-md p-3 border border-green-900">
+                      <div className="text-xl font-bold text-green-300">
                         {props.withdrawals.filter(w => w.status === 'COMPLETED').length}
                       </div>
-                      <div className="text-sm text-slate-600 font-medium">Completed</div>
+                      <div className="text-xs text-green-500/70">Completed</div>
                     </div>
-                    <div className="text-center bg-white/70 rounded-xl p-4 border border-amber-200/50 shadow-md">
-                      <div className="text-xl font-bold text-amber-600">
+                    <div className="text-center bg-black/20 rounded-md p-3 border border-green-900">
+                      <div className="text-xl font-bold text-yellow-400">
                         {props.withdrawals.filter(w => w.status === 'PENDING').length}
                       </div>
-                      <div className="text-sm text-slate-600 font-medium">Pending</div>
+                      <div className="text-xs text-green-500/70">Pending</div>
                     </div>
-                    <div className="text-center bg-white/70 rounded-xl p-4 border border-slate-200/50 shadow-md">
-                      <div className="text-xl font-bold text-slate-600">
+                    <div className="text-center bg-black/20 rounded-md p-3 border border-green-900">
+                      <div className="text-xl font-bold text-green-300">
                         {props.withdrawals.reduce((sum, w) => sum + (w.status === 'COMPLETED' ? w.amount : 0), 0).toFixed(2)}
                       </div>
-                      <div className="text-sm text-slate-600 font-medium">Total Paid</div>
+                      <div className="text-xs text-green-500/70">Total Paid</div>
                     </div>
                   </div>
                 </div>
@@ -480,129 +522,92 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
               {props.isLoadingActivities ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-green-500"></div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {/* Regular Activities */}
                   {props.activities && props.activities.length > 0 && props.activities.slice(0, 8).map((a) => (
-                  <div key={a.id} className="flex items-center gap-4 p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-slate-200/50 shadow-md hover:shadow-lg transition-all">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/20 flex items-center justify-center shadow-lg">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div key={a.id} className="flex items-center gap-4 p-3 bg-black/20 rounded-lg border border-green-800/50">
+                    <div className="w-10 h-10 rounded-lg bg-green-900/50 flex items-center justify-center border border-green-700/50">
+                      <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <div className="text-base text-slate-900 capitalize font-semibold">{a.type.replace(/_/g, ' ')}</div>
-                      <div className="text-sm text-slate-600">{new Date(a.created_at).toLocaleString()}</div>
+                      <div className="text-base text-green-300 capitalize font-semibold">{a.type.replace(/_/g, ' ')}</div>
+                      <div className="text-sm text-green-500/70">{new Date(a.created_at).toLocaleString()}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-slate-900">{typeof a.amount === 'number' ? a.amount.toFixed(6) : a.amount} {a.type === 'nova_reward' ? 'RZC' : 'TON'}</div>
-                      <div className="text-sm text-slate-600 font-medium">{a.status}</div>
+                      <div className="text-lg font-bold text-green-300">{typeof a.amount === 'number' ? a.amount.toFixed(6) : a.amount} {a.type === 'nova_reward' ? 'RZC' : 'TON'}</div>
+                      <div className="text-sm text-green-500/70 font-medium">{a.status}</div>
                     </div>
                   </div>
                   ))}
 
                   {/* Withdrawal Activities Header */}
                   {props.withdrawals && props.withdrawals.length > 0 && (
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                          </svg>
-                        </div>
-                        <div className="text-sm font-bold text-slate-800">Recent Withdrawals</div>
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {props.withdrawals.length} total
-                      </div>
+                    <div className="flex items-center justify-between pt-4">
+                      <div className="text-sm font-bold text-green-300">Recent Withdrawals</div>
+                      <div className="text-xs text-green-500/70">{props.withdrawals.length} total</div>
                     </div>
                   )}
 
                   {/* Enhanced Withdrawal Activities */}
                   {props.withdrawals && props.withdrawals.length > 0 && props.withdrawals.slice(0, 5).map((w) => (
-                    <div key={`withdrawal-${w.id}`} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all duration-200 hover:shadow-lg ${
-                      w.status === 'PENDING' ? 'bg-amber-50/50 border-amber-200/50 backdrop-blur-sm' :
-                      w.status === 'COMPLETED' ? 'bg-emerald-50/50 border-emerald-200/50 backdrop-blur-sm' :
-                      w.status === 'FAILED' ? 'bg-red-50/50 border-red-200/50 backdrop-blur-sm' :
-                      'bg-slate-50/50 border-slate-200/50 backdrop-blur-sm'
+                    <div key={`withdrawal-${w.id}`} className={`flex items-center gap-4 p-4 rounded-lg border ${
+                      w.status === 'PENDING' ? 'bg-yellow-900/20 border-yellow-700/50' :
+                      w.status === 'COMPLETED' ? 'bg-green-900/20 border-green-700/50' :
+                      w.status === 'FAILED' ? 'bg-red-900/20 border-red-700/50' :
+                      'bg-gray-800/20 border-gray-700/50'
                     }`}>
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
-                        w.status === 'PENDING' ? 'bg-gradient-to-br from-amber-500/30 to-yellow-500/20' :
-                        w.status === 'COMPLETED' ? 'bg-gradient-to-br from-emerald-500/30 to-green-500/20' :
-                        w.status === 'FAILED' ? 'bg-gradient-to-br from-red-500/30 to-pink-500/20' :
-                        'bg-gradient-to-br from-slate-500/30 to-gray-500/20'
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center border-2 ${
+                        w.status === 'PENDING' ? 'bg-yellow-900/50 border-yellow-600/70' :
+                        w.status === 'COMPLETED' ? 'bg-green-900/50 border-green-600/70' :
+                        w.status === 'FAILED' ? 'bg-red-900/50 border-red-600/70' :
+                        'bg-gray-800/50 border-gray-600/70'
                       }`}>
                         {w.status === 'PENDING' ? (
-                          <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         ) : w.status === 'COMPLETED' ? (
-                          <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                         ) : w.status === 'FAILED' ? (
-                          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         ) : (
-                          <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
                         </svg>
                         )}
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {w.status === 'PENDING' ? 'Withdrawal Pending' :
-                             w.status === 'COMPLETED' ? 'Withdrawal Completed' :
-                             w.status === 'FAILED' ? 'Withdrawal Failed' :
-                             'Withdrawal Request'}
-                          </div>
-                          <div className={`w-2 h-2 rounded-full ${
-                            w.status === 'PENDING' ? 'bg-amber-500 animate-pulse' :
-                            w.status === 'COMPLETED' ? 'bg-emerald-500' :
-                            w.status === 'FAILED' ? 'bg-red-500' :
-                            'bg-slate-500'
-                          }`} />
+                        <div className="text-sm font-semibold text-green-300">
+                          { w.status === 'PENDING' ? 'Withdrawal Pending' :
+                            w.status === 'COMPLETED' ? 'Withdrawal Completed' :
+                            w.status === 'FAILED' ? 'Withdrawal Failed' :
+                            'Withdrawal Request'}
                         </div>
-                        <div className="text-xs text-slate-500 mb-1">
+                        <div className="text-xs text-green-500/70 mb-1">
                           {new Date(w.created_at).toLocaleString()}
                         </div>
-                        {w.status === 'COMPLETED' && (
-                          <div className="text-xs text-emerald-600 font-medium">
-                            ✓ Sent to your wallet
-                          </div>
-                        )}
-                        {w.status === 'PENDING' && (
-                          <div className="text-xs text-amber-600 font-medium">
-                            ⏳ Processing on blockchain
-                          </div>
-                        )}
-                        {w.status === 'FAILED' && (
-                          <div className="text-xs text-red-600 font-medium">
-                            ✗ Transaction failed
-                          </div>
-                        )}
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-slate-900 mb-1">
+                        <div className="text-lg font-bold text-green-300 mb-1">
                           {w.amount.toFixed(6)} RZC
                         </div>
-                        <div className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                          w.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                          w.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                          w.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                          'bg-slate-100 text-slate-700'
+                        <div className={`text-xs font-semibold px-2 py-1 rounded-md ${
+                          w.status === 'PENDING' ? 'bg-yellow-800/50 text-yellow-300' :
+                          w.status === 'COMPLETED' ? 'bg-green-800/50 text-green-300' :
+                          w.status === 'FAILED' ? 'bg-red-800/50 text-red-300' :
+                          'bg-gray-700/50 text-gray-300'
                         }`}>
                           {w.status}
                         </div>
-                        {w.status === 'COMPLETED' && (
-                          <div className="text-xs text-slate-500 mt-1">
-                            ID: #{w.id}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -610,7 +615,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                   {/* View All Withdrawals Button */}
                   {props.withdrawals && props.withdrawals.length > 5 && (
                     <div className="text-center pt-2">
-                      <button className="text-xs text-blue-600 hover:text-blue-800 font-medium px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                      <button className="text-xs text-green-400 hover:text-green-300 font-medium px-3 py-2 rounded-lg hover:bg-green-800/50 transition-colors">
                         View All {props.withdrawals.length} Withdrawals
                       </button>
                     </div>
@@ -618,14 +623,14 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
                   {/* No activities message */}
                   {(!props.activities || props.activities.length === 0) && (!props.withdrawals || props.withdrawals.length === 0) && (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="text-center py-12 border-2 border-dashed border-green-800/50 rounded-lg">
+                      <div className="w-16 h-16 bg-green-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-green-700/50">
+                        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
                       </div>
-                      <div className="text-slate-500 font-medium mb-1">No Recent Activity</div>
-                      <div className="text-xs text-slate-400">Your RZC mining and withdrawal activities will appear here</div>
+                      <div className="text-green-400 font-medium mb-1">No Recent Activity</div>
+                      <div className="text-xs text-green-500/70">Your mining and withdrawal activities will appear here</div>
                     </div>
                   )}
                 </div>
@@ -634,137 +639,90 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           )}
 
           {activeTab === 'referral' && (
-            <div className="mt-4 mb-4 space-y-4">
+            <div className="space-y-4">
               {/* Upline Information */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-black/30 rounded-lg p-4 border border-green-800/50">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 bg-green-900/50 rounded-lg flex items-center justify-center border border-green-700/50">
+                    <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-slate-800">Your Upline</div>
-                    <div className="text-xs text-blue-600">Sponsor Information</div>
+                    <div className="text-sm font-bold text-green-300">Your Upline</div>
+                    <div className="text-xs text-green-500/80">Sponsor Information</div>
                   </div>
                 </div>
 
                 {sponsorInfo ? (
-                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                  <div className="bg-black/20 rounded-lg p-3 border border-green-900">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold text-lg">
+                      <div className="w-12 h-12 bg-green-800/50 rounded-full flex items-center justify-center border-2 border-green-600/70">
+                        <span className="text-green-200 font-bold text-lg">
                           {sponsorInfo.username?.[0]?.toUpperCase() || '?'}
                         </span>
                       </div>
                       <div className="flex-1">
-                        <div className="text-slate-900 font-semibold text-lg">{sponsorInfo.username}</div>
-                        <div className="text-sm text-slate-600">Sponsor Code: <span className="font-mono font-bold text-blue-600">{sponsorInfo.code}</span></div>
-                        <div className="flex items-center gap-1 mt-1">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-xs text-green-600 font-medium">Active Sponsor</span>
-                        </div>
+                        <div className="text-green-200 font-semibold text-lg">{sponsorInfo.username}</div>
+                        <div className="text-sm text-green-400/80">Sponsor Code: <span className="font-mono font-bold text-green-300">{sponsorInfo.code}</span></div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-lg p-3 border border-slate-200">
-                    <div className="text-center py-4">
-                      <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </div>
-                      <div className="text-slate-600 font-medium">No Sponsor</div>
-                      <div className="text-xs text-slate-500">You joined without a sponsor code</div>
+                  <div className="bg-black/20 rounded-lg p-3 border-2 border-dashed border-green-800/50 text-center py-4">
+                    <div className="w-12 h-12 bg-green-900/50 rounded-full flex items-center justify-center mx-auto mb-2 border-2 border-green-700/50">
+                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
                     </div>
+                    <div className="text-green-400 font-medium">No Sponsor</div>
+                    <div className="text-xs text-green-500/70">You joined without a sponsor code</div>
                   </div>
                 )}
               </div>
 
               {/* Your Sponsor Code */}
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="text-sm font-bold text-slate-700">Your Sponsor Code</div>
-                </div>
+              <div className="bg-black/30 rounded-lg p-4 border border-green-800/50">
+                <div className="text-sm font-bold text-green-300 mb-2">Your Sponsor Code</div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-white rounded-lg px-3 py-2 border border-slate-300">
-                    <span className="text-lg font-bold text-green-600 font-mono">{ referralCode || sponsorCode || 'Loading...'}</span>
+                  <div className="flex-1 bg-black/50 rounded-md px-3 py-2 border border-green-700/50">
+                    <span className="text-lg font-bold text-green-200 font-mono tracking-widest">{ referralCode || sponsorCode || '...'}</span>
                   </div>
                   <button 
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(referralCode || sponsorCode);
-                        showSnackbar?.({
-                          message: 'Sponsor code copied!',
-                          description: 'Code has been copied to your clipboard'
-                        });
+                        showSnackbar?.({ message: 'Sponsor code copied!' });
                       } catch (error) {
-                        showSnackbar?.({
-                          message: 'Failed to copy code',
-                          description: 'Please try again or copy manually'
-                        });
+                        showSnackbar?.({ message: 'Failed to copy code' });
                       }
                     }}
-                    className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors cursor-pointer"
+                    className="px-4 py-2 bg-green-600/80 text-white rounded-md text-sm hover:bg-green-500/80 transition-colors border border-green-500/80"
                   >
                     Copy
                   </button>
                 </div>
-                <div className="text-xs text-slate-500 mt-2">Share this code to earn referral rewards</div>
+                <div className="text-xs text-green-500/70 mt-2">Share this code to earn referral rewards</div>
               </div>
 
               {/* Network Stats */}
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                  <div className="text-sm font-bold text-slate-700">Network Statistics</div>
-                </div>
+              <div className="bg-black/30 rounded-lg p-4 border border-green-800/50">
+                <div className="text-sm font-bold text-green-300 mb-3">Network Statistics</div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center bg-white rounded-lg p-3 border border-slate-200">
-                    <div className="text-2xl font-bold text-green-600">{referralStats.active}</div>
-                    <div className="text-xs text-slate-500 font-medium">Active Team</div>
+                  <div className="text-center bg-black/20 rounded-md p-3 border border-green-900">
+                    <div className="text-2xl font-bold text-green-300">{referralStats.active}</div>
+                    <div className="text-xs text-green-500/70">Active Team</div>
                   </div>
-                  <div className="text-center bg-white rounded-lg p-3 border border-slate-200">
-                    <div className="text-2xl font-bold text-blue-600">{referralStats.total}</div>
-                    <div className="text-xs text-slate-500 font-medium">Total Referrals</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Mining status prompt */}
-          {!isMining && (
-            <div className="mb-6">
-              <div className="relative w-full px-5 py-4 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200">
-               
-                <div className="relative flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m-6-8h8a2 2 0 012 2v8a2 2 0 01-2 2H8a2 2 0 01-2-2v-8a2 2 0 012-2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="text-emerald-800 text-sm font-medium">Ready to start mining RZC</div>
-                    <div className="text-emerald-600 text-xs">Earn {RZC_PER_DAY} RZC per day - Click START to begin</div>
+                  <div className="text-center bg-black/20 rounded-md p-3 border border-green-900">
+                    <div className="text-2xl font-bold text-green-300">{referralStats.total}</div>
+                    <div className="text-xs text-green-500/70">Total Referrals</div>
                   </div>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Mining progress indicator */}
-         
         </div>
+    </div>
   );
 }
 
