@@ -3001,10 +3001,11 @@ const handleDeposit = async (amount: number) => {
 
         {currentTab === 'tasks' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
+            
             </div>
         )}
 
-        {currentTab === 'token' && (
+        {currentTab === 'wallet' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
             <TonWallet/>
             </div>
@@ -3476,7 +3477,7 @@ const handleDeposit = async (amount: number) => {
                 gradient: 'from-blue-500 to-cyan-500'
               },
               { 
-                id: 'token', 
+                id: 'wallet', 
                 text: 'Wallet', 
                 Icon: FaWallet,
                 premium: false,
