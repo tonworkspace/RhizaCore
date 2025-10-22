@@ -2716,7 +2716,7 @@ const handleDeposit = async (amount: number) => {
   // Update the main return statement to handle loading, new user, and no stake states
   if (isLoading || isInitializing) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#FFFFFF]">
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <div className="text-center">
           <div className="w-20 h-20 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-blue-400">{isInitializing ? 'Initializing your account...' : 'Loading...'}</p>
@@ -2741,22 +2741,22 @@ const handleDeposit = async (amount: number) => {
   // Show sponsor gate if user doesn't have a sponsor
   if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <div className="w-full max-w-md mx-4">
           {/* Sponsor Code Gate */}
-          <div className="p-8 rounded-2xl bg-white border border-slate-200 shadow-lg">
+          <div className="p-8 rounded-2xl bg-gray-800 border border-green-700/50 shadow-lg">
             <div className="text-center space-y-6">
               {/* Icon */}
-              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-20 h-20 bg-green-900/50 rounded-full flex items-center justify-center mx-auto border-2 border-green-600/70">
+                <svg className="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
               
               {/* Title and Description */}
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 mb-3">🔐 Join a Team First</h1>
-                <p className="text-slate-600 text-sm leading-relaxed">
+                <h1 className="text-2xl font-bold text-green-300 mb-3">🔐 Join a Team First</h1>
+                <p className="text-gray-400 text-sm leading-relaxed">
                   To access TAPPs, you need to join a team by entering a sponsor code. 
                   This helps build our community and ensures everyone has a sponsor to guide them.
                 </p>
@@ -2769,11 +2769,11 @@ const handleDeposit = async (amount: number) => {
                     value={applyCode}
                     onChange={(e) => setApplyCode(e.target.value)} 
                     placeholder="Enter sponsor code" 
-                    className="flex-1 px-4 py-3 rounded-lg border border-slate-200 text-slate-900 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all" 
+                    className="flex-1 px-4 py-3 rounded-lg border border-green-700/50 bg-gray-900 text-green-300 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500/50 transition-all"
                   />
                   <button 
                     onClick={handleApplySponsorCode}
-                    className="px-6 py-3 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-60 hover:bg-blue-700 transition-colors flex items-center gap-2" 
+                    className="px-6 py-3 rounded-lg bg-green-600 text-white text-sm font-semibold disabled:opacity-60 hover:bg-green-700 transition-colors flex items-center gap-2"
                     disabled={isApplying || !applyCode.trim()}
                   >
                     {isApplying ? (
@@ -2789,15 +2789,15 @@ const handleDeposit = async (amount: number) => {
                 
                 {/* Help Text */}
                 <div className="text-center">
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-gray-500">
                     Don't have a sponsor code? Ask a friend who's already using TAPPs!
                   </p>
                 </div>
                 
                 {/* Benefits */}
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-2">✨ Benefits of Joining a Team</h3>
-                  <ul className="text-xs text-blue-700 space-y-1">
+                <div className="bg-green-900/50 rounded-lg p-4 border border-green-700/50">
+                  <h3 className="text-sm font-semibold text-green-300 mb-2">✨ Benefits of Joining a Team</h3>
+                  <ul className="text-xs text-green-400 space-y-1">
                     <li>• Get guidance from experienced users</li>
                     <li>• Access to team rewards and bonuses</li>
                     <li>• Build your own referral network</li>
@@ -2810,7 +2810,7 @@ const handleDeposit = async (amount: number) => {
           
           {/* Footer */}
           <div className="text-center mt-6">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-gray-500">
             <a href="https://t.me/Tapps_chat"> Need help? Contact our support team</a>
             </p>
           </div>
@@ -2828,14 +2828,16 @@ const handleDeposit = async (amount: number) => {
       <div className="px-6 py-4 border-b border-green-700/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-900/50 rounded-full flex items-center justify-center border-2 border-green-600/70 shadow-neon-green-sm">
-              <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
+            {user?.photo_url ? (
+              <img src={user.photo_url} alt="User" className="w-10 h-10 rounded-full border-2 border-green-600/70" />
+            ) : (
+              <div className="w-10 h-10 bg-green-900/50 rounded-full flex items-center justify-center border-2 border-green-600/70 shadow-neon-green-sm">
+                <span className="text-green-400 font-bold">{user?.username?.[0]?.toUpperCase()}</span>
+              </div>
+            )}
             <div>
-              <h3 className="font-bold text-lg text-shadow-green">RZC Mining Core</h3>
-              <p className="text-green-500/80 text-sm">Decentralized Yield Protocol</p>
+              <h3 className="font-bold text-lg text-shadow-green">{user?.username}</h3>
+              <p className="text-green-500/80 text-sm">RZC Miner</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -2852,9 +2854,6 @@ const handleDeposit = async (amount: number) => {
 
       {/* Ultra Modern Main Content Area */}
       <div className="flex-1 relative">
-        {/* Global content background with subtle gradients */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50/90 via-white/90 to-blue-50/30 backdrop-blur-sm"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-purple-50/20 to-transparent"></div>
         
         {currentTab === 'home' && (
           <div className="relative space-y-6 p-custom px-6 pb-6 overflow-y-auto">
