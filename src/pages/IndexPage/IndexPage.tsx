@@ -398,6 +398,10 @@ export const IndexPage: FC = () => {
   // const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const { user, isLoading, error, updateUserData } = useAuth();
   
+  // Mining simulator states
+  const [miningProgress, setMiningProgress] = useState(0);
+  const [miningStatus, setMiningStatus] = useState('Initializing mining rig...');
+  
   // Sponsor code gate states
   const [hasSponsor, setHasSponsor] = useState<boolean | null>(null);
   const [showSponsorGate, setShowSponsorGate] = useState(false);
@@ -2419,6 +2423,33 @@ const handleDeposit = async (amount: number) => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isNewUser] = useState(false);
 
+  // Professional loading sequence
+  useEffect(() => {
+    if (!isLoading && !isInitializing) return;
+
+    // Simple loading sequence
+    const loadingSequence = [
+      { status: 'Initializing system...', progress: 25 },
+      { status: 'Connecting to blockchain...', progress: 50 },
+      { status: 'Loading user data...', progress: 75 },
+      { status: 'Ready to mine!', progress: 100 }
+    ];
+
+    let currentStep = 0;
+    const loadingInterval = setInterval(() => {
+      if (currentStep < loadingSequence.length) {
+        setMiningStatus(loadingSequence[currentStep].status);
+        setMiningProgress(loadingSequence[currentStep].progress);
+        currentStep++;
+      } else {
+        clearInterval(loadingInterval);
+        setIsInitializing(false);
+      }
+    }, 600);
+
+    return () => clearInterval(loadingInterval);
+  }, [isLoading, isInitializing]);
+
   // // Add this near the top of your component
   // const [countdown, setCountdown] = useState('');
 
@@ -2718,10 +2749,53 @@ const handleDeposit = async (amount: number) => {
   // Update the main return statement to handle loading, new user, and no stake states
   if (isLoading || isInitializing) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="text-center">
-          <div className="w-20 h-20 border-t-4 border-blue-500 border-solid rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-blue-400">{isInitializing ? 'Initializing your account...' : 'Loading...'}</p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-black to-green-900">
+        <div className="text-center max-w-md mx-auto px-6">
+          {/* RhizaCore Logo/Icon */}
+          <div className="mb-8">
+            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-green-500 to-green-700 flex items-center justify-center border-4 border-green-300 shadow-2xl">
+              <span className="text-3xl font-bold text-white">R</span>
+            </div>
+            <div className="mt-4">
+              <h1 className="text-2xl font-bold text-green-300">RhizaCore Mine</h1>
+              <p className="text-sm text-green-400">Decentralized Yield Protocol</p>
+            </div>
+          </div>
+
+          {/* Simple Progress Bar */}
+          <div className="mb-6">
+            <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-500 ease-out"
+                style={{ width: `${miningProgress}%` }}
+              />
+            </div>
+            <div className="mt-2 text-sm text-gray-400">
+              {miningProgress}% Complete
+            </div>
+          </div>
+
+          {/* Status Message */}
+          <div className="bg-gray-800/50 border border-green-500/30 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              <span className="text-sm font-semibold text-green-400">System Status</span>
+            </div>
+            <p className="text-green-300 font-medium">{miningStatus}</p>
+          </div>
+
+          {/* Simple Loading Animation */}
+          <div className="flex justify-center">
+            <div className="flex space-x-1">
+              {[0, 1, 2].map((i) => (
+                <div 
+                  key={i} 
+                  className="w-2 h-2 bg-green-500 rounded-full animate-bounce" 
+                  style={{ animationDelay: `${i * 0.2}s` }} 
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

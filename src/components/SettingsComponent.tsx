@@ -48,7 +48,6 @@ const SettingsComponent: React.FC = () => {
     };
 
     // Placeholder functions for actions
-    const handleChangeTheme = () => console.log("Theme change clicked");
     const handleNotificationToggle = () => console.log("Notification toggle clicked");
     const handleChangeLanguage = () => console.log("Language change clicked");
 
@@ -133,13 +132,7 @@ const SettingsComponent: React.FC = () => {
                     <h3 className="text-lg font-semibold text-green-300">App Settings</h3>
                 </div>
                  {/* Theme (Placeholder) */}
-                 <button onClick={handleChangeTheme} className="w-full flex justify-between items-center text-sm py-2 px-1 hover:bg-gray-700/50 rounded transition-colors disabled:opacity-50" disabled>
-                     <span className="text-gray-300">Theme</span>
-                     <div className="flex items-center gap-2">
-                         <span className="text-green-400">Dark Mode</span>
-                         <ChevronRight className="w-4 h-4 text-gray-500" />
-                     </div>
-                 </button>
+                
                  {/* Notifications (Placeholder Toggle) */}
                  <div className="w-full flex justify-between items-center text-sm py-2 px-1">
                      <span className="text-gray-300">Notifications</span>
@@ -166,8 +159,8 @@ const SettingsComponent: React.FC = () => {
                 </div>
                  {/* Link Items */}
                  {[
-                    { label: 'Help Center', icon: HelpCircle, url: '#' }, // Replace # with actual URL
-                    { label: 'Community Chat', icon: Users, url: 'https://t.me/Tapps_chat' }, // Example URL
+                    { label: 'Help Center', icon: HelpCircle, url: 'https://t.me/RhizaCoreNews' }, // Replace # with actual URL
+                    { label: 'Community Chat', icon: Users, url: 'https://t.me/RhizaCore' }, // Example URL
                     { label: 'Documentation', icon: FileText, url: '#' } // Replace #
                  ].map(item => (
                     <a key={item.label} href={item.url} target="_blank" rel="noopener noreferrer" className="w-full flex justify-between items-center text-sm py-2 px-1 hover:bg-gray-700/50 rounded transition-colors group">
