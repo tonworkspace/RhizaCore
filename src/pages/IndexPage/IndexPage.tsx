@@ -284,7 +284,7 @@ interface LocalEarningState {
 
 // Add these constants
 const EARNINGS_SYNC_INTERVAL = 60000; // Sync with server every 60 seconds
-const EARNINGS_STORAGE_KEY = 'userEarnings';
+const getEarningsStorageKey = (userId: number | string) => `userEarnings_${userId}`;
 const EARNINGS_UPDATE_INTERVAL = 1000; // Update UI every second
 
 // Add this interface near other interfaces
@@ -294,7 +294,7 @@ interface OfflineEarnings {
 }
 
 // Add this constant near other constants
-const OFFLINE_EARNINGS_KEY = 'offline_earnings_state';
+const getOfflineEarningsKey = (userId: number | string) => `offline_earnings_state_${userId}`;
 
 // // Add this constant near other constants
 // const TOTAL_EARNED_KEY = 'total_earned_state';
@@ -744,18 +744,24 @@ export const IndexPage: FC = () => {
     return Boolean(user?.balance && user.balance >= 1);
   });
 
-  const [isStakingCompleted, setIsStakingCompleted] = useState(() => {
-    return localStorage.getItem('isStakingCompleted') === 'true';
-  });
+  const [isStakingCompleted, setIsStakingCompleted] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setIsStakingCompleted(localStorage.getItem(`isStakingCompleted_${user.telegram_id}`) === 'true');
+    }
+  }, [user]);
 
   // Update useEffect that watches user balance
   useEffect(() => {
     if (user?.balance && user.balance >= 1 && !isStakingCompleted) {
       setHasStaked(true);
       setIsStakingCompleted(true);
-      localStorage.setItem('isStakingCompleted', 'true');
+      if (user) {
+        localStorage.setItem(`isStakingCompleted_${user.telegram_id}`, 'true');
+      }
     }
-  }, [user?.balance, isStakingCompleted]);
+  }, [user, isStakingCompleted]);
 
   
   useEffect(() => {
@@ -809,12 +815,20 @@ export const IndexPage: FC = () => {
   // Add these state variables to your component
 const [showNFTMinterModal, setShowNFTMinterModal] = useState(false);
 const [nftMintStatus, setNftMintStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-const [hasNFTPass, setHasNFTPass] = useState(localStorage.getItem('hasClaimedNFTPass') === 'true');
+const [hasNFTPass, setHasNFTPass] = useState(false);
+
+useEffect(() => {
+  if (user) {
+    setHasNFTPass(localStorage.getItem(`hasClaimedNFTPass_${user.telegram_id}`) === 'true');
+  }
+}, [user]);
 
 // Add this function to handle NFT minting success
 const handleNFTMintSuccess = async (): Promise<void> => {
   setHasNFTPass(true);
-  localStorage.setItem('hasClaimedNFTPass', 'true');
+  if (user) {
+    localStorage.setItem(`hasClaimedNFTPass_${user.telegram_id}`, 'true');
+  }
   
   // Close the modal after successful mint
   setShowNFTMinterModal(false);
@@ -880,9 +894,13 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   // Add these states at the top of your component
 // const [isClaimingReward, setIsClaimingReward] = useState(false);
 const [isDepositing, setIsDepositing] = useState(false);
-const [] = useState(() => {
-  return localStorage.getItem('hasClaimedWalletReward') === 'true';
-});
+const [hasClaimedReward, setHasClaimedReward] = useState(false);
+
+useEffect(() => {
+  if (user) {
+    setHasClaimedReward(localStorage.getItem(`hasClaimedWalletReward_${user.telegram_id}`) === 'true');
+  }
+}, [user]);
 
 // Function to handle claiming rewards
 // const handleClaimReward = async () => {
@@ -963,7 +981,7 @@ const [] = useState(() => {
 // const [isClaimingEarnings, setIsClaimingEarnings] = useState(false);
 
 // Add these constants near other constants
-const CLAIM_COOLDOWN_KEY = 'claim_cooldown';
+const getClaimCooldownKey = (userId: number | string) => `claim_cooldown_${userId}`;
 // const CLAIM_COOLDOWN_DURATION = 1800; // 30 minutes in seconds
 
 // Update state for cooldown
@@ -971,6 +989,8 @@ const [claimCooldown, setClaimCooldown] = useState(0);
 
 // Add effect to handle cooldown timer and persistence
 useEffect(() => {
+  if (!user) return;
+  const CLAIM_COOLDOWN_KEY = getClaimCooldownKey(user.telegram_id);
   // Load saved cooldown on mount
   const loadCooldown = () => {
     try {

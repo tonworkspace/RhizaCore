@@ -67,10 +67,10 @@ export const OnboardingScreen: FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    const hasSeenOnboarding = localStorage.getItem(`onboarding_${user.id}`);
+    const hasSeenOnboarding = localStorage.getItem(`onboarding_${user.telegram_id}`);
     if (!hasSeenOnboarding && user.total_deposit === 0) {
       setShouldShow(true);
-      localStorage.setItem(`onboarding_${user.id}`, 'true');
+      localStorage.setItem(`onboarding_${user.telegram_id}`, 'true');
     }
 
     const loadingTimer = setTimeout(() => {

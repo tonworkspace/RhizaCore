@@ -332,8 +332,9 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           setSessionCountdown(`${hours}h ${minutes}m ${seconds}s`);
 
           // Calculate accumulated RZC
-          const earnedRZC = elapsedSeconds * RZC_PER_SECOND;
-          const cappedRZC = earnedRZC > RZC_PER_DAY ? RZC_PER_DAY : earnedRZC;
+          const safeElapsedSeconds = Math.max(0, elapsedSeconds);
+          const earnedRZC = safeElapsedSeconds * RZC_PER_SECOND;
+          const cappedRZC = Math.min(earnedRZC, RZC_PER_DAY);
           setAccumulatedRZC(cappedRZC);
         }
       }, 1000);
