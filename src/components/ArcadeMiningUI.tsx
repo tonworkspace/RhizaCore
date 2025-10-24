@@ -179,7 +179,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         // Get sponsor information
         const { data: user } = await supabase
           .from('users')
-          .select('sponsor_id, sponsor:users!referrer_id(username, sponsor_code)')
+          .select('sponsor_id, sponsor:users!sponsor_id(username, sponsor_code)')
           .eq('id', userId)
           .single();
 
