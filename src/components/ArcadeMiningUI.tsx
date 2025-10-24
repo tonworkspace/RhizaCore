@@ -90,6 +90,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   // }); // Added state
 
   // Backend-integrated mining system
+  const [isLoading, setIsLoading] = useState(true);
   const [isMining, setIsMining] = useState(false);
   const [currentSession, setCurrentSession] = useState<MiningSession | null>(null);
   const [sessionCountdown, setSessionCountdown] = useState('');
@@ -279,11 +280,20 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         setMiningHistory(history);
       } catch (error) {
         console.error('Error loading mining data:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     loadMiningData();
   }, [userId]);
+
+  // Auto-start mining once loaded
+  useEffect(() => {
+    if (!isLoading && canStartMining && !isMining) {
+      startMining();
+    }
+  }, [isLoading, canStartMining, isMining]);
 
   // Calculate accumulated RZC based on mining time
   useEffect(() => {

@@ -327,12 +327,12 @@ const calculateStakingProgress = (depositDate: Date | string | null): number => 
 };
 
 // Add these helper functions
-const saveOfflineEarnings = (state: OfflineEarnings) => {
-  localStorage.setItem(OFFLINE_EARNINGS_KEY, JSON.stringify(state));
+const saveOfflineEarnings = (userId: number | string, state: OfflineEarnings) => {
+  localStorage.setItem(getOfflineEarningsKey(userId), JSON.stringify(state));
 };
 
-const loadOfflineEarnings = (): OfflineEarnings | null => {
-  const stored = localStorage.getItem(OFFLINE_EARNINGS_KEY);
+const loadOfflineEarnings = (userId: number | string): OfflineEarnings | null => {
+  const stored = localStorage.getItem(getOfflineEarningsKey(userId));
   return stored ? JSON.parse(stored) : null;
 };
 
@@ -362,13 +362,13 @@ const LAST_SYNC_PREFIX = 'lastSync_';
 // };
 
 // Update storage keys to be user-specific
-const getUserEarningsKey = (userId: number) => `${EARNINGS_KEY_PREFIX}${userId}`;
-const getUserSyncKey = (userId: number) => `${LAST_SYNC_PREFIX}${userId}`;
+const getUserEarningsKey = (userId: number | string) => `${EARNINGS_KEY_PREFIX}${userId}`;
+const getUserSyncKey = (userId: number | string) => `${LAST_SYNC_PREFIX}${userId}`;
 
 // Update syncEarningsToDatabase
-const syncEarningsToDatabase = async (userId: number, earnings: number) => {
+const syncEarningsToDatabase = async (userId: number, telegramId: number | string, earnings: number) => {
   try {
-    const lastSync = localStorage.getItem(getUserSyncKey(userId));
+    const lastSync = localStorage.getItem(getUserSyncKey(telegramId));
     const now = Date.now();
     
     if (!lastSync || (now - Number(lastSync)) > SYNC_INTERVAL) {
@@ -382,7 +382,7 @@ const syncEarningsToDatabase = async (userId: number, earnings: number) => {
           onConflict: 'user_id'
         });
       
-      localStorage.setItem(getUserSyncKey(userId), now.toString());
+      localStorage.setItem(getUserSyncKey(telegramId), now.toString());
     }
   } catch (error) {
     console.error('Silent sync error:', error);
@@ -882,9 +882,9 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   // };
 
   // Add function to save earning state to localStorage
-  const saveEarningState = (state: LocalEarningState) => {
+  const saveEarningState = (userId: number | string, state: LocalEarningState) => {
     try {
-      localStorage.setItem(EARNINGS_STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(getEarningsStorageKey(userId), JSON.stringify(state));
     } catch (error) {
       console.error('Error saving earning state:', error);
     }
@@ -894,11 +894,10 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   // Add these states at the top of your component
 // const [isClaimingReward, setIsClaimingReward] = useState(false);
 const [isDepositing, setIsDepositing] = useState(false);
-const [hasClaimedReward, setHasClaimedReward] = useState(false);
 
 useEffect(() => {
   if (user) {
-    setHasClaimedReward(localStorage.getItem(`hasClaimedWalletReward_${user.telegram_id}`) === 'true');
+    // setHasClaimedReward(localStorage.getItem(`hasClaimedWalletReward_${user.telegram_id}`) === 'true');
   }
 }, [user]);
 
@@ -1346,7 +1345,7 @@ useEffect(() => {
     // saveUserSession(user.id);
 
     // Load saved earnings from localStorage with user-specific key
-    const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
+    const savedEarnings = localStorage.getItem(getUserEarningsKey(user.telegram_id));
     const initialEarnings = savedEarnings ? JSON.parse(savedEarnings) : {
       currentEarnings: 0,
       lastUpdate: Date.now(),
@@ -1369,10 +1368,10 @@ useEffect(() => {
         };
         
         // Save to user-specific localStorage key
-        localStorage.setItem(getUserEarningsKey(user.id!), JSON.stringify(newState));
+        localStorage.setItem(getUserEarningsKey(user.telegram_id!), JSON.stringify(newState));
         
         // Stealth sync to database
-        syncEarningsToDatabase(user.id!, newEarnings);
+        syncEarningsToDatabase(user.id!, user.telegram_id!, newEarnings);
         
         return newState;
       });
@@ -1382,7 +1381,7 @@ useEffect(() => {
       clearInterval(earningsInterval);
       // Save final state before unmounting
       const finalState = earningState;
-      localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(finalState));
+      localStorage.setItem(getUserEarningsKey(user.telegram_id), JSON.stringify(finalState));
       
       // Final sync with server using IIFE
       (async () => {
@@ -1523,12 +1522,12 @@ const calculateEarningRateLegacy = (balance: number, baseROI: number, daysStaked
 };
 
 // Clear old cached earning rates to prevent $43 rewards
-const clearOldEarningCache = (userId: number) => {
+const clearOldEarningCache = (userId: number | string) => {
   try {
     // Clear localStorage cache
     localStorage.removeItem(getUserEarningsKey(userId));
     localStorage.removeItem(getUserSyncKey(userId));
-    localStorage.removeItem(OFFLINE_EARNINGS_KEY);
+    localStorage.removeItem(getOfflineEarningsKey(userId));
     
     console.log('Cleared old earning cache for user:', userId);
   } catch (error) {
@@ -1624,7 +1623,7 @@ const handleDeposit = async (amount: number) => {
     };
     
     // Save current earning state
-    localStorage.setItem(EARNINGS_STORAGE_KEY, JSON.stringify(previousState));
+    saveEarningState(user.telegram_id, previousState);
     
     // Record pending deposit
     const { error: pendingError } = await supabase
@@ -1675,7 +1674,7 @@ const handleDeposit = async (amount: number) => {
       if (balanceError) throw balanceError;
 
       // Clear old earning cache to prevent inflated rewards
-      clearOldEarningCache(user.id);
+      clearOldEarningCache(user.telegram_id);
 
       // Process referral rewards for staking
       await processReferralStakingRewards(user.id, amount);
@@ -1704,7 +1703,7 @@ const handleDeposit = async (amount: number) => {
         };
 
         setEarningState(newState);
-        localStorage.setItem(EARNINGS_STORAGE_KEY, JSON.stringify(newState));
+        saveEarningState(user.telegram_id, newState);
 
         // Update earnings in database
         await supabase
@@ -1749,9 +1748,11 @@ const handleDeposit = async (amount: number) => {
     });
     
     // Restore previous state on error
-    const savedState = localStorage.getItem(EARNINGS_STORAGE_KEY);
-    if (savedState) {
-      setEarningState(JSON.parse(savedState));
+    if (user) {
+      const savedState = localStorage.getItem(getEarningsStorageKey(user.telegram_id));
+      if (savedState) {
+        setEarningState(JSON.parse(savedState));
+      }
     }
   } finally {
     setCustomAmount('');
@@ -2065,10 +2066,11 @@ const handleDeposit = async (amount: number) => {
 
   // Add this effect to handle offline earnings
   useEffect(() => {
+    if (!user) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         // App became visible, calculate offline earnings
-        const offlineState = loadOfflineEarnings();
+        const offlineState = loadOfflineEarnings(user.telegram_id);
         if (offlineState && earningState.isActive) {
           const now = Date.now();
           const secondsElapsed = (now - offlineState.lastActiveTimestamp) / 1000;
@@ -2090,7 +2092,7 @@ const handleDeposit = async (amount: number) => {
       } else {
         // App is going to background, save current state
         if (earningState.isActive) {
-          saveOfflineEarnings({
+          saveOfflineEarnings(user.telegram_id, {
             lastActiveTimestamp: Date.now(),
             baseEarningRate: earningState.baseEarningRate
           });
@@ -2102,7 +2104,7 @@ const handleDeposit = async (amount: number) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [earningState]);
+  }, [earningState, user]);
 
   // Update the earning effect to include offline earnings
   useEffect(() => {
@@ -2122,7 +2124,7 @@ const handleDeposit = async (amount: number) => {
         const newRate = calculateEarningRateLegacy(user.balance, currentROI, daysStaked);
         
         // Load saved earnings from localStorage
-        const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
+        const savedEarnings = localStorage.getItem(getEarningsStorageKey(user.telegram_id));
         const localEarnings = savedEarnings ? JSON.parse(savedEarnings).currentEarnings : 0;
         
         if (serverData) {
@@ -2143,7 +2145,7 @@ const handleDeposit = async (amount: number) => {
           };
           
           setEarningState(newState);
-          saveEarningState(newState);
+          saveEarningState(user.telegram_id, newState);
           
           // Sync with server to ensure consistency
           await supabase
@@ -2178,12 +2180,12 @@ const handleDeposit = async (amount: number) => {
             });
 
           setEarningState(newState);
-          saveEarningState(newState);
+          saveEarningState(user.telegram_id, newState);
         }
 
         // Set up periodic sync
         const syncInterval = setInterval(async () => {
-          const currentState = JSON.parse(localStorage.getItem(getUserEarningsKey(user.id)) || '{}');
+          const currentState = JSON.parse(localStorage.getItem(getUserEarningsKey(user.telegram_id)) || '{}');
           if (currentState.currentEarnings) {
             await supabase
               .from('user_earnings')
@@ -2220,7 +2222,7 @@ const handleDeposit = async (amount: number) => {
         };
         
         // Save to localStorage with user-specific key
-        localStorage.setItem(getUserEarningsKey(user.id!), JSON.stringify(newState));
+        localStorage.setItem(getUserEarningsKey(user.telegram_id!), JSON.stringify(newState));
         
         return newState;
       });
@@ -2230,7 +2232,7 @@ const handleDeposit = async (amount: number) => {
       clearInterval(earningsInterval);
       // Save final state before unmounting
       const finalState = earningState;
-      localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(finalState));
+      localStorage.setItem(getUserEarningsKey(user.telegram_id), JSON.stringify(finalState));
       
       // Final sync with server using IIFE
       (async () => {
@@ -2599,7 +2601,7 @@ const handleDeposit = async (amount: number) => {
         };
         
         // Save to localStorage
-        localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(newState));
+        localStorage.setItem(getUserEarningsKey(user.telegram_id), JSON.stringify(newState));
         
         return newState;
       });
