@@ -32,7 +32,7 @@ export function Root() {
   return (
     <ErrorBoundary fallback={ErrorBoundaryError}>
       <TonConnectUIProvider
-        manifestUrl={publicUrl('https://cdn3.stakenova.io/tonconnect-manifest.json')}  
+        manifestUrl={publicUrl('https://cdn4.stakenova.io/tonconnect-manifest.json')}  
       >
         <App/>
       </TonConnectUIProvider>

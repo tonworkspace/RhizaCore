@@ -42,21 +42,40 @@ if (import.meta.env.DEV) {
 
       const initDataRaw = new URLSearchParams([
         ['user', JSON.stringify({
-          id: 923481567,
-          first_name: 'Sarah',
-          last_name: 'Johnson',
-          username: 'sarahj',
+          id: 7634577767,
+          first_name: 'Jolongern',
+          last_name: 'Joagtt',
+          username: 'JonnaJohn',
           language_code: 'en',
           is_premium: false,
           allows_write_to_pm: true,
         })],
-        ['hash', 'x7y9z2a4b6c8d0e2f4g6h8i0j2k4m6n8p0q2'],
-        ['auth_date', '1711777777'],
+        ['hash', 'x7y9z2a4b6c886e265666h8i0j2k4m6n8p088'],
+        ['auth_date', '17378977777'],
         ['start_param', 'debug'],
         ['chat_type', 'sender'],
-        ['chat_instance', '9876543210123456789'],
-        ['signature', 'a2b4c6d8e0f2g4h6i8j0k2m4n6p8q0'],
+        ['chat_instance', '987654325552349844744'],
+        ['signature', 'a2b4c6d8t5f2g4hghju8j0k2m4n6p8q0'],
       ]).toString();
+      
+
+      // const initDataRaw = new URLSearchParams([
+      //   ['user', JSON.stringify({
+      //     id: 923481567,
+      //     first_name: 'Sarah',
+      //     last_name: 'Johnson',
+      //     username: 'sarahj',
+      //     language_code: 'en',
+      //     is_premium: false,
+      //     allows_write_to_pm: true,
+      //   })],
+      //   ['hash', 'x7y9z2a4b6c8d0e2f4g6h8i0j2k4m6n8p0q2'],
+      //   ['auth_date', '1711777777'],
+      //   ['start_param', 'debug'],
+      //   ['chat_type', 'sender'],
+      //   ['chat_instance', '9876543210123456789'],
+      //   ['signature', 'a2b4c6d8e0f2g4h6i8j0k2m4n6p8q0'],
+      // ]).toString();
 
       lp = {
         themeParams: {

@@ -7,13 +7,9 @@ interface ReferralConfig {
 }
 
 export const REFERRAL_CONFIG: ReferralConfig = {
-  MAX_LEVEL: 5,
+  MAX_LEVEL: 1,
   REWARDS: {
-    1: 0.10, // 10% for level 1
-    2: 0.05, // 5% for level 2
-    3: 0.03, // 3% for level 3
-    4: 0.02, // 2% for level 4
-    5: 0.01  // 1% for level 5
+    1: 50, // 50 RZC for level 1
   },
   VOLUME_TRACKING_DEPTH: Infinity
 };
@@ -62,7 +58,7 @@ export const referralSystem = {
     }
   },
 
-  async processReferralRewards(userId: number, amount: number): Promise<void> {
+  async processReferralRewards(userId: number): Promise<void> {
     try {
       const { data: referrers } = await supabase
         .from('referral_chain')
@@ -70,15 +66,37 @@ export const referralSystem = {
         .eq('user_id', userId)
         .lte('level', REFERRAL_CONFIG.MAX_LEVEL);
 
-      if (!referrers?.length) return;
+      if (!referrers || referrers.length === 0) {
+        return;
+      }
 
-      // Process all rewards in a single transaction
-      await supabase.rpc('process_referral_rewards', {
-        p_referrers: referrers,
-        p_amount: amount,
-        p_config: REFERRAL_CONFIG.REWARDS
-      });
+      for (const referrer of referrers) {
+        // We only care about level 1 for the flat reward
+        if (referrer.level === 1) {
+            const rewardAmount = REFERRAL_CONFIG.REWARDS[1];
 
+            const { error: rpcError } = await supabase.rpc('increment_rzc_balance', {
+              p_user_id: referrer.sponsor_id,
+              p_amount: rewardAmount
+            });
+      
+            if (rpcError) {
+              console.error(`Error awarding referral bonus to sponsor ${referrer.sponsor_id}:`, rpcError);
+              continue; // Continue to next referrer if any
+            }
+            
+            // Log the reward activity
+            await supabase.from('activities').insert({
+              user_id: referrer.sponsor_id,
+              type: 'referral_reward',
+              amount: rewardAmount,
+              status: 'completed',
+              metadata: {
+                referred_user_id: userId
+              }
+            });
+        }
+      }
     } catch (error) {
       console.error('Referral reward processing failed:', error);
     }

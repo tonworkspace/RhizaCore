@@ -10,7 +10,7 @@ import {
     Check,
     HelpCircle,
     Users,
-    FileText
+    // FileText
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -161,7 +161,7 @@ const SettingsComponent: React.FC = () => {
                  {[
                     { label: 'Help Center', icon: HelpCircle, url: 'https://t.me/RhizaCoreNews' }, // Replace # with actual URL
                     { label: 'Community Chat', icon: Users, url: 'https://t.me/RhizaCore' }, // Example URL
-                    { label: 'Documentation', icon: FileText, url: '#' } // Replace #
+                    // { label: 'Documentation', icon: FileText, url: '#' } // Replace #
                  ].map(item => (
                     <a key={item.label} href={item.url} target="_blank" rel="noopener noreferrer" className="w-full flex justify-between items-center text-sm py-2 px-1 hover:bg-gray-700/50 rounded transition-colors group">
                         <div className="flex items-center gap-2">

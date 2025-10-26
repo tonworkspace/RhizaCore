@@ -29,6 +29,7 @@ import TonWallet from '@/components/TonWallet';
 // import NonStakedEngagement from '@/components/NonStakedEngagement';
 import DappExplorer from '@/components/DappExplorer';
 import SettingsComponent from '@/components/SettingsComponent';
+import { SponsorGate } from '@/components/SponsorGate';
 
 // Time-based multipliers as per whitepaper
 const getTimeMultiplier = (daysStaked: number): number => {
@@ -284,7 +285,7 @@ interface LocalEarningState {
 
 // Add these constants
 const EARNINGS_SYNC_INTERVAL = 60000; // Sync with server every 60 seconds
-const EARNINGS_STORAGE_KEY = 'userEarnings';
+const getEarningsStorageKey = (userId: number | string) => `userEarnings_${userId}`;
 const EARNINGS_UPDATE_INTERVAL = 1000; // Update UI every second
 
 // Add this interface near other interfaces
@@ -294,7 +295,7 @@ interface OfflineEarnings {
 }
 
 // Add this constant near other constants
-const OFFLINE_EARNINGS_KEY = 'offline_earnings_state';
+const getOfflineEarningsKey = (userId: number | string) => `offline_earnings_state_${userId}`;
 
 // // Add this constant near other constants
 // const TOTAL_EARNED_KEY = 'total_earned_state';
@@ -327,12 +328,12 @@ const calculateStakingProgress = (depositDate: Date | string | null): number => 
 };
 
 // Add these helper functions
-const saveOfflineEarnings = (state: OfflineEarnings) => {
-  localStorage.setItem(OFFLINE_EARNINGS_KEY, JSON.stringify(state));
+const saveOfflineEarnings = (userId: number | string, state: OfflineEarnings) => {
+  localStorage.setItem(getOfflineEarningsKey(userId), JSON.stringify(state));
 };
 
-const loadOfflineEarnings = (): OfflineEarnings | null => {
-  const stored = localStorage.getItem(OFFLINE_EARNINGS_KEY);
+const loadOfflineEarnings = (userId: number | string): OfflineEarnings | null => {
+  const stored = localStorage.getItem(getOfflineEarningsKey(userId));
   return stored ? JSON.parse(stored) : null;
 };
 
@@ -362,13 +363,13 @@ const LAST_SYNC_PREFIX = 'lastSync_';
 // };
 
 // Update storage keys to be user-specific
-const getUserEarningsKey = (userId: number) => `${EARNINGS_KEY_PREFIX}${userId}`;
-const getUserSyncKey = (userId: number) => `${LAST_SYNC_PREFIX}${userId}`;
+const getUserEarningsKey = (userId: number | string) => `${EARNINGS_KEY_PREFIX}${userId}`;
+const getUserSyncKey = (userId: number | string) => `${LAST_SYNC_PREFIX}${userId}`;
 
 // Update syncEarningsToDatabase
-const syncEarningsToDatabase = async (userId: number, earnings: number) => {
+const syncEarningsToDatabase = async (userId: number, telegramId: number | string, earnings: number) => {
   try {
-    const lastSync = localStorage.getItem(getUserSyncKey(userId));
+    const lastSync = localStorage.getItem(getUserSyncKey(telegramId));
     const now = Date.now();
     
     if (!lastSync || (now - Number(lastSync)) > SYNC_INTERVAL) {
@@ -382,7 +383,7 @@ const syncEarningsToDatabase = async (userId: number, earnings: number) => {
           onConflict: 'user_id'
         });
       
-      localStorage.setItem(getUserSyncKey(userId), now.toString());
+      localStorage.setItem(getUserSyncKey(telegramId), now.toString());
     }
   } catch (error) {
     console.error('Silent sync error:', error);
@@ -405,7 +406,6 @@ export const IndexPage: FC = () => {
   // Sponsor code gate states
   const [hasSponsor, setHasSponsor] = useState<boolean | null>(null);
   const [showSponsorGate, setShowSponsorGate] = useState(false);
-  const [applyCode, setApplyCode] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   
   // Check if user has a sponsor
@@ -488,13 +488,13 @@ export const IndexPage: FC = () => {
   };
 
   // Apply sponsor code function
-  const handleApplySponsorCode = async () => {
-    if (!user?.id || !applyCode.trim()) return;
+  const handleApplySponsorCode = async (sponsorCode: string) => {
+    if (!user?.id || !sponsorCode.trim()) return;
     
     try {
       setIsApplying(true);
       
-      if (applyCode === String(user.telegram_id) || applyCode === String(user.id)) {
+      if (sponsorCode === String(user.telegram_id) || sponsorCode === String(user.id)) {
         showSnackbar({
           message: 'Invalid Code',
           description: 'You cannot use your own sponsor code.'
@@ -518,7 +518,7 @@ export const IndexPage: FC = () => {
       }
       
       // Handle default codes for first user
-      if (applyCode.toLowerCase() === 'admin' || applyCode.toLowerCase() === 'system' || applyCode.toLowerCase() === 'default') {
+      if (sponsorCode.toLowerCase() === 'admin' || sponsorCode.toLowerCase() === 'system' || sponsorCode.toLowerCase() === 'default') {
         // Check if this user is the first user in the system
         const { data: totalUsers } = await supabase
           .from('users')
@@ -566,7 +566,6 @@ export const IndexPage: FC = () => {
           // Bypass sponsor gate for first user
           setHasSponsor(true);
           setShowSponsorGate(false);
-          setApplyCode('');
           setIsApplying(false);
           return;
         } else {
@@ -579,7 +578,7 @@ export const IndexPage: FC = () => {
       }
       
       // Handle first user's own admin sponsor code
-      if (applyCode.startsWith('ADMIN-')) {
+      if (sponsorCode.startsWith('ADMIN-')) {
         // Check if this user is the first user
         const { data: firstUser } = await supabase
           .from('users')
@@ -592,7 +591,6 @@ export const IndexPage: FC = () => {
           // Allow first user to use their own admin code to bypass
           setHasSponsor(true);
           setShowSponsorGate(false);
-          setApplyCode('');
           setIsApplying(false);
           showSnackbar({
             message: 'Welcome, Admin!',
@@ -609,7 +607,7 @@ export const IndexPage: FC = () => {
       }
       
       // Validate sponsor code
-      const codeNum = Number(applyCode);
+      const codeNum = Number(sponsorCode);
       if (isNaN(codeNum)) {
         showSnackbar({
           message: 'Invalid Code Format',
@@ -703,7 +701,6 @@ export const IndexPage: FC = () => {
         message: 'Successfully Joined Team!',
         description: `You have joined ${sponsor.username}'s team!`
       });
-      setApplyCode(''); // Clear the input
       checkSponsorStatus(); // Check sponsor status
       setShowSponsorGate(false); // Hide the gate
       
@@ -744,18 +741,24 @@ export const IndexPage: FC = () => {
     return Boolean(user?.balance && user.balance >= 1);
   });
 
-  const [isStakingCompleted, setIsStakingCompleted] = useState(() => {
-    return localStorage.getItem('isStakingCompleted') === 'true';
-  });
+  const [isStakingCompleted, setIsStakingCompleted] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setIsStakingCompleted(localStorage.getItem(`isStakingCompleted_${user.telegram_id}`) === 'true');
+    }
+  }, [user]);
 
   // Update useEffect that watches user balance
   useEffect(() => {
     if (user?.balance && user.balance >= 1 && !isStakingCompleted) {
       setHasStaked(true);
       setIsStakingCompleted(true);
-      localStorage.setItem('isStakingCompleted', 'true');
+      if (user) {
+        localStorage.setItem(`isStakingCompleted_${user.telegram_id}`, 'true');
+      }
     }
-  }, [user?.balance, isStakingCompleted]);
+  }, [user, isStakingCompleted]);
 
   
   useEffect(() => {
@@ -809,12 +812,20 @@ export const IndexPage: FC = () => {
   // Add these state variables to your component
 const [showNFTMinterModal, setShowNFTMinterModal] = useState(false);
 const [nftMintStatus, setNftMintStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-const [hasNFTPass, setHasNFTPass] = useState(localStorage.getItem('hasClaimedNFTPass') === 'true');
+const [hasNFTPass, setHasNFTPass] = useState(false);
+
+useEffect(() => {
+  if (user) {
+    setHasNFTPass(localStorage.getItem(`hasClaimedNFTPass_${user.telegram_id}`) === 'true');
+  }
+}, [user]);
 
 // Add this function to handle NFT minting success
 const handleNFTMintSuccess = async (): Promise<void> => {
   setHasNFTPass(true);
-  localStorage.setItem('hasClaimedNFTPass', 'true');
+  if (user) {
+    localStorage.setItem(`hasClaimedNFTPass_${user.telegram_id}`, 'true');
+  }
   
   // Close the modal after successful mint
   setShowNFTMinterModal(false);
@@ -868,9 +879,9 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   // };
 
   // Add function to save earning state to localStorage
-  const saveEarningState = (state: LocalEarningState) => {
+  const saveEarningState = (userId: number | string, state: LocalEarningState) => {
     try {
-      localStorage.setItem(EARNINGS_STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(getEarningsStorageKey(userId), JSON.stringify(state));
     } catch (error) {
       console.error('Error saving earning state:', error);
     }
@@ -880,9 +891,12 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   // Add these states at the top of your component
 // const [isClaimingReward, setIsClaimingReward] = useState(false);
 const [isDepositing, setIsDepositing] = useState(false);
-const [] = useState(() => {
-  return localStorage.getItem('hasClaimedWalletReward') === 'true';
-});
+
+useEffect(() => {
+  if (user) {
+    // setHasClaimedReward(localStorage.getItem(`hasClaimedWalletReward_${user.telegram_id}`) === 'true');
+  }
+}, [user]);
 
 // Function to handle claiming rewards
 // const handleClaimReward = async () => {
@@ -963,7 +977,7 @@ const [] = useState(() => {
 // const [isClaimingEarnings, setIsClaimingEarnings] = useState(false);
 
 // Add these constants near other constants
-const CLAIM_COOLDOWN_KEY = 'claim_cooldown';
+const getClaimCooldownKey = (userId: number | string) => `claim_cooldown_${userId}`;
 // const CLAIM_COOLDOWN_DURATION = 1800; // 30 minutes in seconds
 
 // Update state for cooldown
@@ -971,6 +985,8 @@ const [claimCooldown, setClaimCooldown] = useState(0);
 
 // Add effect to handle cooldown timer and persistence
 useEffect(() => {
+  if (!user) return;
+  const CLAIM_COOLDOWN_KEY = getClaimCooldownKey(user.telegram_id);
   // Load saved cooldown on mount
   const loadCooldown = () => {
     try {
@@ -1326,7 +1342,7 @@ useEffect(() => {
     // saveUserSession(user.id);
 
     // Load saved earnings from localStorage with user-specific key
-    const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
+    const savedEarnings = localStorage.getItem(getUserEarningsKey(user.telegram_id));
     const initialEarnings = savedEarnings ? JSON.parse(savedEarnings) : {
       currentEarnings: 0,
       lastUpdate: Date.now(),
@@ -1349,10 +1365,10 @@ useEffect(() => {
         };
         
         // Save to user-specific localStorage key
-        localStorage.setItem(getUserEarningsKey(user.id!), JSON.stringify(newState));
+        localStorage.setItem(getUserEarningsKey(user.telegram_id!), JSON.stringify(newState));
         
         // Stealth sync to database
-        syncEarningsToDatabase(user.id!, newEarnings);
+        syncEarningsToDatabase(user.id!, user.telegram_id!, newEarnings);
         
         return newState;
       });
@@ -1362,7 +1378,7 @@ useEffect(() => {
       clearInterval(earningsInterval);
       // Save final state before unmounting
       const finalState = earningState;
-      localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(finalState));
+      localStorage.setItem(getUserEarningsKey(user.telegram_id), JSON.stringify(finalState));
       
       // Final sync with server using IIFE
       (async () => {
@@ -1503,12 +1519,12 @@ const calculateEarningRateLegacy = (balance: number, baseROI: number, daysStaked
 };
 
 // Clear old cached earning rates to prevent $43 rewards
-const clearOldEarningCache = (userId: number) => {
+const clearOldEarningCache = (userId: number | string) => {
   try {
     // Clear localStorage cache
     localStorage.removeItem(getUserEarningsKey(userId));
     localStorage.removeItem(getUserSyncKey(userId));
-    localStorage.removeItem(OFFLINE_EARNINGS_KEY);
+    localStorage.removeItem(getOfflineEarningsKey(userId));
     
     console.log('Cleared old earning cache for user:', userId);
   } catch (error) {
@@ -1604,7 +1620,7 @@ const handleDeposit = async (amount: number) => {
     };
     
     // Save current earning state
-    localStorage.setItem(EARNINGS_STORAGE_KEY, JSON.stringify(previousState));
+    saveEarningState(user.telegram_id, previousState);
     
     // Record pending deposit
     const { error: pendingError } = await supabase
@@ -1655,7 +1671,7 @@ const handleDeposit = async (amount: number) => {
       if (balanceError) throw balanceError;
 
       // Clear old earning cache to prevent inflated rewards
-      clearOldEarningCache(user.id);
+      clearOldEarningCache(user.telegram_id);
 
       // Process referral rewards for staking
       await processReferralStakingRewards(user.id, amount);
@@ -1684,7 +1700,7 @@ const handleDeposit = async (amount: number) => {
         };
 
         setEarningState(newState);
-        localStorage.setItem(EARNINGS_STORAGE_KEY, JSON.stringify(newState));
+        saveEarningState(user.telegram_id, newState);
 
         // Update earnings in database
         await supabase
@@ -1729,9 +1745,11 @@ const handleDeposit = async (amount: number) => {
     });
     
     // Restore previous state on error
-    const savedState = localStorage.getItem(EARNINGS_STORAGE_KEY);
-    if (savedState) {
-      setEarningState(JSON.parse(savedState));
+    if (user) {
+      const savedState = localStorage.getItem(getEarningsStorageKey(user.telegram_id));
+      if (savedState) {
+        setEarningState(JSON.parse(savedState));
+      }
     }
   } finally {
     setCustomAmount('');
@@ -2028,7 +2046,7 @@ const handleDeposit = async (amount: number) => {
   }, []);
 
   useEffect(() => {
-    if (user && !isLoading) {
+    if (user && !isLoading && hasSponsor) {
       const hasSeenOnboarding = localStorage.getItem(`onboarding_${user.telegram_id}`);
       const isNewUser = user.total_deposit === 0;
 
@@ -2041,14 +2059,15 @@ const handleDeposit = async (amount: number) => {
         return () => clearTimeout(timer);
       }
     }
-  }, [user, isLoading]);
+  }, [user, isLoading, hasSponsor]);
 
   // Add this effect to handle offline earnings
   useEffect(() => {
+    if (!user) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         // App became visible, calculate offline earnings
-        const offlineState = loadOfflineEarnings();
+        const offlineState = loadOfflineEarnings(user.telegram_id);
         if (offlineState && earningState.isActive) {
           const now = Date.now();
           const secondsElapsed = (now - offlineState.lastActiveTimestamp) / 1000;
@@ -2070,7 +2089,7 @@ const handleDeposit = async (amount: number) => {
       } else {
         // App is going to background, save current state
         if (earningState.isActive) {
-          saveOfflineEarnings({
+          saveOfflineEarnings(user.telegram_id, {
             lastActiveTimestamp: Date.now(),
             baseEarningRate: earningState.baseEarningRate
           });
@@ -2082,7 +2101,7 @@ const handleDeposit = async (amount: number) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [earningState]);
+  }, [earningState, user]);
 
   // Update the earning effect to include offline earnings
   useEffect(() => {
@@ -2102,7 +2121,7 @@ const handleDeposit = async (amount: number) => {
         const newRate = calculateEarningRateLegacy(user.balance, currentROI, daysStaked);
         
         // Load saved earnings from localStorage
-        const savedEarnings = localStorage.getItem(getUserEarningsKey(user.id));
+        const savedEarnings = localStorage.getItem(getEarningsStorageKey(user.telegram_id));
         const localEarnings = savedEarnings ? JSON.parse(savedEarnings).currentEarnings : 0;
         
         if (serverData) {
@@ -2123,7 +2142,7 @@ const handleDeposit = async (amount: number) => {
           };
           
           setEarningState(newState);
-          saveEarningState(newState);
+          saveEarningState(user.telegram_id, newState);
           
           // Sync with server to ensure consistency
           await supabase
@@ -2158,12 +2177,12 @@ const handleDeposit = async (amount: number) => {
             });
 
           setEarningState(newState);
-          saveEarningState(newState);
+          saveEarningState(user.telegram_id, newState);
         }
 
         // Set up periodic sync
         const syncInterval = setInterval(async () => {
-          const currentState = JSON.parse(localStorage.getItem(getUserEarningsKey(user.id)) || '{}');
+          const currentState = JSON.parse(localStorage.getItem(getUserEarningsKey(user.telegram_id)) || '{}');
           if (currentState.currentEarnings) {
             await supabase
               .from('user_earnings')
@@ -2200,7 +2219,7 @@ const handleDeposit = async (amount: number) => {
         };
         
         // Save to localStorage with user-specific key
-        localStorage.setItem(getUserEarningsKey(user.id!), JSON.stringify(newState));
+        localStorage.setItem(getUserEarningsKey(user.telegram_id!), JSON.stringify(newState));
         
         return newState;
       });
@@ -2210,7 +2229,7 @@ const handleDeposit = async (amount: number) => {
       clearInterval(earningsInterval);
       // Save final state before unmounting
       const finalState = earningState;
-      localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(finalState));
+      localStorage.setItem(getUserEarningsKey(user.telegram_id), JSON.stringify(finalState));
       
       // Final sync with server using IIFE
       (async () => {
@@ -2237,7 +2256,7 @@ const handleDeposit = async (amount: number) => {
   // const [offlineRewardsAmount, setOfflineRewardsAmount] = useState(0);
 
   // Update these constants to be more precise
-  const OFFLINE_EARNINGS_KEY = 'offline_earnings_state';
+  // const OFFLINE_EARNINGS_KEY = 'offline_earnings_state';
   // const MINIMUM_OFFLINE_TIME = 5 * 60 * 1000; // 5 minutes minimum for offline rewards
 
   // Add this helper function to calculate offline earnings
@@ -2579,7 +2598,7 @@ const handleDeposit = async (amount: number) => {
         };
         
         // Save to localStorage
-        localStorage.setItem(getUserEarningsKey(user.id), JSON.stringify(newState));
+        localStorage.setItem(getUserEarningsKey(user.telegram_id), JSON.stringify(newState));
         
         return newState;
       });
@@ -2675,39 +2694,39 @@ const handleDeposit = async (amount: number) => {
   }, [user, isLoading]);
 
   // Add state for task completion
-  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
+  // const [completedTasks, setCompletedTasks] = useState<string[]>([]);
 
   // Add useEffect to check wallet connection status
-  useEffect(() => {
-    if (tonConnectUI.connected && !completedTasks.includes('wallet')) {
-      // Add wallet task to completed tasks
-      setCompletedTasks(prev => [...prev, 'wallet']);
+  // useEffect(() => {
+  //   if (tonConnectUI.connected && !completedTasks.includes('wallet')) {
+  //     // Add wallet task to completed tasks
+  //     setCompletedTasks(prev => [...prev, 'wallet']);
       
-      // Show success message
-      showSnackbar({
-        message: 'Task Completed!',
-        description: 'Wallet connection verified. +10,000 TAPPS JETTONS'
-      });
+  //     // Show success message
+  //     showSnackbar({
+  //       message: 'Task Completed!',
+  //       description: 'Wallet connection verified. +10,000 TAPPS JETTONS'
+  //     });
 
-      // Update task in database if needed
-      if (user?.id) {
-        supabase.from('user_tasks')
-          .upsert({
-            user_id: user.id,
-            task_type: 'wallet_connection',
-            completed_at: new Date().toISOString(),
-            reward_amount: 10000
-          })
-          .then(result => {
-            if (result.error) {
-              console.error('Error recording task:', result.error);
-            } else {
-              console.log('Wallet task recorded');
-            }
-          });
-      }
-    }
-  }, [tonConnectUI.connected, user?.id]);
+  //     // Update task in database if needed
+  //     if (user?.id) {
+  //       supabase.from('user_tasks')
+  //         .upsert({
+  //           user_id: user.id,
+  //           task_type: 'wallet_connection',
+  //           completed_at: new Date().toISOString(),
+  //           reward_amount: 10000
+  //         })
+  //         .then(result => {
+  //           if (result.error) {
+  //             console.error('Error recording task:', result.error);
+  //           } else {
+  //             console.log('Wallet task recorded');
+  //           }
+  //         });
+  //     }
+  //   }
+  // }, [tonConnectUI.connected, user?.id]);
 
   // Add this useEffect to check staking completion
   useEffect(() => {
@@ -2816,83 +2835,7 @@ const handleDeposit = async (amount: number) => {
 
   // Show sponsor gate if user doesn't have a sponsor
   if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-900">
-        <div className="w-full max-w-md mx-4">
-          {/* Sponsor Code Gate */}
-          <div className="p-8 rounded-2xl bg-gray-800 border border-green-700/50 shadow-lg">
-            <div className="text-center space-y-6">
-              {/* Icon */}
-              <div className="w-20 h-20 bg-green-900/50 rounded-full flex items-center justify-center mx-auto border-2 border-green-600/70">
-                <svg className="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              
-              {/* Title and Description */}
-              <div>
-                <h1 className="text-2xl font-bold text-green-300 mb-3">🔐 Join a Team First</h1>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  To access TAPPs, you need to join a team by entering a sponsor code. 
-                  This helps build our community and ensures everyone has a sponsor to guide them.
-                </p>
-              </div>
-              
-              {/* Form */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <input 
-                    value={applyCode}
-                    onChange={(e) => setApplyCode(e.target.value)} 
-                    placeholder="Enter sponsor code" 
-                    className="flex-1 px-4 py-3 rounded-lg border border-green-700/50 bg-gray-900 text-green-300 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-500/50 transition-all"
-                  />
-                  <button 
-                    onClick={handleApplySponsorCode}
-                    className="px-6 py-3 rounded-lg bg-green-600 text-white text-sm font-semibold disabled:opacity-60 hover:bg-green-700 transition-colors flex items-center gap-2"
-                    disabled={isApplying || !applyCode.trim()}
-                  >
-                    {isApplying ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Joining...
-                      </>
-                    ) : (
-                      'Join Team'
-                    )}
-                  </button>
-                </div>
-                
-                {/* Help Text */}
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">
-                    Don't have a sponsor code? Ask a friend who's already using TAPPs!
-                  </p>
-                </div>
-                
-                {/* Benefits */}
-                <div className="bg-green-900/50 rounded-lg p-4 border border-green-700/50">
-                  <h3 className="text-sm font-semibold text-green-300 mb-2">✨ Benefits of Joining a Team</h3>
-                  <ul className="text-xs text-green-400 space-y-1">
-                    <li>• Get guidance from experienced users</li>
-                    <li>• Access to team rewards and bonuses</li>
-                    <li>• Build your own referral network</li>
-                    <li>• Earn together with your team</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Footer */}
-          <div className="text-center mt-6">
-            <p className="text-xs text-gray-500">
-            <a href="https://t.me/Tapps_chat"> Need help? Contact our support team</a>
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <SponsorGate onApplyCode={handleApplySponsorCode} isLoading={isApplying} />;
   }
 
   return (

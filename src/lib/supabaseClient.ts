@@ -1916,8 +1916,8 @@ export const completeMiningSession = async (sessionId: number): Promise<{
 
     // Add RZC to user's claimable balance
     const { error: balanceError } = await supabase.rpc('increment_rzc_balance', {
-      user_id: session.user_id,
-      amount: rzcEarned
+      p_user_id: session.user_id,
+      p_amount: rzcEarned
     });
 
     if (balanceError) throw balanceError;
@@ -1939,6 +1939,7 @@ export const completeMiningSession = async (sessionId: number): Promise<{
 export const getUserRZCBalance = async (userId: number): Promise<{
   claimableRZC: number;
   totalEarned: number;
+  claimedRZC: number;
   lastClaimTime?: string;
 }> => {
   try {
@@ -1950,16 +1951,37 @@ export const getUserRZCBalance = async (userId: number): Promise<{
 
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
 
+    // Get claimed RZC from activities (claims - upgrades)
+    const [claimActivities, upgradeActivities] = await Promise.all([
+      supabase
+        .from('activities')
+        .select('amount')
+        .eq('user_id', userId)
+        .eq('type', 'rzc_claim')
+        .eq('status', 'completed'),
+      supabase
+        .from('activities')
+        .select('amount')
+        .eq('user_id', userId)
+        .eq('type', 'upgrade_purchase')
+        .eq('status', 'completed')
+    ]);
+
+    const claimedRZC = (claimActivities.data?.reduce((sum, activity) => sum + activity.amount, 0) || 0) -
+                       (upgradeActivities.data?.reduce((sum, activity) => sum + activity.amount, 0) || 0);
+
     return {
       claimableRZC: data?.claimable_rzc || 0,
       totalEarned: data?.total_rzc_earned || 0,
+      claimedRZC,
       lastClaimTime: data?.last_claim_time
     };
   } catch (error) {
     console.error('Error fetching RZC balance:', error);
     return {
       claimableRZC: 0,
-      totalEarned: 0
+      totalEarned: 0,
+      claimedRZC: 0
     };
   }
 };
@@ -1985,31 +2007,12 @@ export const claimRZCRewards = async (userId: number, amount: number): Promise<{
       };
     }
 
-    // Check cooldown (24 hours between claims)
-    const { data: lastClaim } = await supabase
-      .from('rzc_balances')
-      .select('last_claim_time')
-      .eq('user_id', userId)
-      .single();
-
-    if (lastClaim?.last_claim_time) {
-      const lastClaimTime = new Date(lastClaim.last_claim_time);
-      const now = new Date();
-      const hoursSinceLastClaim = (now.getTime() - lastClaimTime.getTime()) / (1000 * 60 * 60);
-
-      if (hoursSinceLastClaim < 24) {
-        const hoursRemaining = 24 - hoursSinceLastClaim;
-        return {
-          success: false,
-          error: `Cooldown active. Please wait ${Math.ceil(hoursRemaining)} hours before claiming again.`
-        };
-      }
-    }
+    // Instant claim enabled - no cooldown check
 
     // Process RZC claim
     const { error: claimError } = await supabase.rpc('process_rzc_claim', {
-      user_id: userId,
-      amount: amount
+      p_user_id: userId,
+      p_amount: amount
     });
 
     if (claimError) throw claimError;
@@ -2274,7 +2277,6 @@ export const recordMiningActivity = async (
   userId: number,
   activityType: 'mining_start' | 'mining_complete' | 'mining_claim',
   amount: number = 0,
-  metadata?: any
 ): Promise<boolean> => {
   try {
     const { error } = await supabase.from('activities').insert({
@@ -2282,8 +2284,7 @@ export const recordMiningActivity = async (
       type: activityType,
       amount: amount,
       status: 'completed',
-      created_at: new Date().toISOString(),
-      metadata: metadata ? JSON.stringify(metadata) : null
+      created_at: new Date().toISOString()
     });
 
     if (error) throw error;
@@ -2297,9 +2298,7 @@ export const recordMiningActivity = async (
 // Record upgrade activity
 export const recordUpgradeActivity = async (
   userId: number,
-  upgradeType: string,
-  cost: number,
-  upgradeData: any
+  cost: number
 ): Promise<boolean> => {
   try {
     const { error } = await supabase.from('activities').insert({
@@ -2307,11 +2306,7 @@ export const recordUpgradeActivity = async (
       type: 'upgrade_purchase',
       amount: cost,
       status: 'completed',
-      created_at: new Date().toISOString(),
-      metadata: JSON.stringify({
-        upgrade_type: upgradeType,
-        upgrade_data: upgradeData
-      })
+      created_at: new Date().toISOString()
     });
 
     if (error) throw error;
@@ -2325,8 +2320,7 @@ export const recordUpgradeActivity = async (
 // Record RZC claim activity
 export const recordRZCClaimActivity = async (
   userId: number,
-  amount: number,
-  transactionId?: string
+  amount: number
 ): Promise<boolean> => {
   try {
     const { error } = await supabase.from('activities').insert({
@@ -2334,11 +2328,7 @@ export const recordRZCClaimActivity = async (
       type: 'rzc_claim',
       amount: amount,
       status: 'completed',
-      created_at: new Date().toISOString(),
-      metadata: JSON.stringify({
-        transaction_id: transactionId,
-        claim_type: 'mining_reward'
-      })
+      created_at: new Date().toISOString()
     });
 
     if (error) throw error;
