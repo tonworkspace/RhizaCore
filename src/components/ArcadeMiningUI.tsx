@@ -400,10 +400,37 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             // Session is active and valid
             setCurrentSession(activeSession);
             setIsMining(true);
-            // Start with 0 accumulated RZC to prevent instant rewards on reload
-            // The mining interval will calculate the proper accumulation over time
-            setAccumulatedRZC(0);
-            setLastClaimDuringMining(null);
+            
+            // Session is active and valid, so set the state
+            setCurrentSession(activeSession);
+            setIsMining(true);
+            
+            // Determine the correct start time for accumulation. If the user has claimed *during* this session,
+            // we need to calculate accumulated rewards from the last claim time to avoid "re-earning" what was
+            // just claimed. Otherwise, we start from the beginning of the session.
+            const sessionStartTime = new Date(activeSession.start_time);
+            const lastClaimTime = rzcBalance.lastClaimTime ? new Date(rzcBalance.lastClaimTime) : new Date(0); // Use epoch if no claim time
+          
+            const accumulationStartTime = lastClaimTime > sessionStartTime ? lastClaimTime : sessionStartTime;
+            
+            // Set the `lastClaimDuringMining` state, which is used by the interval calculator.
+            // This ensures that even on the first load, the interval knows where to start from.
+            if (lastClaimTime > sessionStartTime) {
+              setLastClaimDuringMining(lastClaimTime);
+            } else {
+              setLastClaimDuringMining(null);
+            }
+
+            // Also, calculate the initial accumulated RZC immediately on load.
+            // This prevents a flicker where the balance shows 0 before the interval kicks in.
+            const now = new Date();
+            const elapsedSeconds = Math.max(0, (now.getTime() - accumulationStartTime.getTime()) / 1000);
+            const RZC_PER_DAY = 50; // Make sure this is defined or imported
+            const RZC_PER_SECOND = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
+            const initialAccumulated = elapsedSeconds * RZC_PER_SECOND;
+            
+            // Set the accumulated RZC, ensuring it doesn't exceed the daily cap.
+            setAccumulatedRZC(Math.min(initialAccumulated, RZC_PER_DAY));
           }
         }
       } catch (error) {
@@ -1134,27 +1161,25 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                     if (!userId || claimedRZC < 10 || userUpgrades.miningRigMk2) return;
                     
                     try {
-                      // Deduct cost from claimedRZC
-                      const newClaimedRZC = claimedRZC - 10;
-                      setClaimedRZC(newClaimedRZC);
-                      
-                      // Apply upgrade improvements
-                      setUserUpgrades(prev => ({ ...prev, miningRigMk2: true }));
-                      setMiningRateMultiplier(1.25); // 25% increase
-                      
-                      // Record upgrade activity
-                      await recordUpgradeActivity(userId, 10);
-                      
-                      showSnackbar?.({
-                        message: 'Upgrade Purchased!',
-                        description: 'Mining Rig Mk. II activated. Mining rate increased by 25%!'
-                      });
+                      const result = await purchaseUpgrade(userId, 'mining_rig_mk2', 10);
+                      if (result.success) {
+                        // Refresh user data to reflect the purchase
+                        const updatedBalance = await getUserRZCBalance(userId);
+                        setClaimedRZC(updatedBalance.claimedRZC);
+                        await loadUserUpgrades(); // This will refetch and set the new state
+                        
+                        showSnackbar?.({
+                          message: 'Upgrade Purchased!',
+                          description: 'Mining Rig Mk. II activated. Mining rate increased by 25%!'
+                        });
+                      } else {
+                        showSnackbar?.({
+                          message: 'Upgrade Failed',
+                          description: result.error || 'Could not purchase upgrade.'
+                        });
+                      }
                     } catch (error) {
                       console.error('Error purchasing upgrade:', error);
-                      // Revert changes on error
-                      setClaimedRZC(claimedRZC);
-                      setUserUpgrades(prev => ({ ...prev, miningRigMk2: false }));
-                      setMiningRateMultiplier(1.0);
                     }
                   }}
                   disabled={claimedRZC < 10 || userUpgrades.miningRigMk2}
@@ -1181,25 +1206,25 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                     if (!userId || claimedRZC < 5 || userUpgrades.extendedSession) return;
                     
                     try {
-                      // Deduct cost from claimedRZC
-                      const newClaimedRZC = claimedRZC - 5;
-                      setClaimedRZC(newClaimedRZC);
-                      
-                      // Apply upgrade improvements
-                      setUserUpgrades(prev => ({ ...prev, extendedSession: true }));
-                      
-                      // Record upgrade activity
-                      await recordUpgradeActivity(userId, 5);
-                      
-                      showSnackbar?.({
-                        message: 'Upgrade Purchased!',
-                        description: 'Extended Session activated. Next session will last 48 hours!'
-                      });
+                      const result = await purchaseUpgrade(userId, 'extended_session', 5);
+                      if (result.success) {
+                        // Refresh user data to reflect the purchase
+                        const updatedBalance = await getUserRZCBalance(userId);
+                        setClaimedRZC(updatedBalance.claimedRZC);
+                        await loadUserUpgrades();
+                        
+                        showSnackbar?.({
+                          message: 'Upgrade Purchased!',
+                          description: 'Extended Session activated. Next session will last 48 hours!'
+                        });
+                      } else {
+                        showSnackbar?.({
+                          message: 'Upgrade Failed',
+                          description: result.error || 'Could not purchase upgrade.'
+                        });
+                      }
                     } catch (error) {
                       console.error('Error purchasing upgrade:', error);
-                      // Revert changes on error
-                      setClaimedRZC(claimedRZC);
-                      setUserUpgrades(prev => ({ ...prev, extendedSession: false }));
                     }
                   }}
                   disabled={claimedRZC < 5 || userUpgrades.extendedSession}

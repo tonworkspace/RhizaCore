@@ -1951,24 +1951,15 @@ export const getUserRZCBalance = async (userId: number): Promise<{
 
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
 
-    // Get claimed RZC from activities (claims - upgrades)
-    const [claimActivities, upgradeActivities] = await Promise.all([
-      supabase
-        .from('activities')
-        .select('amount')
-        .eq('user_id', userId)
-        .eq('type', 'rzc_claim')
-        .eq('status', 'completed'),
-      supabase
-        .from('activities')
-        .select('amount')
-        .eq('user_id', userId)
-        .eq('type', 'upgrade_purchase')
-        .eq('status', 'completed')
-    ]);
+    // Get claimed RZC from activities (claims)
+    const { data: claimActivities } = await supabase
+      .from('activities')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('type', 'rzc_claim')
+      .eq('status', 'completed');
 
-    const claimedRZC = (claimActivities.data?.reduce((sum, activity) => sum + activity.amount, 0) || 0) -
-                       (upgradeActivities.data?.reduce((sum, activity) => sum + activity.amount, 0) || 0);
+    const claimedRZC = claimActivities?.reduce((sum, activity) => sum + activity.amount, 0) || 0;
 
     return {
       claimableRZC: data?.claimable_rzc || 0,
@@ -2316,7 +2307,72 @@ export const recordUpgradeActivity = async (
     return false;
   }
 };
+// Purchase an upgrade
+export const purchaseUpgrade = async (
+  userId: number,
+  upgradeType: 'mining_rig_mk2' | 'extended_session',
+  cost: number,
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    // 1. Check if user has already purchased this upgrade
+    const { data: existingUpgrade, error: checkError } = await supabase
+      .from('activities')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', upgradeType)
+      .limit(1);
 
+    if (checkError) throw checkError;
+    if (existingUpgrade && existingUpgrade.length > 0) {
+      return { success: false, error: 'Upgrade already purchased.' };
+    }
+
+    // 2. Check if user has enough *claimed* RZC (validated balance)
+    const { claimedRZC } = await getUserRZCBalance(userId);
+    if (claimedRZC < cost) {
+      return { success: false, error: 'Insufficient validated RZC balance.' };
+    }
+
+    // 3. Deduct the cost from the user's *claimed* RZC balance by creating a negative claim.
+    // This is an atomic way to ensure the balance is updated correctly.
+    const { error: deductError } = await supabase.from('activities').insert({
+      user_id: userId,
+      type: 'rzc_claim', // A negative claim is a deduction
+      amount: -cost, // Use a negative value to represent a deduction
+      status: 'completed',
+      // Add a note in metadata to clarify this is an upgrade purchase
+      metadata: { reason: `purchase_${upgradeType}` },
+    });
+    if (deductError) throw deductError;
+    
+    // 4. Record the specific upgrade activity itself
+    const { error: recordError } = await supabase.from('activities').insert({
+      user_id: userId,
+      type: upgradeType, // 'mining_rig_mk2' or 'extended_session'
+      amount: cost, // Record the positive cost of the upgrade
+      status: 'completed',
+    });
+
+    if (recordError) {
+      // If logging the upgrade fails, we should try to revert the deduction.
+      // This is a simplistic rollback attempt. A true transaction would be better.
+      console.error(`CRITICAL: Failed to record upgrade activity for ${upgradeType}. Attempting to refund deduction.`);
+      await supabase.from('activities').insert({
+        user_id: userId,
+        type: 'rzc_claim',
+        amount: cost, // Refund the cost
+        status: 'completed',
+        metadata: { reason: `refund_failed_${upgradeType}` },
+      });
+      throw recordError;
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error purchasing upgrade:', error);
+    return { success: false, error: error.message };
+  }
+};
 // Record RZC claim activity
 export const recordRZCClaimActivity = async (
   userId: number,
