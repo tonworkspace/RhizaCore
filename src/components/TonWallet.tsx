@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useI18n } from '@/components/I18nProvider';
 import { TonConnectButton, useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import { Address, toNano } from "@ton/core";
 import {
@@ -76,6 +77,7 @@ class TonWalletErrorBoundary extends React.Component<
 }
 
 const TonWallet = () => {
+  const { t } = useI18n();
   // State hooks remain largely the same
   const [tonBalance, setTonBalance] = useState<string>("0.00");
   const [jettons, setJettons] = useState<JettonBalance[]>([]);
@@ -215,8 +217,8 @@ const TonWallet = () => {
              <div className="w-20 h-20 bg-green-900/50 rounded-2xl mx-auto mb-6 flex items-center justify-center border-2 border-green-600/70 shadow-lg shadow-green-500/30">
                <Wallet className="w-10 h-10 text-green-400" />
              </div>
-             <h2 className="text-3xl font-bold text-green-300 mb-2">Connect Wallet</h2>
-             <p className="text-green-400/80 mb-8 text-base">Connect your TON wallet to manage assets</p>
+             <h2 className="text-3xl font-bold text-green-300 mb-2">{t('connect_wallet_title')}</h2>
+             <p className="text-green-400/80 mb-8 text-base">{t('connect_wallet_desc')}</p>
 
              <div className="relative group inline-block">
                {/* Button Styling needs to be handled via TonConnectUI configuration or CSS overrides if possible */}
@@ -225,13 +227,13 @@ const TonWallet = () => {
           </div>
           {/* Feature Section - Themed */}
           <div className="p-6 bg-gray-800/50 border-t border-green-700/50">
-            <h3 className="text-lg font-bold text-green-300 mb-4 text-center">Wallet Features</h3>
+            <h3 className="text-lg font-bold text-green-300 mb-4 text-center">{t('wallet_features')}</h3>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { icon: Shield, title: "Secure", desc: "Your keys" },
-                { icon: Zap, title: "Fast", desc: "Quick TXNs" },
-                { icon: Globe, title: "Ecosystem", desc: "TON network" },
-                { icon: Star, title: "Jettons", desc: "Token support" }
+                { icon: Shield, title: t('feature_secure'), desc: "Your keys" },
+                { icon: Zap, title: t('feature_fast'), desc: "Quick TXNs" },
+                { icon: Globe, title: t('feature_ecosystem'), desc: "TON network" },
+                { icon: Star, title: t('feature_jettons'), desc: "Token support" }
               ].map((feature, index) => (
                 <div key={index} className="p-4 bg-gray-900/50 rounded-xl border border-green-800/40 hover:border-green-600/60 hover:bg-gray-800/70 transition-all duration-200">
                   <feature.icon className="w-6 h-6 text-green-400 mb-2" />
@@ -255,7 +257,7 @@ const TonWallet = () => {
         <div className="p-6 border-b border-green-700/50">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-base font-medium text-green-400/80">Rhiza Mini Wallet</h2>
+              <h2 className="text-base font-medium text-green-400/80">{t('rhiza_mini_wallet')}</h2>
                {/* Themed Balance Display */}
               <div className="mt-2 text-5xl font-bold text-green-300 tracking-tight">
                 {formatBalance(`$${portfolioValue.toFixed(2)}`, hideBalances)}
@@ -310,7 +312,7 @@ const TonWallet = () => {
 
         {/* Assets List - Themed */}
         <div className="px-4 py-4 max-h-[40vh] overflow-y-auto"> {/* Added max-height and overflow */}
-          <h3 className="text-sm font-bold text-green-300 mb-3 uppercase tracking-wider px-2">Assets</h3>
+          <h3 className="text-sm font-bold text-green-300 mb-3 uppercase tracking-wider px-2">{t('assets')}</h3>
           <div className="space-y-2">
             {/* TON Balance Item - Themed */}
             <div className="flex items-center justify-between p-3 bg-gray-800/40 rounded-xl border border-green-800/40 hover:bg-gray-700/50 transition-colors duration-200">
@@ -413,8 +415,8 @@ const TonWallet = () => {
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-yellow-900/50 rounded-xl flex items-center justify-center border border-yellow-700/60"><ArrowUpRight className="w-5 h-5 text-yellow-400" /></div>
                     <div>
-                        <h2 className="text-lg font-bold text-green-300">Send TON</h2>
-                        <p className="text-xs text-green-500/80">Available: {tonBalance} TON</p>
+                        <h2 className="text-lg font-bold text-green-300">{t('send_ton')}</h2>
+                        <p className="text-xs text-green-500/80">{t('available')}: {tonBalance} TON</p>
                     </div>
                 </div>
                <button onClick={() => setIsSendModalOpen(false)} className="text-gray-400 hover:text-green-300 p-1.5 hover:bg-gray-700/50 rounded-lg"><X className="w-5 h-5" /></button>
@@ -436,23 +438,23 @@ const TonWallet = () => {
              }}>
                <div className="p-4 space-y-4">
                  <div>
-                   <label className="block text-xs text-green-400/80 mb-1.5 font-semibold">Recipient Address</label>
+                   <label className="block text-xs text-green-400/80 mb-1.5 font-semibold">{t('recipient_address')}</label>
                    <input name="address" type="text" placeholder="Enter TON address (EQ... or UQ...)" className="w-full px-3 py-2 bg-gray-800/60 border border-green-800/40 rounded-lg text-green-300 placeholder-gray-500 focus:outline-none focus:border-green-600/70 focus:ring-1 focus:ring-green-500/50 text-sm" required />
                  </div>
                  <div>
-                   <label className="block text-xs text-green-400/80 mb-1.5 font-semibold">Amount</label>
+                   <label className="block text-xs text-green-400/80 mb-1.5 font-semibold">{t('amount')}</label>
                    <div className="relative">
                      <input name="amount" type="number" step="0.000000001" min="0" placeholder="0.0" className="w-full px-3 py-2 bg-gray-800/60 border border-green-800/40 rounded-lg text-green-300 placeholder-gray-500 focus:outline-none focus:border-green-600/70 focus:ring-1 focus:ring-green-500/50 text-sm pr-16" required />
-                     <button type="button" onClick={() => { (document.querySelector('input[name="amount"]') as HTMLInputElement).value = tonBalance; }} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-yellow-400 hover:text-yellow-300 font-bold px-2 py-1 bg-yellow-900/50 rounded-md hover:bg-yellow-800/60 transition-all border border-yellow-700/60">MAX</button>
+                     <button type="button" onClick={() => { (document.querySelector('input[name="amount"]') as HTMLInputElement).value = tonBalance; }} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-yellow-400 hover:text-yellow-300 font-bold px-2 py-1 bg-yellow-900/50 rounded-md hover:bg-yellow-800/60 transition-all border border-yellow-700/60">{t('max')}</button>
                    </div>
                  </div>
                </div>
                {/* Themed Footer/Actions */}
                <div className="p-4 border-t border-green-700/50 bg-gray-800/40">
                  <div className="flex space-x-3">
-                   <button type="button" onClick={() => setIsSendModalOpen(false)} className="flex-1 px-4 py-2 border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-700/50 transition-colors text-sm font-semibold">Cancel</button>
+                   <button type="button" onClick={() => setIsSendModalOpen(false)} className="flex-1 px-4 py-2 border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-700/50 transition-colors text-sm font-semibold">{t('cancel')}</button>
                    <button type="submit" className="flex-1 px-4 py-2 bg-yellow-900/50 border border-yellow-700/60 rounded-lg text-yellow-300 hover:bg-yellow-800/60 hover:border-yellow-600/80 transition-colors text-sm font-bold flex items-center justify-center space-x-1.5">
-                     <ArrowUpRight className="w-4 h-4" /><span>Send TON</span>
+                     <ArrowUpRight className="w-4 h-4" /><span>{t('send_ton')}</span>
                    </button>
                  </div>
                </div>
@@ -471,8 +473,8 @@ const TonWallet = () => {
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-900/50 rounded-xl flex items-center justify-center border border-green-700/60"><Download className="w-5 h-5 text-green-400" /></div>
                     <div>
-                        <h2 className="text-lg font-bold text-green-300">Receive TON</h2>
-                        <p className="text-xs text-green-500/80">Share your address</p>
+                        <h2 className="text-lg font-bold text-green-300">{t('receive_ton')}</h2>
+                        <p className="text-xs text-green-500/80">{t('share_address')}</p>
                     </div>
                 </div>
                <button onClick={() => setIsReceiveModalOpen(false)} className="text-gray-400 hover:text-green-300 p-1.5 hover:bg-gray-700/50 rounded-lg"><X className="w-5 h-5" /></button>
@@ -486,7 +488,7 @@ const TonWallet = () => {
                  </div>
                  {/* Address */}
                  <div className="bg-gray-900/60 rounded-lg p-3 border border-green-800/40 mb-4">
-                   <p className="text-xs text-green-400/80 mb-1.5 font-semibold">Your TON Address</p>
+                  <p className="text-xs text-green-400/80 mb-1.5 font-semibold">{t('your_ton_address')}</p>
                    <div className="flex items-center gap-2 bg-gray-800/70 p-2 rounded border border-gray-700/50">
                      <p className="text-green-300 font-mono text-xs break-all flex-1">{connectedAddressString}</p>
                      <button onClick={handleCopyAddress} className="p-2 bg-green-900/50 hover:bg-green-800/60 rounded border border-green-700/60 transition-colors">

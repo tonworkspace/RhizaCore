@@ -1,6 +1,7 @@
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { FC, useState, useEffect, useRef } from 'react';
+import { I18nProvider, useI18n } from '@/components/I18nProvider';
 import { FaCogs, FaMagento, FaNetworkWired, FaWallet } from 'react-icons/fa';
 // import { MdDiamond } from 'react-icons/md';
 // import { BiNetworkChart } from 'react-icons/bi';
@@ -391,13 +392,13 @@ const syncEarningsToDatabase = async (userId: number, telegramId: number | strin
 };
 
 
-export const IndexPage: FC = () => {
-
+const IndexPageContent: FC = () => {
   const [currentTab, setCurrentTab] = useState('home');
   const [userReferralCode, setUserReferralCode] = useState<string>('');
   const [showDepositModal, setShowDepositModal] = useState(false);
   // const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const { user, isLoading, error, updateUserData } = useAuth();
+  const { lang, setLang } = useI18n();
   
   // Mining simulator states
   const [miningProgress, setMiningProgress] = useState(0);
@@ -2441,10 +2442,12 @@ const handleDeposit = async (amount: number) => {
   // Add new state variables at the top with other state declarations
   const [isInitializing, setIsInitializing] = useState(true);
   const [isNewUser] = useState(false);
+  const hasInitializedRef = useRef(false);
 
   // Professional loading sequence
   useEffect(() => {
-    if (!isLoading && !isInitializing) return;
+    if (hasInitializedRef.current) return;
+    if (isLoading) return;
 
     // Simple loading sequence
     const loadingSequence = [
@@ -2463,11 +2466,12 @@ const handleDeposit = async (amount: number) => {
       } else {
         clearInterval(loadingInterval);
         setIsInitializing(false);
+        hasInitializedRef.current = true;
       }
     }, 600);
 
     return () => clearInterval(loadingInterval);
-  }, [isLoading, isInitializing]);
+  }, [isLoading]);
 
   // // Add this near the top of your component
   // const [countdown, setCountdown] = useState('');
@@ -2505,7 +2509,9 @@ const handleDeposit = async (amount: number) => {
 
     const initializeEarningState = async () => {
       try {
-        setIsInitializing(true);
+        if (!hasInitializedRef.current) {
+          setIsInitializing(true);
+        }
 
         // Check if user exists in user_earnings
         const { data: serverData } = await supabase
@@ -2573,6 +2579,7 @@ const handleDeposit = async (amount: number) => {
         console.error('Error initializing earning state:', error);
       } finally {
         setIsInitializing(false);
+        hasInitializedRef.current = true;
       }
     };
 
@@ -2780,7 +2787,6 @@ const handleDeposit = async (amount: number) => {
               <p className="text-sm text-green-400">Decentralized Yield Protocol</p>
             </div>
           </div>
-
           {/* Simple Progress Bar */}
           <div className="mb-6">
             <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -2793,7 +2799,6 @@ const handleDeposit = async (amount: number) => {
               {miningProgress}% Complete
             </div>
           </div>
-
           {/* Status Message */}
           <div className="bg-gray-800/50 border border-green-500/30 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -2802,7 +2807,6 @@ const handleDeposit = async (amount: number) => {
             </div>
             <p className="text-green-300 font-medium">{miningStatus}</p>
           </div>
-
           {/* Simple Loading Animation */}
           <div className="flex justify-center">
             <div className="flex space-x-1">
@@ -2830,12 +2834,16 @@ const handleDeposit = async (amount: number) => {
 
   // Show onboarding for new users
   if (isNewUser && user) {
-    return <OnboardingScreen />;
+    return (
+      <OnboardingScreen />
+    );
   }
 
   // Show sponsor gate if user doesn't have a sponsor
   if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
-    return <SponsorGate onApplyCode={handleApplySponsorCode} isLoading={isApplying} />;
+    return (
+      <SponsorGate onApplyCode={handleApplySponsorCode} isLoading={isApplying} />
+    );
   }
 
   return (
@@ -2860,11 +2868,21 @@ const handleDeposit = async (amount: number) => {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="sm:flex items-center gap-3 px-5 py-3 bg-green-900/50 rounded-2xl border-2 border-green-700/50">
-              <div className="relative">
-                <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-pulse shadow-lg"></div>
-                <div className="absolute inset-0 w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 animate-ping opacity-60"></div>
-              </div>
+            <div className="sm:flex items-center gap-3 px-3 py-2 bg-green-900/50 rounded-xl border-2 border-green-700/50">
+              <select 
+                value={lang} 
+                onChange={(e) => setLang(e.target.value as any)}
+                className="bg-transparent text-green-300 text-sm font-medium border-none outline-none cursor-pointer"
+              >
+                <option value="en">🇺🇸 EN</option>
+                <option value="es">🇪🇸 ES</option>
+                <option value="fr">🇫🇷 FR</option>
+                <option value="de">🇩🇪 DE</option>
+                <option value="pt">🇵🇹 PT</option>
+                <option value="ru">🇷🇺 RU</option>
+                <option value="tr">🇹🇷 TR</option>
+                <option value="ar">🇸🇦 AR</option>
+              </select>
             </div>
           </div>
         </div>
@@ -2873,31 +2891,30 @@ const handleDeposit = async (amount: number) => {
       {/* Ultra Modern Main Content Area */}
       <div className="flex-1 relative">
         
-        {currentTab === 'home' && (
-          <div className="relative space-y-6 p-custom px-6 pb-6 overflow-y-auto">
-            <ArcadeMiningUI
-              balanceTon={user?.balance || 0}
-              tonPrice={tonPrice || 0}
-              currentEarningsTon={earningState?.currentEarnings || 0}
-              isClaiming={false}
-              claimCooldown={0}
-              cooldownText={''}
-              onClaim={() => {}}
-              onOpenDeposit={() => setShowDepositModal(true)}
-              potentialEarningsTon={0}
-              airdropBalanceNova={0}
-              totalWithdrawnTon={user?.total_withdrawn || 0}
-              activities={activities}
-              withdrawals={[]}
-              isLoadingActivities={isLoadingActivities}
-              userId={user?.id}
-              userUsername={user?.username}
-              referralCode={userReferralCode}
-              estimatedDailyTapps={0}
-              showSnackbar={showSnackbar}
-            />
-          </div> 
-        )}
+        {/* Keep ArcadeMiningUI mounted; hide when not on Mining tab */}
+        <div className={`relative space-y-6 p-custom px-6 pb-6 overflow-y-auto ${currentTab === 'home' ? '' : 'hidden'}`}>
+          <ArcadeMiningUI
+            balanceTon={user?.balance || 0}
+            tonPrice={tonPrice || 0}
+            currentEarningsTon={earningState?.currentEarnings || 0}
+            isClaiming={false}
+            claimCooldown={0}
+            cooldownText={''}
+            onClaim={() => {}}
+            onOpenDeposit={() => setShowDepositModal(true)}
+            potentialEarningsTon={0}
+            airdropBalanceNova={0}
+            totalWithdrawnTon={user?.total_withdrawn || 0}
+            activities={activities}
+            withdrawals={[]}
+            isLoadingActivities={isLoadingActivities}
+            userId={user?.id}
+            userUsername={user?.username}
+            referralCode={userReferralCode}
+            estimatedDailyTapps={0}
+            showSnackbar={showSnackbar}
+          />
+        </div>
 
         {currentTab === 'network' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
@@ -2991,10 +3008,10 @@ const handleDeposit = async (amount: number) => {
           </div>
         )}
 
-                  </div>
+                    </div>
 
       {/* Ultra Modern NFT Minter Modal */}
-{showNFTMinterModal && (
+      {showNFTMinterModal && (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl">
     <div className="bg-gradient-to-b from-white via-slate-50 to-white rounded-3xl w-full max-w-md border-2 border-white/60 shadow-2xl shadow-purple-500/20 overflow-hidden">
       {/* Modal header gradient */}
@@ -3424,56 +3441,6 @@ const handleDeposit = async (amount: number) => {
   );
 };
 
-  // // Update the ReStakeCountdown component
-  // const ReStakeCountdown: FC<{ depositDate: Date }> = ({ depositDate }) => {
-  //   const [timeLeft, setTimeLeft] = useState<string>('');
-  //   const [isLocked, setIsLocked] = useState(true);
-
-  //   useEffect(() => {
-  //     const calculateTimeLeft = () => {
-  //       const now = Date.now();
-  //       const startTime = depositDate.getTime();
-  //       const endTime = startTime + LOCK_PERIOD_MS;
-  //       const remaining = endTime - now;
-
-  //       if (remaining <= 0) {
-  //         setIsLocked(false);
-  //         setTimeLeft('Unlocked');
-  //         return;
-  //       }
-
-  //       // Calculate remaining time
-  //       const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-  //       const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  //       const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-
-  //       setTimeLeft(`${days}d ${hours}h ${minutes}m`);
-  //       setIsLocked(true);
-  //     };
-
-  //     calculateTimeLeft();
-  //     const interval = setInterval(calculateTimeLeft, 60000); // Update every minute
-
-  //     return () => clearInterval(interval);
-  //   }, [depositDate]);
-
-  //   return (
-  //     <div className="flex items-center gap-2">
-  //       <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-red-500' : 'bg-green-500'} animate-pulse`} />
-  //       <span className="text-xs">
-  //         {isLocked ? (
-  //           <>
-  //             <span className="text-white/60">Locked for: </span>
-  //             <span className="text-white/80 font-medium">{timeLeft}</span>
-  //           </>
-  //         ) : (
-  //           <span className="text-green-400">Ready for withdrawal</span>
-  //         )}
-  //       </span>
-  //     </div>
-  //   );
-  // };
-
 const calculateTotalEarnings = (amount: number): number => {
   let totalEarnings = 0;
   const baseROI = 0.0306; // 3.06% base daily rate for better returns
@@ -3491,42 +3458,15 @@ const calculateTotalEarnings = (amount: number): number => {
   return totalEarnings;
 };
 
-// const getActivityDescription = (activity: Activity): string => {
-//   switch (activity.type) {
-//     case 'deposit':
-//       return `Initial deposit of ${activity.amount.toFixed(9)} TON`;
-//     case 'top_up':
-//       return `Added ${activity.amount.toFixed(9)} TON to stake`;
-//     case 'withdrawal':
-//       return `Withdrew ${activity.amount.toFixed(9)} TON`;
-//     case 'stake':
-//       return `Staked ${activity.amount.toFixed(9)} TON`;
-//     case 'redeposit':
-//       return `Redeposited ${activity.amount.toFixed(9)} TON`;
-//     case 'nova_reward':
-//       return `Received ${activity.amount.toFixed(9)} NOVA tokens`;
-//     case 'nova_income':
-//       return `Earned ${activity.amount.toFixed(9)} TON`;
-//     case 'offline_reward':
-//       return `Collected ${activity.amount.toFixed(9)} TON offline earnings`;
-//     case 'earnings_update':
-//       return `Earnings updated: +${activity.amount.toFixed(9)} TON`;
-//     case 'claim':
-//       return `Claimed ${activity.amount.toFixed(9)} TON`;
-//     case 'transfer':
-//       return `Transferred ${activity.amount.toFixed(9)} TON`;
-//     case 'reward':
-//       return `Received ${activity.amount.toFixed(9)} TON reward`;
-//     case 'bonus':
-//       return `Received ${activity.amount.toFixed(9)} TON bonus`;
-//     default:
-//       return `${activity.type}: ${activity.amount.toFixed(9)} TON`;
-//   }
-// };
-
 const SYNC_INTERVAL = 60000; // Sync every minute
 
-// // Add this new component near your other components
+export const IndexPage: FC = () => {
+  return (
+    <I18nProvider>
+      <IndexPageContent />
+    </I18nProvider>
+  );
+};
 // const WeeklyPayoutCountdown = () => {
 //   const [timeUntilPayout, setTimeUntilPayout] = useState('');
 

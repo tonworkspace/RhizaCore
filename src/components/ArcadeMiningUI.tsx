@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useI18n } from '@/components/I18nProvider';
 import { 
   supabase, 
   ensureUserHasSponsorCode,
   startMiningSession,
+  startMiningSessionUnrestricted,
   getActiveMiningSession,
-  completeMiningSession,
+  manualCompleteMiningSession,
   getUserRZCBalance,
   claimRZCRewards,
   getMiningHistory,
@@ -12,7 +14,8 @@ import {
   initializeFreeMiningPeriod,
   canUserStartMining,
   recordMiningActivity,
-  recordUpgradeActivity,
+  purchaseUpgrade,
+  updateFreeMiningSessionCount,
   // getUserActivities,
   MiningSession
 } from '../lib/supabaseClient';
@@ -60,6 +63,7 @@ interface ArcadeMiningUIProps {
 
 // A compact, arcade-style mining UI that preserves existing actions
 export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
+  const { t } = useI18n();
   const {
     // tonPrice,
     isClaiming,
@@ -92,6 +96,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   const [isMining, setIsMining] = useState(false);
   const [currentSession, setCurrentSession] = useState<MiningSession | null>(null);
   const [sessionCountdown, setSessionCountdown] = useState('');
+  const [sessionDurationHours, setSessionDurationHours] = useState<number | null>(null);
   const [accumulatedRZC, setAccumulatedRZC] = useState(0);
   const [claimableRZC, setClaimableRZC] = useState(0);
   const [, setTotalEarnedRZC] = useState(0);
@@ -112,14 +117,18 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   });
   const [miningRateMultiplier, setMiningRateMultiplier] = useState(1.0);
   
-  // Free mining period state
+  // Free mining period state (enhanced)
   const [freeMiningStatus, setFreeMiningStatus] = useState({
     isActive: false,
     daysRemaining: 0,
     sessionsUsed: 0,
     maxSessions: 0,
+    sessionsRemaining: 0,
     canMine: false,
-    endDate: '' as string | undefined
+    endDate: '' as string | undefined,
+    gracePeriodEnd: '' as string | undefined,
+    isInGracePeriod: false,
+    reason: ''
   });
   const [canStartMining, setCanStartMining] = useState(false);
   
@@ -142,9 +151,75 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   // Telegram popup state
   const [showTelegramPopup, setShowTelegramPopup] = useState(false);
 
-  // Mining rate: 1 RZC per day (0.00001157 RZC per second)
+  // Mining rate: 50 RZC per day (consistent with UI display)
   const RZC_PER_DAY = 50;
   const RZC_PER_SECOND = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
+  
+  // Enhanced visual feedback states
+  const [miningStreak, setMiningStreak] = useState(0);
+  // const [totalMiningTime, setTotalMiningTime] = useState(0);
+  const [lastMilestone, setLastMilestone] = useState(0);
+  const [showEarningAnimation, setShowEarningAnimation] = useState(false);
+  const [recentEarnings, setRecentEarnings] = useState(0);
+  const [achievements, setAchievements] = useState<string[]>([]);
+  const [showAchievement, setShowAchievement] = useState<string | null>(null);
+  const [, setMiningStats] = useState({
+    totalSessions: 0,
+    totalEarned: 0,
+    bestStreak: 0,
+    averageSessionTime: 0
+  });
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  // Load mining statistics on component mount
+  useEffect(() => {
+    if (!userId) return;
+    
+    const loadMiningStats = async () => {
+      try {
+        // Load from localStorage or calculate from activities
+        const storedStats = localStorage.getItem(`mining_stats_${userId}`);
+        if (storedStats) {
+          setMiningStats(JSON.parse(storedStats));
+        }
+        
+        // Calculate streak from recent mining activities
+        const { data: recentActivities } = await supabase
+          .from('activities')
+          .select('created_at')
+          .eq('user_id', userId)
+          .eq('type', 'mining_start')
+          .order('created_at', { ascending: false })
+          .limit(30);
+        
+        if (recentActivities) {
+          let streak = 0;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          for (const activity of recentActivities) {
+            const activityDate = new Date(activity.created_at);
+            activityDate.setHours(0, 0, 0, 0);
+            
+            const daysDiff = Math.floor((today.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff === streak) {
+              streak++;
+            } else {
+              break;
+            }
+          }
+          
+          setMiningStreak(streak);
+        }
+      } catch (error) {
+        console.error('Error loading mining stats:', error);
+      }
+    };
+    
+    loadMiningStats();
+  }, [userId]);
 
   // Allow claiming anytime there's balance (including during mining)
   const canClaim = (claimableRZC > 0 || accumulatedRZC > 0) && !isLoadingBalance && !isClaiming && claimCooldownRemaining === 0;
@@ -354,7 +429,11 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             setClaimCooldownRemaining(cooldownSeconds - timeSinceLastClaim);
           }
         }
-        setFreeMiningStatus({ ...freeMining, endDate: freeMining.endDate || '' });
+        setFreeMiningStatus({ 
+          ...freeMining, 
+          endDate: freeMining.endDate || '',
+          gracePeriodEnd: freeMining.gracePeriodEnd || ''
+        });
         setCanStartMining(miningCheck.canMine);
         setMiningHistory(history);
         
@@ -379,31 +458,15 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           const now = new Date();
           const endTime = new Date(activeSession.end_time);
           if (now >= endTime) {
-            // Session expired, complete it and refetch dependent data
-            await completeMiningSession(activeSession.id);
-            setIsMining(false);
-            setCurrentSession(null);
-            
-            // Refetch data that changes after session completion
-            const [updatedBalance, updatedFreeMining, updatedMiningCheck] = await Promise.all([
-              getUserRZCBalance(userId),
-              getFreeMiningStatus(userId),
-              canUserStartMining(userId)
-            ]);
-            
-            setClaimableRZC(updatedBalance.claimableRZC);
-            setTotalEarnedRZC(updatedBalance.totalEarned);
-            setClaimedRZC(updatedBalance.claimedRZC);
-            setFreeMiningStatus({ ...updatedFreeMining, endDate: updatedFreeMining.endDate || '' });
-            setCanStartMining(updatedMiningCheck.canMine);
+            // Session expired - silently rollover to keep mining
+            await rolloverSession();
           } else {
             // Session is active and valid
             setCurrentSession(activeSession);
             setIsMining(true);
-            
-            // Session is active and valid, so set the state
-            setCurrentSession(activeSession);
-            setIsMining(true);
+            // Compute and store session duration in hours for diagnostics
+            const durationMs = new Date(activeSession.end_time).getTime() - new Date(activeSession.start_time).getTime();
+            setSessionDurationHours(Math.max(0, durationMs / (1000 * 60 * 60)));
             
             // Determine the correct start time for accumulation. If the user has claimed *during* this session,
             // we need to calculate accumulated rewards from the last claim time to avoid "re-earning" what was
@@ -428,9 +491,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             const RZC_PER_DAY = 50; // Make sure this is defined or imported
             const RZC_PER_SECOND = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
             const initialAccumulated = elapsedSeconds * RZC_PER_SECOND;
-            
-            // Set the accumulated RZC, ensuring it doesn't exceed the daily cap.
-            setAccumulatedRZC(Math.min(initialAccumulated, RZC_PER_DAY));
+            setAccumulatedRZC(initialAccumulated);
           }
         }
       } catch (error) {
@@ -609,33 +670,8 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         const remainingSeconds = (endTime.getTime() - now.getTime()) / 1000;
 
         if (remainingSeconds <= 0) {
-          // Session completed
-          const result = await completeMiningSession(currentSession.id);
-          if (result.success) {
-            // Record mining completion activity
-            await recordMiningActivity(userId, 'mining_complete', result.rzcEarned);
-            
-            setIsMining(false);
-            setCurrentSession(null);
-            setAccumulatedRZC(0);
-
-            // Refresh RZC balance and free mining status
-            const [updatedBalance, updatedFreeMining] = await Promise.all([
-              getUserRZCBalance(userId),
-              getFreeMiningStatus(userId)
-            ]);
-            
-            setClaimableRZC(updatedBalance.claimableRZC);
-            setTotalEarnedRZC(updatedBalance.totalEarned);
-            setClaimedRZC(updatedBalance.claimedRZC);
-            setFreeMiningStatus({ ...updatedFreeMining, endDate: updatedFreeMining.endDate || '' });
-
-            showSnackbar?.({
-              message: 'Mining session complete!',
-              description: `You earned ${result.rzcEarned} RZC. Ready to claim. Sessions used: ${updatedFreeMining.sessionsUsed}/${updatedFreeMining.maxSessions}`
-            });
-          }
-
+          // Session completed - rollover to a new one to keep mining
+          await rolloverSession();
           clearInterval(miningInterval);
         } else {
           // Update countdown
@@ -650,8 +686,35 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           const baseTime = lastClaimDuringMining || startTime;
           const timeSinceBase = (now.getTime() - baseTime.getTime()) / 1000;
           const earnedRZC = timeSinceBase * RZC_PER_SECOND;
-          const cappedRZC = earnedRZC > RZC_PER_DAY ? RZC_PER_DAY : earnedRZC;
-          setAccumulatedRZC(cappedRZC);
+          const previousAccumulated = accumulatedRZC;
+          setAccumulatedRZC(earnedRZC);
+          
+          // Show earning animation when RZC increases significantly
+          if (earnedRZC - previousAccumulated > 0.001) {
+            setRecentEarnings(earnedRZC - previousAccumulated);
+            setShowEarningAnimation(true);
+            setTimeout(() => setShowEarningAnimation(false), 2000);
+          }
+          
+          // Check for milestones (every 1 RZC earned)
+          const currentMilestone = Math.floor(earnedRZC);
+          if (currentMilestone > lastMilestone) {
+            setLastMilestone(currentMilestone);
+            
+            // Check for achievements
+            checkAchievements(currentMilestone, miningStreak);
+            
+            // Play milestone sound and trigger celebration
+            playSound('milestone');
+            if (currentMilestone % 10 === 0) {
+              triggerCelebration();
+            }
+            
+            showSnackbar?.({
+              message: `🎉 Milestone Reached!`,
+              description: `You've earned ${currentMilestone} RZC in this session!`
+            });
+          }
         }
       }, 1000);
     }
@@ -663,7 +726,192 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
     };
   }, [isMining, currentSession, RZC_PER_SECOND, userId, showSnackbar, lastClaimDuringMining]);
 
-  // Start mining function
+  // Validate that extended sessions run close to 48h when upgrade is owned
+  useEffect(() => {
+    if (!currentSession || sessionDurationHours == null) return;
+    if (userUpgrades.extendedSession) {
+      if (sessionDurationHours < 43) {
+        showSnackbar?.({
+          message: t('extended_session_check'),
+          description: `${t('expected_48h_current')}${sessionDurationHours.toFixed(1)}${t('hours_abbrev')}`
+        });
+      }
+    }
+  }, [currentSession, sessionDurationHours, userUpgrades.extendedSession]);
+
+  // Try to auto-start mining if backend allows
+  const maybeAutoStartMining = async () => {
+    if (!userId || isMining) return;
+    try {
+      // Unrestricted auto-start for nonstop mining
+      const res = await startMiningSessionUnrestricted(userId);
+      if (res.success) {
+        // Fetch the active session and set mining state
+        const active = await getActiveMiningSession(userId);
+        if (active) {
+          setCurrentSession(active);
+          setIsMining(true);
+        }
+      }
+    } catch (err) {
+      // no-op
+    }
+  };
+
+  // Background auto-starter: periodically check if we can start mining and do so
+  useEffect(() => {
+    if (!userId) return;
+    const interval = setInterval(() => {
+      if (!isMining) {
+        maybeAutoStartMining();
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [userId, isMining]);
+
+  // Auto-validation: every 30 minutes ensure session/balance are consistent
+  useEffect(() => {
+    if (!userId) return;
+
+    const validateMiningState = async () => {
+      try {
+        // Refresh balances and free mining status for UI
+        const [updatedBalance, updatedFreeMining] = await Promise.all([
+          getUserRZCBalance(userId),
+          getFreeMiningStatus(userId)
+        ]);
+
+        setClaimableRZC(updatedBalance.claimableRZC);
+        setTotalEarnedRZC(updatedBalance.totalEarned);
+        setClaimedRZC(updatedBalance.claimedRZC);
+        setFreeMiningStatus({
+          ...updatedFreeMining,
+          endDate: updatedFreeMining.endDate || '',
+          gracePeriodEnd: updatedFreeMining.gracePeriodEnd || ''
+        });
+
+        // Validate session: rollover if ended, or auto-start if missing
+        const active = await getActiveMiningSession(userId);
+        const now = new Date();
+        if (active) {
+          const endTime = new Date(active.end_time);
+          if (now >= endTime) {
+            await rolloverSession();
+          } else {
+            setCurrentSession(active);
+            setIsMining(true);
+          }
+        } else if (!isMining) {
+          await maybeAutoStartMining();
+        }
+      } catch (err) {
+        // no-op
+      }
+    };
+
+    // Run immediately, then every 30 minutes
+    validateMiningState();
+    const interval = setInterval(validateMiningState, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [userId, isMining]);
+
+  // Persist last seen time periodically for offline rewards/resume logic
+  useEffect(() => {
+    if (!userId) return;
+    const key = `last_seen_${userId}`;
+    const write = () => localStorage.setItem(key, new Date().toISOString());
+    write();
+    const interval = setInterval(write, 60000);
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  // Handle returning to the app: complete missed sessions and restart mining
+  const handleResume = async () => {
+    if (!userId) return;
+    const key = `last_seen_${userId}`;
+    const lastSeenStr = localStorage.getItem(key);
+    const now = new Date();
+    let sessionsCompleted = 0;
+
+    try {
+      // If we had an active session that may have ended, complete and roll until up-to-date
+      let active = currentSession || (await getActiveMiningSession(userId));
+      let safety = 0;
+      while (active && new Date(active.end_time) <= now && safety < 10) {
+        const result = await manualCompleteMiningSession(active.id);
+        if (result?.success) {
+          sessionsCompleted++;
+          // Refresh balances and permissions
+          const [updatedBalance, updatedFreeMining] = await Promise.all([
+            getUserRZCBalance(userId),
+            getFreeMiningStatus(userId)
+          ]);
+          setClaimableRZC(updatedBalance.claimableRZC);
+          setTotalEarnedRZC(updatedBalance.totalEarned);
+          setClaimedRZC(updatedBalance.claimedRZC);
+          setFreeMiningStatus({
+            ...updatedFreeMining,
+            endDate: updatedFreeMining.endDate || '',
+            gracePeriodEnd: updatedFreeMining.gracePeriodEnd || ''
+          });
+          // Start a new unrestricted session to continue auto-mining
+          const startRes = await startMiningSessionUnrestricted(userId);
+          if (startRes.success) {
+            // no-op; next iteration will fetch active session
+          }
+        }
+        // Fetch next active session (if any)
+        active = await getActiveMiningSession(userId);
+        safety++;
+      }
+
+      // If no active session after catching up, try to start one unrestricted
+      if (!active) {
+        await maybeAutoStartMining();
+      } else {
+        setCurrentSession(active);
+        setIsMining(true);
+      }
+
+      // Show approximate offline earnings info
+      if (lastSeenStr) {
+        const lastSeen = new Date(lastSeenStr);
+        const offlineSeconds = Math.max(0, Math.floor((now.getTime() - lastSeen.getTime()) / 1000));
+        if (offlineSeconds > 60) {
+          const approxEarned = offlineSeconds * RZC_PER_SECOND;
+          if (approxEarned > 0) {
+            showSnackbar?.({
+              message: 'While you were away',
+              description: `Estimated +${approxEarned.toFixed(6)} RZC earned offline${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
+            });
+          }
+        }
+      }
+    } catch (err) {
+      // Silent resume errors
+    } finally {
+      localStorage.setItem(key, now.toISOString());
+    }
+  };
+
+  // Resume listeners: when tab becomes visible or window gains focus
+  useEffect(() => {
+    if (!userId) return;
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleResume();
+      }
+    };
+    const onFocus = () => handleResume();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [userId, currentSession, isMining]);
+
+  // Start mining function (enhanced with proper session tracking)
   const startMining = async () => {
     if (!userId || isMining || !canStartMining) return;
 
@@ -677,21 +925,37 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         // Record mining start activity
         await recordMiningActivity(userId, 'mining_start', 0);
         
+        // Play mining start sound
+        playSound('mining_start');
+        
+        // Update free mining session count
+        await updateFreeMiningSessionCount(userId);
+        
         // Refresh session data and free mining status
-        const activeSession = await getActiveMiningSession(userId);
+        const [activeSession, updatedFreeMining] = await Promise.all([
+          getActiveMiningSession(userId),
+          getFreeMiningStatus(userId)
+        ]);
+        
         if (activeSession) {
           setCurrentSession(activeSession);
+          const durationMs = new Date(activeSession.end_time).getTime() - new Date(activeSession.start_time).getTime();
+          setSessionDurationHours(Math.max(0, durationMs / (1000 * 60 * 60)));
         }
 
-        const updatedFreeMining = await getFreeMiningStatus(userId);
         setFreeMiningStatus({
           ...updatedFreeMining,
-          endDate: updatedFreeMining.endDate || ''
+          endDate: updatedFreeMining.endDate || '',
+          gracePeriodEnd: updatedFreeMining.gracePeriodEnd || ''
         });
+
+        const sessionMessage = updatedFreeMining.isInGracePeriod 
+          ? `Grace period mining started. ${updatedFreeMining.sessionsUsed}/${updatedFreeMining.maxSessions} sessions used.`
+          : `Free mining started! ${updatedFreeMining.sessionsUsed}/${updatedFreeMining.maxSessions} sessions used.`;
 
         showSnackbar?.({
           message: 'Mining Started!',
-          description: `Your 24-hour mining session has begun. ${updatedFreeMining.sessionsUsed + 1}/${updatedFreeMining.maxSessions} sessions used.`
+          description: sessionMessage
         });
       } else {
         showSnackbar?.({
@@ -705,6 +969,52 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         message: 'Mining Failed',
         description: 'An error occurred while starting mining.'
       });
+    }
+  };
+
+  // Complete the current session and immediately continue mining
+  const rolloverSession = async () => {
+    if (!userId || !isMining || !currentSession) return;
+
+    try {
+      const result = await manualCompleteMiningSession(currentSession.id);
+      if (result.success) {
+        // Record mining completion activity
+        await recordMiningActivity(userId, 'mining_complete', result.rzcEarned || 0);
+        
+        setIsMining(false);
+        setCurrentSession(null);
+        setAccumulatedRZC(0);
+        setLastClaimDuringMining(null);
+
+        // Refresh RZC balance and free mining status
+        const [updatedBalance, updatedFreeMining] = await Promise.all([
+          getUserRZCBalance(userId),
+          getFreeMiningStatus(userId)
+        ]);
+        
+        setClaimableRZC(updatedBalance.claimableRZC);
+        setTotalEarnedRZC(updatedBalance.totalEarned);
+        setClaimedRZC(updatedBalance.claimedRZC);
+        setFreeMiningStatus({ 
+          ...updatedFreeMining, 
+          endDate: updatedFreeMining.endDate || '',
+          gracePeriodEnd: updatedFreeMining.gracePeriodEnd || ''
+        });
+        // Immediately start a new unrestricted session to keep mining nonstop
+        setTimeout(async () => {
+          const startRes = await startMiningSessionUnrestricted(userId);
+          if (startRes.success) {
+            const active = await getActiveMiningSession(userId);
+            if (active) {
+              setCurrentSession(active);
+              setIsMining(true);
+            }
+          }
+        }, 300);
+      }
+    } catch (error) {
+      console.error('Error rolling over mining session:', error);
     }
   };
 
@@ -769,16 +1079,16 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
       // First, if mining, add accumulated RZC to claimable balance
       if (isMining && accumulatedRZC > 0) {
         try {
-          const { error: incrementError } = await supabase.rpc('increment_rzc_balance', {
-            p_user_id: userId,
-            p_amount: amountToClaim
+          // Record mining completion activity to add to claimable balance
+          const { error: activityError } = await supabase.from('activities').insert({
+            user_id: userId,
+            type: 'mining_complete',
+            amount: amountToClaim,
+            status: 'completed',
+            created_at: new Date().toISOString()
           });
           
-          if (incrementError) throw incrementError;
-          
-          // Reset accumulated RZC since we've moved it to claimable
-          // This ensures mining continues with a fresh start from 0
-          setAccumulatedRZC(0);
+          if (activityError) throw activityError;
           
           // Update the claimable balance state
           setClaimableRZC(prev => prev + amountToClaim);
@@ -812,14 +1122,18 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         setTotalEarnedRZC(updatedBalance.totalEarned);
         setClaimedRZC(updatedBalance.claimedRZC);
 
-        // If we were mining and claimed accumulated RZC, ensure it's reset to 0
-        // so mining continues with a fresh start
+        // If we were mining and claimed accumulated RZC, DON'T reset to 0
+        // Instead, set the last claim time so accumulation continues from this point
         if (isMining) {
-          setAccumulatedRZC(0);
+          // Keep the accumulated RZC as is - don't reset to 0
           // Set the last claim time so accumulation restarts from this point
           setLastClaimDuringMining(new Date());
         }
 
+        // Play claim sound and trigger celebration
+        playSound('claim');
+        triggerCelebration();
+        
         showSnackbar?.({
           message: 'RZC Claimed Successfully!',
           description: `You claimed ${amountToClaim.toFixed(6)} RZC! Next claim available in 30 minutes.`
@@ -846,6 +1160,79 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Achievement checking function
+  const checkAchievements = (rzcEarned: number, streak: number) => {
+    const newAchievements: string[] = [];
+    
+    // RZC earning achievements
+    if (rzcEarned >= 10 && !achievements.includes('first_10')) {
+      newAchievements.push('first_10');
+    }
+    if (rzcEarned >= 50 && !achievements.includes('first_50')) {
+      newAchievements.push('first_50');
+    }
+    if (rzcEarned >= 100 && !achievements.includes('first_100')) {
+      newAchievements.push('first_100');
+    }
+    if (rzcEarned >= 500 && !achievements.includes('first_500')) {
+      newAchievements.push('first_500');
+    }
+    
+    // Streak achievements
+    if (streak >= 3 && !achievements.includes('streak_3')) {
+      newAchievements.push('streak_3');
+    }
+    if (streak >= 7 && !achievements.includes('streak_7')) {
+      newAchievements.push('streak_7');
+    }
+    if (streak >= 30 && !achievements.includes('streak_30')) {
+      newAchievements.push('streak_30');
+    }
+    
+    // Update achievements
+    if (newAchievements.length > 0) {
+      setAchievements(prev => [...prev, ...newAchievements]);
+      const latestAchievement = newAchievements[newAchievements.length - 1];
+      setShowAchievement(latestAchievement);
+      setTimeout(() => setShowAchievement(null), 5000);
+    }
+  };
+
+  // Get achievement display info
+  const getAchievementInfo = (achievement: string) => {
+    const achievementMap: { [key: string]: { title: string; description: string; icon: string } } = {
+      'first_10': { title: 'First 10 RZC', description: 'Earned your first 10 RZC!', icon: '🎯' },
+      'first_50': { title: 'Half Century', description: 'Earned 50 RZC in a session!', icon: '🏆' },
+      'first_100': { title: 'Century Club', description: 'Earned 100 RZC in a session!', icon: '💎' },
+      'first_500': { title: 'Mining Master', description: 'Earned 500 RZC in a session!', icon: '👑' },
+      'streak_3': { title: 'Getting Started', description: '3-day mining streak!', icon: '🔥' },
+      'streak_7': { title: 'Week Warrior', description: '7-day mining streak!', icon: '⚡' },
+      'streak_30': { title: 'Mining Legend', description: '30-day mining streak!', icon: '🌟' }
+    };
+    return achievementMap[achievement] || { title: 'Achievement', description: 'Well done!', icon: '🎉' };
+  };
+
+  // Sound effects
+  const playSound = (soundType: 'mining_start' | 'mining_complete' | 'achievement' | 'claim' | 'milestone') => {
+    if (!soundEnabled) return;
+    
+    try {
+      const audio = new Audio(`/sounds/${soundType}.mp3`);
+      audio.volume = 0.3;
+      audio.play().catch(() => {
+        // Silently fail if audio can't play
+      });
+    } catch (error) {
+      // Silently fail if audio can't be created
+    }
+  };
+
+  // Celebration effect
+  const triggerCelebration = () => {
+    setShowCelebration(true);
+    setTimeout(() => setShowCelebration(false), 3000);
   };
 
   // Helper function to get icon for activity
@@ -932,176 +1319,309 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
 
   return (
-    <div className="w-full max-w-md mx-auto bg-gray-900/80 border-2 border-green-700/50 rounded-2xl shadow-neon-green-light overflow-hidden flex flex-col backdrop-blur-md">
+    <div className="w-full max-w-md mx-auto bg-gray-900/80 border-2 border-green-700/50 rounded-2xl shadow-neon-green-light overflow-hidden flex flex-col backdrop-blur-md sm:max-w-lg md:max-w-xl">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-green-700/50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-green-900/50 border-2 border-green-600/70 flex items-center justify-center">
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-green-700/50">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-900/50 border-2 border-green-600/70 flex items-center justify-center">
             {/* Placeholder for an icon */}
-            <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 sm:w-6 sm:h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div>
-            <h2 className="text-lg font-bold text-green-300">RZC Mining Core</h2>
-            <p className="text-xs text-green-500">Decentralized Yield Protocol</p>
+            <h2 className="text-base sm:text-lg font-bold text-green-300">{t('rzc_core_title')}</h2>
+            <p className="text-xs text-green-500">{t('rzc_core_subtitle')}</p>
           </div>
         </div>
-        <div className="w-3 h-3 rounded-full ${isMining ? 'bg-green-400 shadow-neon-green' : 'bg-gray-600'} animate-pulse" />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              soundEnabled 
+                ? 'bg-green-900/50 text-green-400 hover:bg-green-800/50' 
+                : 'bg-gray-800/50 text-gray-500 hover:bg-gray-700/50'
+            }`}
+            title={soundEnabled ? 'Disable sounds' : 'Enable sounds'}
+          >
+            {soundEnabled ? (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+              </svg>
+            )}
+          </button>
+          <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full ${isMining ? 'bg-green-400 shadow-neon-green' : 'bg-gray-600'} animate-pulse" />
+        </div>
       </div>
 
       {/* Wallet Content */}
-      <div className="p-4 space-y-4">
-<div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-2">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="font-semibold text-green-300">Your Referral Code</h4>
-                  <p className="text-xs text-gray-400">Share to build your network</p>
+      <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+{(referralCode || sponsorCode) && (
+            <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-semibold text-green-300 leading-tight">{t('your_referral_code')}</h4>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="min-w-0 flex-1 bg-gray-900/60 border border-gray-700 rounded-md px-2 py-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-3.5 h-3.5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span className="text-[11px] text-green-300 font-mono tracking-wider truncate">
+                          {`https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const codeToCopy = `https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`;
+                          if (!codeToCopy) throw new Error('No Link to copy');
+                          await navigator.clipboard.writeText(codeToCopy);
+                          showSnackbar?.({ message: t('copy_success') });
+                        } catch (error) {
+                          showSnackbar?.({ message: t('copy_failed') });
+                        }
+                      }}
+                      className="px-2 py-1 bg-green-600/80 text-white rounded-md text-[11px] font-semibold hover:bg-green-500/80 transition-colors border border-green-500/80 whitespace-nowrap"
+                      aria-label="Copy referral link"
+                    >
+                      {t('copy')}
+                    </button>
+                  </div>
                 </div>
               </div>
-              
-              <div className="flex justify-center items-center gap-2 bg-gray-900/50 border border-gray-700 rounded-lg p-3">
-                <span className="text-xs font-bold text-green-300 font-mono tracking-wider">
-                https://t.me/rhizacore_bot?startapp={referralCode || sponsorCode}
-                </span>
-                <button
-                  onClick={async () => {
-                    try {
-                      const codeToCopy = `https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`;
-                      if (!codeToCopy) throw new Error("No Link to copy");
-                      await navigator.clipboard.writeText(codeToCopy);
-                      showSnackbar?.({ message: 'Referral Link copied!' });
-                    } catch (error) {
-                      showSnackbar?.({ message: 'Failed to copy Link!' });
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-green-600/80 text-white rounded-md text-sm font-semibold hover:bg-green-500/80 transition-colors border border-green-500/80"
-                >
-                  Copy
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">Share this code to earn referral rewards</p>
             </div>
-        {/* Futuristic Display */}
-        <div className="text-center p-4 rounded-lg bg-gray-800/50 border border-green-800/30">
-          <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${isMining ? 'bg-green-900/50 border-2 border-green-500 animate-pulse-slow' : 'bg-gray-800/50 border-2 border-gray-600'}`}>
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isMining ? 'bg-green-700/60 border-2 border-green-400' : 'bg-gray-700/60 border-2 border-gray-500'}`}>
-              <div className={`w-8 h-8 rounded-full ${isMining ? 'bg-green-400 shadow-neon-green' : 'bg-gray-600'}`} />
+          )}
+        {/* Enhanced Futuristic Display with Animations */}
+        <div className="text-center p-3 sm:p-4 rounded-lg bg-gray-800/50 border border-green-800/30 relative overflow-hidden">
+          {/* Background Effects */}
+          {isMining && (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-transparent to-green-500/10 animate-pulse pointer-events-none z-0" />
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-32 bg-green-500/20 rounded-full blur-2xl animate-ping pointer-events-none z-0" />
+            </>
+          )}
+          
+          {/* Earning Animation Overlay */}
+          {showEarningAnimation && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-green-400 text-2xl font-bold animate-bounce">
+                +{recentEarnings.toFixed(6)} RZC
+              </div>
+            </div>
+          )}
+          
+          <div className={`w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 rounded-full flex items-center justify-center relative ${isMining ? 'bg-green-900/50 border-2 border-green-500 animate-pulse-slow' : 'bg-gray-800/50 border-2 border-gray-600'}`}>
+            {/* Rotating Ring for Active Mining */}
+            {isMining && (
+              <div className="absolute inset-0 rounded-full border-2 border-green-400/30 animate-spin" style={{ animationDuration: '3s' }} />
+            )}
+            
+            <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center relative ${isMining ? 'bg-green-700/60 border-2 border-green-400' : 'bg-gray-700/60 border-2 border-gray-500'}`}>
+              {/* Pulsing Core */}
+              <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full relative ${isMining ? 'bg-green-400 shadow-neon-green' : 'bg-gray-600'}`}>
+                {isMining && (
+                  <div className="absolute inset-0 rounded-full bg-green-300 animate-ping" />
+                )}
+              </div>
             </div>
           </div>
 
-          <h3 className="text-2xl font-bold text-green-300 tabular-nums">
+          <h3 className="text-xl sm:text-2xl font-bold text-green-300 tabular-nums">
             {isLoadingBalance ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full animate-spin"></div>
-                <span>---------</span>
+                <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-green-400 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm sm:text-base">---------</span>
               </div>
             ) : (
-              (isMining ? accumulatedRZC : claimableRZC).toFixed(6)
+              (claimableRZC + (isMining ? accumulatedRZC : 0)).toFixed(6)
             )}
           </h3>
-          <p className="text-sm font-medium text-green-500 mb-2">
-            {isLoadingBalance ? 'initializing.' : 'RhizaCore Balance'}
+          <p className="text-xs sm:text-sm font-medium text-green-500 mb-2">
+            {isLoadingBalance ? 'initializing.' : t('total_rzc_balance')}
           </p>
           {!isLoadingBalance && (
-            <div className="text-xs text-gray-400 mt-2 mb-2">
+            <div className="text-xs text-gray-400 mt-2 mb-2 space-y-1">
+              {/* <div className="flex justify-between">
+                <span>Claimable:</span>
+                <span className="text-yellow-300">{claimableRZC.toFixed(6)} RZC</span>
+              </div> */}
+              {isMining && accumulatedRZC > 0 && (
+                <div className="flex justify-between">
+                  <span>{t('mining_label')}</span>
+                  <span className="text-green-300">{accumulatedRZC.toFixed(6)} RZC</span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span>Validated Node:</span>
+                <span>{t('validated_label')}</span>
                 <span className="text-purple-300">{claimedRZC.toFixed(6)} RZC</span>
               </div>
+              
+              {/* Enhanced Statistics */}
             </div>
           )}
           {/* <p className="text-xs text-gray-400 tabular-nums">
             ≈ ${((isMining ? accumulatedRZC : claimableRZC) * tonPrice).toFixed(4)} USD
           </p> */
           
-          <div className="space-y-3">
+          <div className="relative z-20 space-y-2 sm:space-y-3">
           <button
             onClick={startMining}
             disabled={isMining || !canStartMining}
-            className="w-full bg-green-900/50 border-2 border-green-600/70 text-green-300 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
+            className="w-full bg-green-900/50 border-2 border-green-600/70 text-green-300 font-semibold py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-xs sm:text-sm
                        hover:bg-green-800/60 hover:border-green-500 hover:shadow-neon-green
                        disabled:bg-gray-800/50 disabled:border-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             {isMining ? (
               <>
-                <span className="text-sm">SESSION ACTIVE</span>
+                <span>{t('mining_in_progress')}</span>
               </>
             ) : !canStartMining ? (
               <>
-                <span className="text-sm">MINING UNAVAILABLE</span>
+                <span>{t('mining_unavailable')}</span>
               </>
             ) : (
               <>
-                <span className="text-sm">INITIATE MINING SEQUENCE</span>
+                <span>{t('initiate_mining')}</span>
               </>
             )}
           </button>
-          <button 
-          onClick={claimRewards}
-          disabled={!canClaim || isLoadingBalance || claimCooldownRemaining > 0}
-          className="w-full bg-yellow-900/50 border-2 border-yellow-600/70 text-yellow-300 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2
-                    hover:bg-yellow-800/60 hover:border-yellow-500 hover:shadow-neon-yellow
-                    disabled:bg-gray-800/50 disabled:border-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-        >
-          {claimCooldownRemaining > 0 ? (
-            <span>⏳ COOLDOWN: {formatCooldownTime(claimCooldownRemaining)}</span>
-          ) : isMining && accumulatedRZC > 0 ? (
-            <span>🎯 VALIDATE {accumulatedRZC.toFixed(6)} RZC</span>
-          ) : claimableRZC > 0 ? (
-            <span>🎯 VALIDATE {claimableRZC.toFixed(6)} RZC</span>
-          ) : (
-            <span>🎯 VALIDATE 0.000000 RZC</span>
+          {false && (
+            <button 
+              onClick={claimRewards}
+              disabled={!canClaim || isLoadingBalance || claimCooldownRemaining > 0}
+              className="w-full bg-yellow-900/50 border-2 border-yellow-600/70 text-yellow-300 font-semibold py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 text-xs sm:text-sm
+                        hover:bg-yellow-800/60 hover:border-yellow-500 hover:shadow-neon-yellow
+                        disabled:bg-gray-800/50 disabled:border-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
+            >
+              {claimCooldownRemaining > 0 ? (
+                <span>⏳ COOLDOWN: {formatCooldownTime(claimCooldownRemaining)}</span>
+              ) : (claimableRZC + (isMining ? accumulatedRZC : 0)) > 0 ? (
+                <span>🎯 VALIDATE {(claimableRZC + (isMining ? accumulatedRZC : 0)).toFixed(6)} RZC</span>
+              ) : (
+                <span>🎯 VALIDATE 0.000000 RZC</span>
+              )}
+            </button>
           )}
-        </button>
         </div>}
             
         </div>
 
        
 
-        {/* Mining Status */}
-        <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-4 space-y-3">
-          <div className="flex justify-between items-center text-sm">
+        {/* Enhanced Mining Status */}
+        <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+          <div className="flex justify-between items-center text-xs sm:text-sm">
             <div className="flex items-center gap-2 font-semibold">
-              <div className={`w-2.5 h-2.5 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+              <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
               <span className={isMining ? 'text-green-400' : 'text-gray-400'}>
-                {isLoadingMiningData ? 'Loading...' : (isMining ? 'SYSTEM ONLINE' : 'SYSTEM STANDBY')}
+                {isLoadingMiningData ? 'Loading...' : (isMining ? t('system_online') : t('system_standby'))}
               </span>
-            </div>
-            <span className="text-green-400 font-semibold">
-              {RZC_PER_DAY * miningRateMultiplier} RZC/24h
-              {miningRateMultiplier > 1 && (
-                <span className="text-yellow-400 ml-1">(+{Math.round((miningRateMultiplier - 1) * 100)}%)</span>
+              {isMining && userUpgrades.extendedSession && (
+                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded bg-green-900/40 border border-green-700 text-green-300 animate-pulse">EXTENDED 48H</span>
               )}
-            </span>
+              {miningStreak > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded bg-orange-900/40 border border-orange-700 text-orange-300">
+                  🔥 {miningStreak} DAY STREAK
+                </span>
+              )}
+            </div>
+            <div className="text-right">
+              <span className="text-green-400 font-semibold text-xs sm:text-sm">
+                {RZC_PER_DAY * miningRateMultiplier} RZC/24h
+                {miningRateMultiplier > 1 && (
+                  <span className="text-yellow-400 ml-1">(+{Math.round((miningRateMultiplier - 1) * 100)}%)</span>
+                )}
+              </span>
+              {achievements.length > 0 && (
+                <div className="text-[10px] text-yellow-400 mt-1">
+                  🏆 {achievements.length} Achievement{achievements.length > 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
           </div>
           
-          {/* Free Mining Countdown */}
+          {/* Enhanced Free Mining Status Display */}
           {freeMiningStatus.isActive && (
-            <div className="bg-green-900/30 border border-green-600/50 rounded-lg p-3 mb-3">
+            <div className={`border rounded-lg p-2 sm:p-3 mb-2 sm:mb-3 ${
+              freeMiningStatus.isInGracePeriod 
+                ? 'bg-yellow-900/30 border-yellow-600/50' 
+                : 'bg-green-900/30 border-green-600/50'
+            }`}>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-green-300 font-semibold">FREE MINING PERIOD</span>
-                <span className="text-green-400">{freeMiningStatus.daysRemaining} days left</span>
+                <span className={`font-semibold ${
+                  freeMiningStatus.isInGracePeriod ? 'text-yellow-300' : 'text-green-300'
+                }`}>
+                  {freeMiningStatus.isInGracePeriod ? 'GRACE PERIOD' : 'FREE MINING PERIOD'}
+                </span>
+                <div className="text-right">
+                  <div className={`${
+                    freeMiningStatus.isInGracePeriod ? 'text-yellow-400' : 'text-green-400'
+                  }`}>
+                    {freeMiningStatus.daysRemaining > 0 ? `${freeMiningStatus.sessionsRemaining} days left` : 'Expired'}
+                  </div>
+                  {/* <div className="text-gray-400 text-[10px]">
+                    {freeMiningStatus.sessionsRemaining} sessions remaining
+                  </div> */}
+                </div>
               </div>
-              {/* <div className="flex justify-between items-center text-xs mt-1">
-                <span className="text-gray-400">Sessions Used:</span>
-                <span className="text-green-300">{freeMiningStatus.sessionsUsed}/{freeMiningStatus.maxSessions}</span>
-              </div> */}
+              {freeMiningStatus.isInGracePeriod && (
+                <div className="text-[10px] text-yellow-300 mt-1">
+                  Limited mining available - stake TON for full access
+                </div>
+              )}
             </div>
           )}
           
-          <div className="text-center text-xs text-gray-400 font-mono h-4">
+            <div className="text-center text-[10px] text-gray-400 font-mono h-4">
             {isMining && (
-              <span>SESSION ENDS IN: {sessionCountdown}</span>
+              <span>{t('session_ends_in')}: {sessionCountdown} | {t('continuous_mining')}</span>
             )}
             {!isMining && !canStartMining && (
-              <span className="text-green-400">VALIDATING RHIZANODE</span>
+              <span className="text-green-400">{t('validating_node')}</span>
             )}
             {!isMining && canStartMining && (
-              <span>READY TO MINE NODE</span>
+              <span>{t('ready_to_mine')}</span>
             )}
           </div>
+          
+          {/* Mining Progress Bar */}
+          {isMining && currentSession && (
+            <div className="mt-2 sm:mt-3">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>{t('session_progress')}</span>
+                <span>{(() => {
+                  const start = new Date(currentSession.start_time).getTime();
+                  const end = new Date(currentSession.end_time).getTime();
+                  const nowMs = Date.now();
+                  const pct = Math.max(0, Math.min(100, ((nowMs - start) / Math.max(1, (end - start))) * 100));
+                  return pct.toFixed(1);
+                })()}%</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-green-500 to-green-400 h-2 rounded-full transition-all duration-1000"
+                  style={{ width: `${(() => {
+                    const start = new Date(currentSession.start_time).getTime();
+                    const end = new Date(currentSession.end_time).getTime();
+                    const nowMs = Date.now();
+                    const pct = Math.max(0, Math.min(100, ((nowMs - start) / Math.max(1, (end - start))) * 100));
+                    return pct;
+                  })()}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>{t('claimable')}: {claimableRZC.toFixed(2)}</span>
+                <span>{t('mining_label')} {accumulatedRZC.toFixed(2)}</span>
+                <span>{t('total')}: {(claimableRZC + accumulatedRZC).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -1122,39 +1642,39 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
       <div className="flex bg-gray-900/50 border-t-2 border-green-700/50">
         <button
           onClick={() => setActiveTab('mining')}
-          className={`flex-1 py-3 text-sm font-semibold transition-all duration-200 ${activeTab === 'mining' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
+          className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold transition-all duration-200 ${activeTab === 'mining' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
         >
           MINING
         </button>
         <button
           onClick={() => setActiveTab('activity')}
-          className={`flex-1 py-3 text-sm font-semibold transition-all duration-200 border-l border-r border-green-700/50 ${activeTab === 'activity' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
+          className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold transition-all duration-200 border-l border-r border-green-700/50 ${activeTab === 'activity' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
         >
           ACTIVITY
         </button>
         <button
           onClick={() => setActiveTab('referral')}
-          className={`flex-1 py-3 text-sm font-semibold transition-all duration-200 ${activeTab === 'referral' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
+          className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold transition-all duration-200 ${activeTab === 'referral' ? 'bg-green-900/70 text-green-300 shadow-neon-green-inset' : 'text-gray-500 hover:bg-gray-800/50'}`}
         >
           NETWORK
         </button>
       </div>
 
       {/* Tab Content */}
-      <div className="bg-gray-900/30 min-h-[200px]">
+      <div className="bg-gray-900/30 min-h-[180px] sm:min-h-[200px]">
         
         {/* ================================================================== */}
         {/* == MODIFIED MINING TAB CONTENT == */}
         {/* ================================================================== */}
         {activeTab === 'mining' && (
-          <div className="p-4">
-            <h3 className="text-lg font-semibold text-green-300 mb-3 text-center">Mining Upgrades</h3>
-            <div className="grid grid-cols-1 gap-3">
+          <div className="p-3 sm:p-4">
+            <h3 className="text-base sm:text-lg font-semibold text-green-300 mb-3 text-center">{t('mining_upgrades')}</h3>
+            <div className="grid grid-cols-1 gap-2 sm:gap-3">
               {/* Mining Rig Upgrade */}
-              <div className="bg-gray-800/70 border border-green-700/50 p-3 rounded-lg flex items-center justify-between gap-3">
-                <div>
-                  <h4 className="font-semibold text-green-400">Mining Rig Mk. II</h4>
-                  <p className="text-sm text-gray-400">Increases mining rate by 25%.</p>
+              <div className="bg-gray-800/70 border border-green-700/50 p-2 sm:p-3 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+                <div className="flex-1">
+                  <h4 className="text-sm sm:text-base font-semibold text-green-400">{t('mining_rig_mk2')}</h4>
+                  <p className="text-xs sm:text-sm text-gray-400">{t('increases_mining_rate')}</p>
                 </div>
                 <button 
                   onClick={async () => {
@@ -1180,10 +1700,14 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                       }
                     } catch (error) {
                       console.error('Error purchasing upgrade:', error);
+                      showSnackbar?.({
+                        message: 'Upgrade Failed',
+                        description: 'An error occurred while purchasing the upgrade.'
+                      });
                     }
                   }}
                   disabled={claimedRZC < 10 || userUpgrades.miningRigMk2}
-                  className={`font-semibold py-2 px-3 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                  className={`font-semibold py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors w-full sm:w-auto ${
                     userUpgrades.miningRigMk2 
                       ? 'bg-green-600 text-white cursor-default' 
                       : claimedRZC >= 10 
@@ -1196,10 +1720,10 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
               </div>
               
               {/* Extended Session Upgrade */}
-              <div className="bg-gray-800/70 border border-green-700/50 p-3 rounded-lg flex items-center justify-between gap-3">
-                <div>
-                  <h4 className="font-semibold text-green-400">Extended Session</h4>
-                  <p className="text-sm text-gray-400">Allows mining for 48 hours.</p>
+              <div className="bg-gray-800/70 border border-green-700/50 p-2 sm:p-3 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+                <div className="flex-1">
+                  <h4 className="text-sm sm:text-base font-semibold text-green-400">{t('extended_session')}</h4>
+                  <p className="text-xs sm:text-sm text-gray-400">{t('allows_mining_48h')}</p>
                 </div>
                 <button 
                   onClick={async () => {
@@ -1225,10 +1749,14 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                       }
                     } catch (error) {
                       console.error('Error purchasing upgrade:', error);
+                      showSnackbar?.({
+                        message: 'Upgrade Failed',
+                        description: 'An error occurred while purchasing the upgrade.'
+                      });
                     }
                   }}
                   disabled={claimedRZC < 5 || userUpgrades.extendedSession}
-                  className={`font-semibold py-2 px-3 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                  className={`font-semibold py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg text-xs sm:text-sm whitespace-nowrap transition-colors w-full sm:w-auto ${
                     userUpgrades.extendedSession 
                       ? 'bg-green-600 text-white cursor-default' 
                       : claimedRZC >= 5 
@@ -1240,7 +1768,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                 </button>
               </div>
             </div>
-            <p className="text-center text-gray-500 text-xs mt-4">More upgrades coming soon!</p>
+            <p className="text-center text-gray-500 text-xs mt-3 sm:mt-4">{t('more_upgrades_coming')}</p>
           </div>
         )}
         {/* ================================================================== */}
@@ -1248,28 +1776,28 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         {/* ================================================================== */}
 
         {activeTab === 'activity' && (
-          <div className="p-4 space-y-4">
+          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
             {/* Withdrawal Activity Summary */}
             {props.withdrawals && props.withdrawals.length > 0 && (
-              <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+              <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-3 sm:p-4">
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
                   <div>
-                    <h4 className="font-semibold text-green-300">Withdrawal Activity</h4>
+                    <h4 className="text-sm sm:text-base font-semibold text-green-300">Withdrawal Activity</h4>
                     <p className="text-xs text-gray-400">Your withdrawal history</p>
                   </div>
                   {/* Placeholder for icon */}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <p className="text-lg font-bold text-green-400">{props.withdrawals.filter(w => w.status === 'COMPLETED').length}</p>
+                    <p className="text-base sm:text-lg font-bold text-green-400">{props.withdrawals.filter(w => w.status === 'COMPLETED').length}</p>
                     <p className="text-xs text-gray-400">Completed</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-yellow-400">{props.withdrawals.filter(w => w.status === 'PENDING').length}</p>
+                    <p className="text-base sm:text-lg font-bold text-yellow-400">{props.withdrawals.filter(w => w.status === 'PENDING').length}</p>
                     <p className="text-xs text-gray-400">Pending</p>
                   </div>
                   <div>
-                    <p className="text-lg font-bold text-green-300">{props.withdrawals.reduce((sum, w) => sum + (w.status === 'COMPLETED' ? w.amount : 0), 0).toFixed(2)}</p>
+                    <p className="text-base sm:text-lg font-bold text-green-300">{props.withdrawals.reduce((sum, w) => sum + (w.status === 'COMPLETED' ? w.amount : 0), 0).toFixed(2)}</p>
                     <p className="text-xs text-gray-400">Total Paid</p>
                   </div>
                 </div>
@@ -1277,25 +1805,25 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             )}
 
             {props.isLoadingActivities ? (
-              <div className="flex justify-center items-center h-24">
+              <div className="flex justify-center items-center h-20 sm:h-24">
                 {/* Placeholder for loading spinner */}
-                <span className="text-gray-400">Loading Activities...</span>
+                <span className="text-gray-400 text-sm">Loading Activities...</span>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {/* Regular Activities */}
                 {props.activities && props.activities.length > 0 && props.activities.slice(0, 8).map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 p-3 bg-gray-800/40 border border-gray-700/50 rounded-lg">
+                  <div key={a.id} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-gray-800/40 border border-gray-700/50 rounded-lg">
                     {/* Activity icon */}
-                    <div className="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-gray-700/50 flex items-center justify-center">
                       {getActivityIcon(a.type)}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold uppercase text-gray-200">{a.type.replace(/_/g, ' ')}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-semibold uppercase text-gray-200 truncate">{a.type.replace(/_/g, ' ')}</p>
                       <p className="text-xs text-gray-400">{new Date(a.created_at).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-green-300">{typeof a.amount === 'number' ? a.amount.toFixed(6) : a.amount} {a.type === 'nova_reward' ? 'RZC' : 'RZC'}</p>
+                      <p className="text-xs sm:text-sm font-semibold text-green-300">{typeof a.amount === 'number' ? a.amount.toFixed(6) : a.amount} {a.type === 'nova_reward' ? 'RZC' : 'RZC'}</p>
                       <p className="text-xs text-gray-400 capitalize">{a.status}</p>
                     </div>
                   </div>
@@ -1373,11 +1901,11 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
         )}
 
         {activeTab === 'referral' && (
-          <div className="p-4 space-y-4">
+          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
             {/* Network Header */}
-            <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-4 text-center">
-              <h3 className="text-lg font-semibold text-green-300 mb-2">🌐 Mining Network</h3>
-              <p className="text-sm text-gray-400">Build your mining team and earn together</p>
+            <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-3 sm:p-4 text-center">
+              <h3 className="text-base sm:text-lg font-semibold text-green-300 mb-2">🌐 Mining Network</h3>
+              <p className="text-xs sm:text-sm text-gray-400">Build your mining team and earn together</p>
             </div>
 
             {/* Your Sponsor Code */}
@@ -1440,15 +1968,15 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
             </div>
 
             {/* Network Stats */}
-            <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-4">
-              <h4 className="font-semibold text-green-300 mb-3 text-center">Network Statistics</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="text-center bg-gray-900/50 rounded-lg p-3 border border-gray-700">
-                  <p className="text-2xl font-bold text-green-400">{referralStats.active}</p>
+            <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-3 sm:p-4">
+              <h4 className="text-sm sm:text-base font-semibold text-green-300 mb-2 sm:mb-3 text-center">Network Statistics</h4>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="text-center bg-gray-900/50 rounded-lg p-2 sm:p-3 border border-gray-700">
+                  <p className="text-lg sm:text-2xl font-bold text-green-400">{referralStats.active}</p>
                   <p className="text-xs text-gray-400">Active Team</p>
                 </div>
-                <div className="text-center bg-gray-900/50 rounded-lg p-3 border border-gray-700">
-                  <p className="text-2xl font-bold text-gray-300">{referralStats.total * 50} <span className="text-green-400">RZC</span></p>
+                <div className="text-center bg-gray-900/50 rounded-lg p-2 sm:p-3 border border-gray-700">
+                  <p className="text-lg sm:text-2xl font-bold text-gray-300">{referralStats.total * 50} <span className="text-green-400">RZC</span></p>
                   <p className="text-xs text-gray-400">Total Earnings</p>
                 </div>
               </div>
@@ -1456,10 +1984,10 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
 
             {/* Team Members List */}
             {referralStats.total > 0 && (
-              <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+              <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-3 sm:p-4">
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
                   <div>
-                    <h4 className="font-semibold text-green-300">👇 Your Team ({referralStats.total})</h4>
+                    <h4 className="text-sm sm:text-base font-semibold text-green-300">👇 Your Team ({referralStats.total})</h4>
                     <p className="text-xs text-gray-400">Your mining network members</p>
                   </div>
                 </div>
@@ -1636,6 +2164,50 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
           </div>
         )}
       </div>
+
+      {/* Celebration Overlay */}
+      {showCelebration && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 via-yellow-500/20 to-green-500/20 animate-pulse" />
+          <div className="absolute top-1/4 left-1/4 text-6xl animate-bounce">🎉</div>
+          <div className="absolute top-1/3 right-1/4 text-5xl animate-bounce delay-300">✨</div>
+          <div className="absolute bottom-1/4 left-1/3 text-4xl animate-bounce delay-700">💎</div>
+          <div className="absolute bottom-1/3 right-1/3 text-5xl animate-bounce delay-500">🏆</div>
+        </div>
+      )}
+
+      {/* Achievement Popup Modal */}
+      {showAchievement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-gradient-to-br from-yellow-900 via-yellow-800 to-yellow-900 border-2 border-yellow-600/50 rounded-2xl p-6 w-full max-w-md shadow-2xl relative overflow-hidden animate-bounce">
+            {/* Background Effects */}
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/20 via-transparent to-yellow-500/20" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-yellow-500/20 rounded-full blur-3xl" />
+            
+            <div className="relative text-center">
+              <div className="text-6xl mb-4 animate-pulse">
+                {getAchievementInfo(showAchievement).icon}
+              </div>
+              <h3 className="text-2xl font-bold text-yellow-300 mb-2">
+                Achievement Unlocked!
+              </h3>
+              <h4 className="text-xl font-semibold text-yellow-200 mb-2">
+                {getAchievementInfo(showAchievement).title}
+              </h4>
+              <p className="text-yellow-100 text-sm mb-4">
+                {getAchievementInfo(showAchievement).description}
+              </p>
+              <button
+                onClick={() => setShowAchievement(null)}
+                className="bg-yellow-600/80 hover:bg-yellow-500/80 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+              >
+                Awesome! 🎉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Telegram Popup Modal */}
       {showTelegramPopup && (

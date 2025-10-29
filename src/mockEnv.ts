@@ -40,24 +40,54 @@ if (import.meta.env.DEV) {
       //   ['signature', 'a2b4c6d8t5f2g4h6i8j0k2m4n6p8q0'],
       // ]).toString();
 
+      // const initDataRaw = new URLSearchParams([
+      //   ['user', JSON.stringify({
+      //     id: 9839877767,
+      //     first_name: 'Gern',
+      //     last_name: 'Joagtt',
+      //     username: 'xyzman',
+      //     language_code: 'en',
+      //     is_premium: true,
+      //     allows_write_to_pm: true,
+      //   })],
+      //   ['hash', 'x789z2a4b6c886e26876366h8i0j2k4m6n8p088'],
+      //   ['auth_date', '178228977777'],
+      //   ['start_param', 'debug'],
+      //   ['chat_type', 'sender'],
+      //   ['chat_instance', '987654325987234998444744'],
+      //   ['signature', 'a2b4c6d8t5f2g4hghj6yhjj0k2m4n6p8q0'],
+      // ]).toString();
+
+      // Generate a fresh randomized mock profile each run (development only)
+      const rand = Math.floor(Math.random() * 1_000_000);
+      const now = Date.now();
+      const mockId = Number(`${now}${rand}`).toString().slice(0, 13); // up to 13 digits
+      const firstNames = ['Ava','Liam','Noah','Mia','Zoe','Eli','Kai','Nina','Ivy','Leo'];
+      const lastNames = ['Stone','River','Blake','Wren','Vale','Quinn','Skye','Dune','Reed','Lane'];
+      const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+      const firstName = pick(firstNames);
+      const lastName = pick(lastNames);
+      const username = `${firstName.toLowerCase()}_${lastName.toLowerCase()}_${rand}`;
+
       const initDataRaw = new URLSearchParams([
         ['user', JSON.stringify({
-          id: 7634577767,
-          first_name: 'Jolongern',
-          last_name: 'Joagtt',
-          username: 'JonnaJohn',
+          id: Number(mockId),
+          first_name: firstName,
+          last_name: lastName,
+          username,
           language_code: 'en',
-          is_premium: false,
+          is_premium: Math.random() < 0.5,
           allows_write_to_pm: true,
         })],
-        ['hash', 'x7y9z2a4b6c886e265666h8i0j2k4m6n8p088'],
-        ['auth_date', '17378977777'],
+        ['hash', `${now.toString(36)}${rand.toString(36)}`],
+        ['auth_date', String(now)],
         ['start_param', 'debug'],
         ['chat_type', 'sender'],
-        ['chat_instance', '987654325552349844744'],
-        ['signature', 'a2b4c6d8t5f2g4hghju8j0k2m4n6p8q0'],
+        ['chat_instance', (now + rand).toString()],
+        ['signature', `${rand.toString(36)}${now.toString(36)}sig`],
       ]).toString();
       
+
 
       // const initDataRaw = new URLSearchParams([
       //   ['user', JSON.stringify({

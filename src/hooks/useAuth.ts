@@ -217,10 +217,11 @@ export const useAuth = () => {
 
         console.log('Attempting to create user with data:', newUserData);
 
-        // Create new user with better error handling
-        const { data: newUser, error: createError } = await supabase
+        // Create new user idempotently using upsert on telegram_id
+        let newUser: any = null;
+        const { data: upsertUser, error: upsertError } = await supabase
           .from('users')
-          .insert([newUserData])
+          .upsert(newUserData, { onConflict: 'telegram_id' })
           .select(`
             *,
             referrer:users!referrer_id(
@@ -230,14 +231,38 @@ export const useAuth = () => {
           `)
           .single();
 
-        if (createError) {
-          console.error('Detailed create error:', {
-            code: createError.code,
-            message: createError.message,
-            details: createError.details,
-            hint: createError.hint
-          });
-          throw new Error(`Failed to create new user: ${createError.message}`);
+        if (upsertError) {
+          // If race caused duplicate, fetch existing user instead of failing
+          const isDup = (upsertError as any)?.code === '23505' || (upsertError.message || '').toLowerCase().includes('duplicate key');
+          if (isDup) {
+            const { data: fetchedExisting, error: fetchExistingErr } = await supabase
+              .from('users')
+              .select(`
+                *,
+                referrer:users!referrer_id(
+                  username,
+                  rank
+                )
+              `)
+              .eq('telegram_id', telegramId)
+              .single();
+            if (!fetchExistingErr && fetchedExisting) {
+              newUser = fetchedExisting;
+            } else {
+              console.error('Duplicate detected but failed to fetch existing user:', fetchExistingErr);
+              throw new Error('Failed to create or fetch existing user after duplicate.');
+            }
+          } else {
+            console.error('Detailed create error:', {
+              code: upsertError.code,
+              message: upsertError.message,
+              details: upsertError.details,
+              hint: upsertError.hint
+            });
+            throw new Error(`Failed to create new user: ${upsertError.message}`);
+          }
+        } else {
+          newUser = upsertUser;
         }
 
         if (!newUser) {
@@ -255,7 +280,7 @@ export const useAuth = () => {
               // Find referrer by telegram_id
               const { data: referrerUser, error: referrerFetchError } = await supabase
                 .from('users')
-                .select('id, telegram_id')
+                .select('id, telegram_id, direct_referrals')
                 .eq('telegram_id', String(parsedReferrerTgId))
                 .single();
 
@@ -272,22 +297,36 @@ export const useAuth = () => {
                   console.error('Failed to set referrer_id on new user:', setReferrerError);
                 } else {
                   // Create referral record (idempotent-ish: rely on uniqueness at app logic level)
-                  const { error: insertReferralError } = await supabase
+                  // Ensure we only count referral once
+                  const { data: existingReferral } = await supabase
                     .from('referrals')
-                    .insert([{ sponsor_id: referrerUser.id, referred_id: newUser.id, status: 'active' }]);
+                    .select('id')
+                    .eq('sponsor_id', referrerUser.id)
+                    .eq('referred_id', newUser.id)
+                    .maybeSingle();
 
-                  if (insertReferralError) {
-                    console.error('Failed to insert referral row:', insertReferralError);
-                  }
+                  if (!existingReferral) {
+                    const { error: insertReferralError } = await supabase
+                      .from('referrals')
+                      .insert([{ sponsor_id: referrerUser.id, referred_id: newUser.id, status: 'active' }]);
 
-                  // Optionally increase direct_referrals count
-                  const { error: bumpDirectError } = await supabase
-                    .from('users')
-                    .update({ direct_referrals: (referrerUser as any).direct_referrals + 1 })
-                    .eq('id', referrerUser.id);
-                  if (bumpDirectError) {
-                    // Non-fatal; often handled elsewhere via triggers or backend
-                    console.warn('Failed to bump direct_referrals (non-fatal):', bumpDirectError?.message);
+                    if (insertReferralError) {
+                      const isDupReferral = (insertReferralError as any)?.code === '23505' || (insertReferralError.message || '').toLowerCase().includes('duplicate');
+                      if (!isDupReferral) {
+                        console.error('Failed to insert referral row:', insertReferralError);
+                      }
+                    } else {
+                      // Increase direct_referrals count only when a new referral row was created
+                      const currentDirect = (referrerUser as any)?.direct_referrals ?? 0;
+                      const { error: bumpDirectError } = await supabase
+                        .from('users')
+                        .update({ direct_referrals: currentDirect + 1 })
+                        .eq('id', referrerUser.id);
+                      if (bumpDirectError) {
+                        // Non-fatal; often handled elsewhere via triggers or backend
+                        console.warn('Failed to bump direct_referrals (non-fatal):', bumpDirectError?.message);
+                      }
+                    }
                   }
 
                   // Replace newUser with updated one including referrer_id

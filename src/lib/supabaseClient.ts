@@ -1796,7 +1796,7 @@ export interface RZCBalance {
   updated_at: string;
 }
 
-// Start a new mining session
+// Start a new mining session (simplified version using activities)
 export const startMiningSession = async (userId: number): Promise<{
   success: boolean;
   sessionId?: number;
@@ -1812,30 +1812,24 @@ export const startMiningSession = async (userId: number): Promise<{
       };
     }
 
-    // Create new mining session (24 hours)
-    const startTime = new Date();
-    const endTime = new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // 24 hours
-
-    const { data: session, error } = await supabase
-      .from('mining_sessions')
+    // Record mining start activity
+    const { data: activity, error } = await supabase
+      .from('activities')
       .insert({
         user_id: userId,
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        status: 'active',
-        rzc_earned: 0
+        type: 'mining_start',
+        amount: 0,
+        status: 'completed',
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
 
     if (error) throw error;
 
-    // Update free mining session count
-    await updateFreeMiningSessionCount(userId);
-
     return {
       success: true,
-      sessionId: session.id
+      sessionId: activity.id // Use activity ID as session ID
     };
   } catch (error: any) {
     console.error('Error starting mining session:', error);
@@ -1846,18 +1840,94 @@ export const startMiningSession = async (userId: number): Promise<{
   }
 };
 
-// Get active mining session
-export const getActiveMiningSession = async (userId: number): Promise<MiningSession | null> => {
+// Start a new mining session without free-period checks (unrestricted/auto mode)
+export const startMiningSessionUnrestricted = async (userId: number): Promise<{
+  success: boolean;
+  sessionId?: number;
+  error?: string;
+}> => {
   try {
-    const { data, error } = await supabase
-      .from('mining_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
+    // Avoid duplicate active sessions: if an active session exists, return success with that id
+    const existing = await getActiveMiningSession(userId);
+    if (existing) {
+      return { success: true, sessionId: existing.id };
+    }
+
+    // Directly record mining start activity
+    const { data: activity, error } = await supabase
+      .from('activities')
+      .insert({
+        user_id: userId,
+        type: 'mining_start',
+        amount: 0,
+        status: 'completed',
+        created_at: new Date().toISOString()
+      })
+      .select()
       .single();
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
-    return data;
+    if (error) throw error;
+
+    return {
+      success: true,
+      sessionId: activity.id
+    };
+  } catch (error: any) {
+    console.error('Error starting unrestricted mining session:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to start unrestricted mining session'
+    };
+  }
+};
+
+// Get active mining session (simplified version using activities)
+export const getActiveMiningSession = async (userId: number): Promise<MiningSession | null> => {
+  try {
+    // Get the most recent mining_start activity that doesn't have a corresponding mining_complete
+    const { data: miningStarts, error } = await supabase
+      .from('activities')
+      .select('id, created_at')
+      .eq('user_id', userId)
+      .eq('type', 'mining_start')
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+    if (!miningStarts || miningStarts.length === 0) return null;
+
+    const startActivity = miningStarts[0];
+    const startTime = new Date(startActivity.created_at);
+    const endTime = new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Check if there's a mining_complete activity after this mining_start
+    const { data: miningComplete } = await supabase
+      .from('activities')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', 'mining_complete')
+      .eq('status', 'completed')
+      .gt('created_at', startActivity.created_at)
+      .limit(1);
+
+    // If there's a mining_complete after this mining_start, session is not active
+    if (miningComplete && miningComplete.length > 0) return null;
+
+    // Check if session has expired (24 hours)
+    const now = new Date();
+    if (now >= endTime) return null;
+
+    // Return a mock MiningSession object
+    return {
+      id: startActivity.id,
+      user_id: userId,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      status: 'active',
+      rzc_earned: 0,
+      created_at: startActivity.created_at
+    };
   } catch (error) {
     console.error('Error fetching active mining session:', error);
     return null;
@@ -1880,6 +1950,67 @@ export const updateMiningProgress = async (sessionId: number, rzcEarned: number)
   }
 };
 
+// Manually complete mining session (user-initiated)
+export const manualCompleteMiningSession = async (sessionId: number): Promise<{
+  success: boolean;
+  rzcEarned?: number;
+  error?: string;
+}> => {
+  try {
+    // Get session details
+    const { data: session, error: fetchError } = await supabase
+      .from('mining_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!session) {
+      return { success: false, error: 'Mining session not found' };
+    }
+
+    // Calculate RZC earned based on actual time elapsed
+    const startTime = new Date(session.start_time);
+    const endTime = new Date();
+    const elapsedHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const rzcEarned = Math.min(elapsedHours * (50 / 24), 50); // 50 RZC per day, capped at 50
+
+    // Update session as completed
+    const { error: updateError } = await supabase
+      .from('mining_sessions')
+      .update({
+        status: 'completed',
+        rzc_earned: rzcEarned,
+        completed_at: endTime.toISOString()
+      })
+      .eq('id', sessionId);
+
+    if (updateError) throw updateError;
+
+    // Add RZC to user's claimable balance by recording mining completion activity
+    const { error: activityError } = await supabase.from('activities').insert({
+      user_id: session.user_id,
+      type: 'mining_complete',
+      amount: rzcEarned,
+      status: 'completed',
+      created_at: new Date().toISOString()
+    });
+
+    if (activityError) throw activityError;
+
+    return {
+      success: true,
+      rzcEarned
+    };
+  } catch (error: any) {
+    console.error('Error manually completing mining session:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to complete mining session'
+    };
+  }
+};
+
 // Complete mining session
 export const completeMiningSession = async (sessionId: number): Promise<{
   success: boolean;
@@ -1899,8 +2030,8 @@ export const completeMiningSession = async (sessionId: number): Promise<{
       return { success: false, error: 'Mining session not found' };
     }
 
-    // Calculate final RZC earned (1 RZC per day)
-    const rzcEarned = 1.0;
+    // Calculate final RZC earned (50 RZC per day - consistent with frontend)
+    const rzcEarned = 50.0;
 
     // Update session as completed
     const { error: updateError } = await supabase
@@ -1914,13 +2045,16 @@ export const completeMiningSession = async (sessionId: number): Promise<{
 
     if (updateError) throw updateError;
 
-    // Add RZC to user's claimable balance
-    const { error: balanceError } = await supabase.rpc('increment_rzc_balance', {
-      p_user_id: session.user_id,
-      p_amount: rzcEarned
+    // Add RZC to user's claimable balance by recording mining completion activity
+    const { error: activityError } = await supabase.from('activities').insert({
+      user_id: session.user_id,
+      type: 'mining_complete',
+      amount: rzcEarned,
+      status: 'completed',
+      created_at: new Date().toISOString()
     });
 
-    if (balanceError) throw balanceError;
+    if (activityError) throw activityError;
 
     return {
       success: true,
@@ -1935,7 +2069,7 @@ export const completeMiningSession = async (sessionId: number): Promise<{
   }
 };
 
-// Get user's RZC balance
+// Get user's RZC balance (simplified version using activities table)
 export const getUserRZCBalance = async (userId: number): Promise<{
   claimableRZC: number;
   totalEarned: number;
@@ -1943,29 +2077,52 @@ export const getUserRZCBalance = async (userId: number): Promise<{
   lastClaimTime?: string;
 }> => {
   try {
-    const { data, error } = await supabase
-      .from('rzc_balances')
-      .select('claimable_rzc, total_rzc_earned, last_claim_time')
-      .eq('user_id', userId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
-
-    // Get claimed RZC from activities (claims)
-    const { data: claimActivities } = await supabase
+    // Get all RZC-related activities
+    const { data: activities, error } = await supabase
       .from('activities')
-      .select('amount')
+      .select('type, amount, created_at')
       .eq('user_id', userId)
-      .eq('type', 'rzc_claim')
-      .eq('status', 'completed');
+      .in('type', ['rzc_claim', 'mining_complete', 'mining_rig_mk2', 'extended_session'])
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
 
-    const claimedRZC = claimActivities?.reduce((sum, activity) => sum + activity.amount, 0) || 0;
+    if (error) throw error;
+
+    let claimableRZC = 0;
+    let totalEarned = 0;
+    let claimedRZC = 0;
+    let lastClaimTime: string | undefined;
+
+    // Process activities to calculate balances
+    activities?.forEach(activity => {
+      if (activity.type === 'rzc_claim') {
+        if (activity.amount > 0) {
+          claimedRZC += activity.amount;
+          if (!lastClaimTime) lastClaimTime = activity.created_at;
+        } else {
+          // Negative claim (upgrade purchase) - add back to claimable
+          claimableRZC += Math.abs(activity.amount);
+        }
+      } else if (activity.type === 'mining_complete') {
+        claimableRZC += activity.amount;
+        totalEarned += activity.amount;
+      }
+    });
+
+    console.log('RZC Balance Calculation:', {
+      userId,
+      activities: activities?.length || 0,
+      claimableRZC,
+      totalEarned,
+      claimedRZC,
+      lastClaimTime
+    });
 
     return {
-      claimableRZC: data?.claimable_rzc || 0,
-      totalEarned: data?.total_rzc_earned || 0,
+      claimableRZC,
+      totalEarned,
       claimedRZC,
-      lastClaimTime: data?.last_claim_time
+      lastClaimTime
     };
   } catch (error) {
     console.error('Error fetching RZC balance:', error);
@@ -1977,45 +2134,44 @@ export const getUserRZCBalance = async (userId: number): Promise<{
   }
 };
 
-// Claim RZC rewards
+// Claim RZC rewards (simplified version using activities table)
 export const claimRZCRewards = async (userId: number, amount: number): Promise<{
   success: boolean;
   error?: string;
   transactionId?: string;
 }> => {
   try {
-    // Check if user has enough claimable RZC
-    const { data: balance } = await supabase
-      .from('rzc_balances')
-      .select('claimable_rzc')
-      .eq('user_id', userId)
-      .single();
-
-    if (!balance || balance.claimable_rzc < amount) {
+    // Get current balance to check if user has enough
+    const balance = await getUserRZCBalance(userId);
+    
+    if (balance.claimableRZC < amount) {
       return {
         success: false,
         error: 'Insufficient RZC balance'
       };
     }
 
-    // Instant claim enabled - no cooldown check
-
-    // Process RZC claim
-    const { error: claimError } = await supabase.rpc('process_rzc_claim', {
-      p_user_id: userId,
-      p_amount: amount
-    });
-
-    if (claimError) throw claimError;
-
-    // Log the claim activity
-    await supabase.from('activities').insert({
+    // Record the claim activity
+    const { error: claimError } = await supabase.from('activities').insert({
       user_id: userId,
       type: 'rzc_claim',
       amount: amount,
       status: 'completed',
       created_at: new Date().toISOString()
     });
+
+    if (claimError) throw claimError;
+
+    // Update user's total_earned in users table
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        total_earned: balance.totalEarned + amount,
+        last_claim_time: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
 
     return {
       success: true,
@@ -2072,7 +2228,7 @@ export const processExpiredMiningSessions = async (): Promise<void> => {
 };
 
 // ============================================================================
-// FREE MINING PERIOD FUNCTIONS
+// IMPROVED FREE MINING PERIOD FUNCTIONS
 // ============================================================================
 
 // Free mining period interface
@@ -2080,57 +2236,56 @@ export interface FreeMiningPeriod {
   user_id: number;
   start_date: string;
   end_date: string;
-  days_remaining: number;
+  grace_period_end: string;
   is_active: boolean;
-  total_sessions_used: number;
+  sessions_used: number;
   max_sessions: number;
+  is_in_grace_period: boolean;
+  days_remaining: number;
+  sessions_remaining: number;
+  can_mine: boolean;
+  reason: string;
 }
 
-// Initialize free mining period for new users
+// Initialize free mining period for users (improved version)
 export const initializeFreeMiningPeriod = async (userId: number): Promise<{
   success: boolean;
   error?: string;
   freeMiningData?: FreeMiningPeriod;
 }> => {
   try {
-    // Check if user already has free mining period
-    const { data: existingPeriod } = await supabase
-      .from('free_mining_periods')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    // Call the database function to initialize or update the free mining period
+    const { error: dbError } = await supabase.rpc('initialize_or_update_free_mining_period', {
+      p_user_id: userId
+    });
 
-    if (existingPeriod) {
+    if (dbError) {
+      console.error('Database error initializing free mining period:', dbError);
       return {
-        success: true,
-        freeMiningData: existingPeriod
+        success: false,
+        error: dbError.message || 'Failed to initialize free mining period'
       };
     }
 
-    // Create new free mining period (100 days)
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 100); // 100 days from now
-
-    const { data: freeMining, error } = await supabase
-      .from('free_mining_periods')
-      .insert({
-        user_id: userId,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-        days_remaining: 100,
-        is_active: true,
-        total_sessions_used: 0,
-        max_sessions: 100 // 1 session per day for 100 days
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
+    // Get the updated status
+    const status = await getFreeMiningStatus(userId);
+    
     return {
       success: true,
-      freeMiningData: freeMining
+      freeMiningData: {
+        user_id: userId,
+        start_date: new Date().toISOString(),
+        end_date: status.endDate || new Date(Date.now() + 100 * 24 * 60 * 60 * 1000).toISOString(),
+        grace_period_end: status.gracePeriodEnd || new Date(Date.now() + 107 * 24 * 60 * 60 * 1000).toISOString(),
+        is_active: status.isActive,
+        sessions_used: status.sessionsUsed,
+        max_sessions: status.maxSessions,
+        is_in_grace_period: status.isInGracePeriod,
+        days_remaining: status.daysRemaining,
+        sessions_remaining: status.sessionsRemaining,
+        can_mine: status.canMine,
+        reason: status.reason || 'Free mining period active'
+      }
     };
   } catch (error: any) {
     console.error('Error initializing free mining period:', error);
@@ -2141,47 +2296,74 @@ export const initializeFreeMiningPeriod = async (userId: number): Promise<{
   }
 };
 
-// Get user's free mining period status
+// Get comprehensive free mining status (improved version)
 export const getFreeMiningStatus = async (userId: number): Promise<{
   isActive: boolean;
   daysRemaining: number;
   sessionsUsed: number;
   maxSessions: number;
+  sessionsRemaining: number;
   canMine: boolean;
   endDate?: string;
+  gracePeriodEnd?: string;
+  isInGracePeriod: boolean;
+  reason: string;
 }> => {
   try {
-    const { data, error } = await supabase
-      .from('free_mining_periods')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    // Call the database function to get comprehensive status
+    const { data, error } = await supabase.rpc('get_free_mining_status', {
+      p_user_id: userId
+    });
 
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
-
-    if (!data) {
+    if (error) {
+      console.error('Database error fetching free mining status:', error);
       return {
         isActive: false,
         daysRemaining: 0,
         sessionsUsed: 0,
         maxSessions: 0,
-        canMine: false
+        sessionsRemaining: 0,
+        canMine: false,
+        isInGracePeriod: false,
+        reason: 'Error fetching mining status'
       };
     }
 
-    const now = new Date();
-    const endDate = new Date(data.end_date);
-    const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-    const isActive = data.is_active && daysRemaining > 0;
-    const canMine = isActive && data.total_sessions_used < data.max_sessions;
+    const result = data?.[0];
+    if (!result) {
+      // If no data returned, initialize the period
+      await initializeFreeMiningPeriod(userId);
+      // Try again
+      const { data: retryData } = await supabase.rpc('get_free_mining_status', {
+        p_user_id: userId
+      });
+      const retryResult = retryData?.[0];
+      
+      return {
+        isActive: retryResult?.is_active || false,
+        daysRemaining: retryResult?.days_remaining || 0,
+        sessionsUsed: retryResult?.sessions_used || 0,
+        maxSessions: retryResult?.max_sessions || 100,
+        sessionsRemaining: retryResult?.sessions_remaining || 0,
+        canMine: retryResult?.can_mine || false,
+        endDate: retryResult?.end_date,
+        gracePeriodEnd: retryResult?.grace_period_end,
+        isInGracePeriod: retryResult?.is_in_grace_period || false,
+        reason: retryResult?.reason || 'Free mining period active'
+      };
+    }
 
     return {
-      isActive,
-      daysRemaining,
-      sessionsUsed: data.total_sessions_used,
-      maxSessions: data.max_sessions,
-      canMine,
-      endDate: data.end_date
+      isActive: result.is_active,
+      daysRemaining: result.days_remaining,
+      sessionsUsed: result.sessions_used,
+      maxSessions: result.max_sessions,
+      sessionsRemaining: result.sessions_remaining,
+      canMine: result.can_mine,
+      endDate: result.end_date,
+      gracePeriodEnd: result.grace_period_end,
+      isInGracePeriod: result.is_in_grace_period,
+      reason: result.reason
     };
   } catch (error) {
     console.error('Error fetching free mining status:', error);
@@ -2190,19 +2372,27 @@ export const getFreeMiningStatus = async (userId: number): Promise<{
       daysRemaining: 0,
       sessionsUsed: 0,
       maxSessions: 0,
-      canMine: false
+      sessionsRemaining: 0,
+      canMine: false,
+      isInGracePeriod: false,
+      reason: 'Error fetching mining status'
     };
   }
 };
 
-// Update free mining session count
+// Update free mining session count when mining starts (improved version)
 export const updateFreeMiningSessionCount = async (userId: number): Promise<boolean> => {
   try {
-    const { error } = await supabase.rpc('increment_free_mining_sessions', {
-      user_id: userId
+    // Call the database function to increment session count
+    const { error } = await supabase.rpc('increment_mining_session_count', {
+      p_user_id: userId
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error updating free mining session count:', error);
+      return false;
+    }
+
     return true;
   } catch (error) {
     console.error('Error updating free mining session count:', error);
@@ -2210,30 +2400,22 @@ export const updateFreeMiningSessionCount = async (userId: number): Promise<bool
   }
 };
 
-// Check if user can start mining (free period + no active session)
+// Check if user can start mining (improved version with grace period)
 export const canUserStartMining = async (userId: number): Promise<{
   canMine: boolean;
   reason?: string;
   freeMiningStatus?: any;
 }> => {
   try {
-    // Check free mining period
+    // Get comprehensive free mining status
     const freeMiningStatus = await getFreeMiningStatus(userId);
+    
     if (!freeMiningStatus.canMine) {
-      if (!freeMiningStatus.isActive) {
-        return {
-          canMine: false,
-          reason: 'Free mining period has expired. Please stake TON to continue mining.',
-          freeMiningStatus
-        };
-      }
-      if (freeMiningStatus.sessionsUsed >= freeMiningStatus.maxSessions) {
-        return {
-          canMine: false,
-          reason: 'You have used all your free mining sessions.',
-          freeMiningStatus
-        };
-      }
+      return {
+        canMine: false,
+        reason: freeMiningStatus.reason,
+        freeMiningStatus
+      };
     }
 
     // Check for active mining session
@@ -2340,8 +2522,6 @@ export const purchaseUpgrade = async (
       type: 'rzc_claim', // A negative claim is a deduction
       amount: -cost, // Use a negative value to represent a deduction
       status: 'completed',
-      // Add a note in metadata to clarify this is an upgrade purchase
-      metadata: { reason: `purchase_${upgradeType}` },
     });
     if (deductError) throw deductError;
     
@@ -2362,7 +2542,6 @@ export const purchaseUpgrade = async (
         type: 'rzc_claim',
         amount: cost, // Refund the cost
         status: 'completed',
-        metadata: { reason: `refund_failed_${upgradeType}` },
       });
       throw recordError;
     }
