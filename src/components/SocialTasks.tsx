@@ -227,7 +227,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
 
       showSnackbar({
         message: '🎉 Task Completed!',
-        description: `You earned ${task.reward.toLocaleString()} TAPPS tokens! Check your airdrop balance.`
+        description: `You earned ${task.reward.toLocaleString()} Rhiza! Check your airdrop balance.`
       });
     } catch (error) {
       console.error('Error completing task:', error);
@@ -328,7 +328,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
       
       showSnackbar({
         message: '🎊 All Tasks Completed!',
-        description: `Congratulations! You earned a bonus of ${bonusAmount.toLocaleString()} TAPPS tokens!`
+        description: `Congratulations! You earned a bonus of ${bonusAmount.toLocaleString()} Rhiza`
       });
       setHasClaimedAllRewards(true);
     } catch (error) {
@@ -388,7 +388,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
             </div>
             <div>
               <h3 className="text-xl font-bold text-green-300">Social Engagement</h3>
-              <p className="text-sm text-green-500">Complete social tasks to earn TAPPS rewards.</p>
+              <p className="text-sm text-green-500">Complete social tasks to earn RhizaCore rewards.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -414,7 +414,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
               </div>
               <div className="flex-1">
                 <h4 className="text-sm font-semibold text-green-300">Bonus Available!</h4>
-                <p className="text-xs text-green-500">Claim your 25,000 TAPPs bonus for completing all tasks</p>
+                <p className="text-xs text-green-500">Claim your 25,000 RhizaCore bonus for completing all tasks</p>
               </div>
             </div>
           </div>
@@ -430,7 +430,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-green-300">All Tasks Completed!</h4>
-                <p className="text-xs text-green-500">You've claimed your 25,000 TAPPS bonus reward.</p>
+                <p className="text-xs text-green-500">You've claimed your 25,000 RhizaCore bonus reward.</p>
               </div>
             </div>
           </div>
