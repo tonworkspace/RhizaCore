@@ -2,7 +2,7 @@ import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { FC, useState, useEffect, useRef } from 'react';
 import { I18nProvider, useI18n } from '@/components/I18nProvider';
-import { FaCogs, FaMagento, FaNetworkWired, FaWallet } from 'react-icons/fa';
+import { FaCogs, FaMagento, FaTasks, FaWallet } from 'react-icons/fa';
 // import { MdDiamond } from 'react-icons/md';
 // import { BiNetworkChart } from 'react-icons/bi';
 // import { TonConnectButton, } from '@tonconnect/ui-react';
@@ -31,6 +31,7 @@ import TonWallet from '@/components/TonWallet';
 import DappExplorer from '@/components/DappExplorer';
 import SettingsComponent from '@/components/SettingsComponent';
 import { SponsorGate } from '@/components/SponsorGate';
+import SocialTasks from '@/components/SocialTasks';
 
 // Time-based multipliers as per whitepaper
 const getTimeMultiplier = (daysStaked: number): number => {
@@ -2700,6 +2701,27 @@ const handleDeposit = async (amount: number) => {
     }
   }, [user, isLoading]);
 
+  const handleRewardClaimed = async (amount: number) => {
+    try {
+      if (!user?.id) return;
+      const { data: updatedUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (updatedUser) {
+        updateUserData(updatedUser);
+        showSnackbar({
+          message: 'Balance Updated',
+          description: `+${amount.toLocaleString()} TAPPS added to your airdrop balance.`
+        });
+      }
+    } catch (err) {
+      console.error('Failed to refresh user after claim:', err);
+    }
+  };
+
+
   // Add state for task completion
   // const [completedTasks, setCompletedTasks] = useState<string[]>([]);
 
@@ -2928,9 +2950,13 @@ const handleDeposit = async (amount: number) => {
             </div>
         )}
 
-        {currentTab === 'tasks' && (
+        {currentTab === 'task' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
-            
+              <SocialTasks 
+                showSnackbar={showSnackbar}
+                userId={user?.id}
+                onRewardClaimed={handleRewardClaimed}
+              />
             </div>
         )}
 
@@ -3383,7 +3409,8 @@ const handleDeposit = async (amount: number) => {
             {[
               { id: 'home', text: 'Mining', Icon: FaMagento, gradient: 'from-green-500 to-teal-500' },
               { id: 'wallet', text: 'Wallet', Icon: FaWallet, gradient: 'from-orange-500 to-red-500' },
-              { id: 'network', text: 'Dapp', Icon: FaNetworkWired, gradient: 'from-indigo-500 to-purple-500' },
+              { id: 'task', text: 'Task', Icon: FaTasks, gradient: 'from-orange-500 to-red-500' },
+              // { id: 'network', text: 'Dapp', Icon: FaNetworkWired, gradient: 'from-indigo-500 to-purple-500' },
               { id: 'whale', text: 'Settings', Icon: FaCogs, gradient: 'from-purple-500 to-pink-500' },
             ].map(({ id, text, Icon, gradient }) => (
               <button

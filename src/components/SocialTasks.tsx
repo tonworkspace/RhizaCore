@@ -90,19 +90,19 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
     {
       id: 1,
       platform: 'Telegram',
-      action: 'Join TAPPS Telegram Group',
-      reward: 10000,
-      link: 'https://t.me/TAPPs_Chat',
+      action: 'Join RhizaCore Chatroom',
+      reward: 1000,
+      link: 'https://t.me/RhizaCore',
       isCompleted: false,
-      description: 'Join our vibrant community and stay updated with the latest news!',
+      description: 'Join our vibrant community and stay updated with the latest discussions!',
       rewardClaimed: false
     },
     {
       id: 2,
       platform: 'Telegram',
-      action: 'Join TAPPS Telegram Channel',
-      reward: 10000,
-      link: 'https://t.me/TAPPs_News',
+      action: 'Join RhizaCore News Channel',
+      reward: 1000,
+      link: 'https://t.me/RhizaCoreNews',
       isCompleted: false,
       description: 'Stay connected with official announcements and updates!',
       rewardClaimed: false
@@ -110,9 +110,9 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
     {
       id: 3,
       platform: 'Twitter',
-      action: 'Follow TAPPS Whale on X/Twitter',
-      reward: 15000,
-      link: 'https://x.com/TAPPs_Whale',
+      action: 'Follow RhizaCore on X/Twitter',
+      reward: 1500,
+      link: 'https://x.com/RhizaCore',
       isCompleted: false,
       description: 'Follow us on X for the latest news, updates, and community discussions!',
       rewardClaimed: false
@@ -120,9 +120,9 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
     {
       id: 4,
       platform: 'Facebook',
-      action: 'Like TAPPS Whale Facebook Page',
-      reward: 10000,
-      link: 'https://web.facebook.com/TAPPsWeb3',
+      action: 'Like RhizaCore Facebook Page',
+      reward: 1000,
+      link: 'https://web.facebook.com/RhizaCore',
       isCompleted: false,
       description: 'Show your support by liking our Facebook page and joining our community!',
       rewardClaimed: false
