@@ -196,10 +196,13 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
         throw new Error('Failed to save task completion');
       }
 
-      // Add the reward to the user's RZC balance
-      const { error: rzcError } = await supabase.rpc('increment_rzc_balance', {
-        p_user_id: userId,
-        p_amount: task.reward
+      // Add the reward to the user's validated RZC balance by creating a claim activity
+      const { error: rzcError } = await supabase.from('activities').insert({
+        user_id: userId,
+        type: 'rzc_claim',
+        amount: task.reward,
+        status: 'completed',
+        created_at: new Date().toISOString()
       });
 
       if (rzcError) {
@@ -290,10 +293,13 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
     try {
       const bonusAmount = 5000;
       
-      // Update user's RZC balance with bonus
-      const { error: rzcError } = await supabase.rpc('increment_rzc_balance', {
-        p_user_id: userId,
-        p_amount: bonusAmount
+      // Add the bonus to the user's validated RZC balance by creating a claim activity
+      const { error: rzcError } = await supabase.from('activities').insert({
+        user_id: userId,
+        type: 'rzc_claim',
+        amount: bonusAmount,
+        status: 'completed',
+        created_at: new Date().toISOString()
       });
 
       if (rzcError) {
