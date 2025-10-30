@@ -130,11 +130,11 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
     // {
     //   id: 5,
     //   platform: 'Discord',
-    //   action: 'Join TAPPS Discord Server',
+    //   action: 'Join Rhiza Discord Server',
     //   reward: 12000,
-    //   link: 'https://discord.gg/tapps',
+    //   link: 'https://discord.gg/Rhiza',
     //   isCompleted: false,
-    //   description: 'Connect with fellow TAPPS community members on Discord!',
+    //   description: 'Connect with fellow Rhiza community members on Discord!',
     //   rewardClaimed: false
     // }
   ];
@@ -196,14 +196,14 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
         throw new Error('Failed to save task completion');
       }
 
-      // Update user's airdrop balance
-      const { error: balanceError } = await supabase.rpc('increment_sbt', {
-        user_id: userId,
-        amount: task.reward
+      // Add the reward to the user's RZC balance
+      const { error: rzcError } = await supabase.rpc('increment_rzc_balance', {
+        p_user_id: userId,
+        p_amount: task.reward
       });
 
-      if (balanceError) {
-        console.error('Balance update error:', balanceError);
+      if (rzcError) {
+        console.error('RZC Balance update error:', rzcError);
         // Don't throw error here, just log it
       }
 
@@ -227,7 +227,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
 
       showSnackbar({
         message: '🎉 Task Completed!',
-        description: `You earned ${task.reward.toLocaleString()} Rhiza! Check your airdrop balance.`
+        description: `You earned ${task.reward.toLocaleString()} Rhiza tokens! Check your airdrop balance.`
       });
     } catch (error) {
       console.error('Error completing task:', error);
@@ -288,17 +288,17 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
     
     setIsClaimingAllRewards(true);
     try {
-      const bonusAmount = 25000;
+      const bonusAmount = 5000;
       
-      // Update user's airdrop balance with bonus
-      const { error: balanceError } = await supabase.rpc('increment_sbt', {
-        user_id: userId,
-        amount: bonusAmount
+      // Update user's RZC balance with bonus
+      const { error: rzcError } = await supabase.rpc('increment_rzc_balance', {
+        p_user_id: userId,
+        p_amount: bonusAmount
       });
 
-      if (balanceError) {
-        console.error('Bonus balance update error:', balanceError);
-        throw new Error('Failed to update bonus balance');
+      if (rzcError) {
+        console.error('Bonus RZC balance update error:', rzcError);
+        throw new Error('Failed to update bonus RZC balance');
       }
 
       // Save the bonus claim status to database
@@ -328,7 +328,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
       
       showSnackbar({
         message: '🎊 All Tasks Completed!',
-        description: `Congratulations! You earned a bonus of ${bonusAmount.toLocaleString()} Rhiza`
+        description: `Congratulations! You earned a bonus of ${bonusAmount.toLocaleString()} Rhiza tokens!`
       });
       setHasClaimedAllRewards(true);
     } catch (error) {
@@ -414,7 +414,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
               </div>
               <div className="flex-1">
                 <h4 className="text-sm font-semibold text-green-300">Bonus Available!</h4>
-                <p className="text-xs text-green-500">Claim your 25,000 RhizaCore bonus for completing all tasks</p>
+                <p className="text-xs text-green-500">Claim your 5,000 Rhiza bonus for completing all tasks</p>
               </div>
             </div>
           </div>
@@ -430,7 +430,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-green-300">All Tasks Completed!</h4>
-                <p className="text-xs text-green-500">You've claimed your 25,000 RhizaCore bonus reward.</p>
+                <p className="text-xs text-green-500">You've claimed your 5,000 Rhiza bonus reward.</p>
               </div>
             </div>
           </div>
@@ -543,7 +543,7 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
                             onClick={() => startTaskValidation(task.id)}
                             className="flex-1 px-4 py-2.5 rounded-lg bg-green-900/50 hover:bg-green-800/60 text-green-300 border-2 border-green-600/70 font-medium transition-colors flex items-center justify-center gap-2"
                           >
-                            <span className='text-[10px]'>Visit {task.platform}</span>
+                            <span className="text-[10px]">Visit {task.platform}</span>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                             </svg>
@@ -562,17 +562,17 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
                             {loading ? (
                               <>
                                 <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
-                                <span className='text-[10px]'>Verifying</span>
+                                <span className="text-[10px]">Verifying</span>
                               </>
                             ) : validatingTasks[task.id] && timers[task.id] > 0 ? (
                               <>
-                                <span className='text-[10px]'>Checking</span>
+                                <span className="text-[10px]">Checking</span>
                                 <span className="tabular-nums">{timers[task.id]}s</span>
                               </>
                             ) : validatingTasks[task.id] ? (
-                              <span className='text-[10px]'>Claim Reward</span>
+                              <span className="text-[10px]">Claim Reward</span>
                             ) : (
-                              <span className='text-[10px]'>Not Claimed</span>
+                              <span className="text-[10px]">Not Claimed</span>
                             )}
                           </button>
                         </>

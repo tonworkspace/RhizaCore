@@ -807,7 +807,7 @@ const IndexPageContent: FC = () => {
   });
 
   // Estimated daily earnings based on current per-second rate
-  // const estimatedDailyTapps = useMemo(() => {
+  // const estimatedDailyRhiza = useMemo(() => {
   //   return Math.max(0, earningState.baseEarningRate * 86400);
   // }, [earningState.baseEarningRate]);
 
@@ -835,7 +835,7 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   // Show success message
   showSnackbar({
     message: 'NFT Minted Successfully',
-    description: 'You have earned 25,000 TAPPS JETTONS!'
+    description: 'You have earned 5,000 RhizaCore'
   });
 };
 
@@ -941,7 +941,7 @@ useEffect(() => {
 //     // Show success message
 //     showSnackbar({
 //       message: 'Reward Claimed!',
-//       description: 'You have received 10,000 TAPPS JETTONS'
+//       description: 'You have received 10,000 Rhiza JETTONS'
 //     });
     
 //   } catch (error) {
@@ -1166,7 +1166,7 @@ useEffect(() => {
 //     // Show success message
 //     showSnackbar({
 //       message: 'Rewards Claimed',
-//       description: `Added ${earningState.currentEarnings.toFixed(8)} TON + ${novaAmount.toFixed(8)} TAPPS`
+//       description: `Added ${earningState.currentEarnings.toFixed(8)} TON + ${novaAmount.toFixed(8)} Rhiza`
 //     });
     
 //     // Set cooldown (30 minutes)
@@ -1430,7 +1430,7 @@ useEffect(() => {
   //       updateUserData(updatedUser);
   //       showSnackbar({
   //         message: 'Balance Updated',
-  //         description: `+${amount.toLocaleString()} TAPPS added to your airdrop balance.`
+  //         description: `+${amount.toLocaleString()} Rhiza added to your airdrop balance.`
   //       });
   //     }
   //   } catch (err) {
@@ -1499,7 +1499,7 @@ const calculateEarningRate = async (
   const networkPower = await calculateNetworkPower();
   
   // Daily emission cap (sustainable amount)
-  const dailyEmission = 1000; // 1000 TAPPS per day total
+  const dailyEmission = 1000; // 1000 Rhiza per day total
   
   // Calculate daily reward using whitepaper formula
   const dailyReward = (effectiveStakingPower / networkPower) * dailyEmission;
@@ -2393,7 +2393,7 @@ const handleDeposit = async (amount: number) => {
 
   //     showSnackbar({
   //       message: 'Rewards Claimed',
-  //       description: `Added ${offlineRewardsAmount.toFixed(8)} TON + ${(offlineRewardsAmount * 0.1).toFixed(8)} TAPPS`
+  //       description: `Added ${offlineRewardsAmount.toFixed(8)} TON + ${(offlineRewardsAmount * 0.1).toFixed(8)} Rhiza`
   //     });
 
   //     setShowOfflineRewardsModal(false);
@@ -2713,7 +2713,7 @@ const handleDeposit = async (amount: number) => {
         updateUserData(updatedUser);
         showSnackbar({
           message: 'Balance Updated',
-          description: `+${amount.toLocaleString()} TAPPS added to your airdrop balance.`
+          description: `+${amount.toLocaleString()} RhizaCore added to your airdrop balance.`
         });
       }
     } catch (err) {
@@ -2734,7 +2734,7 @@ const handleDeposit = async (amount: number) => {
   //     // Show success message
   //     showSnackbar({
   //       message: 'Task Completed!',
-  //       description: 'Wallet connection verified. +10,000 TAPPS JETTONS'
+  //       description: 'Wallet connection verified. +10,000 Rhiza JETTONS'
   //     });
 
   //     // Update task in database if needed
@@ -2789,7 +2789,7 @@ const handleDeposit = async (amount: number) => {
       // Show success message
       showSnackbar({
         message: 'Staking Task Completed!',
-        description: 'You have received 10,000 TAPPS.'
+        description: 'You have received 10,000 Rhiza.'
       });
     }
   }, [user?.balance, isStakingCompleted, user]);
@@ -3118,7 +3118,7 @@ const handleDeposit = async (amount: number) => {
                     {user?.balance && user.balance > 0 ? 'Add New Staking' : 'Deposit TON'}
                   </h2>
                     <p className="text-base text-gray-600 mt-2">
-                    Stake TON to start earning TAPPS rewards
+                    Stake TON to start earning Rhiza rewards
                   </p>
                   </div>
                 </div>
@@ -3160,7 +3160,7 @@ const handleDeposit = async (amount: number) => {
                         <p className="text-xl font-bold text-gray-800 mb-1">
                           ≈ {customAmount && parseFloat(customAmount) >= 1 
                             ? calculateTotalEarnings(parseFloat(customAmount)).toFixed(1) 
-                            : '0'} TAPPS
+                            : '0'} Rhiza
                         </p>
                         <p className="text-sm text-gray-600">
                           Potential earnings over 135 days
@@ -3192,7 +3192,7 @@ const handleDeposit = async (amount: number) => {
                               ? 'text-blue-700' 
                               : 'text-gray-600 group-hover:text-gray-700'
                           }`}>
-                            ~{calculateTotalEarnings(amount).toFixed(1)} TAPPS
+                            ~{calculateTotalEarnings(amount).toFixed(1)} Rhiza
                           </div>
                           <div className={`text-xs font-medium ${
                             customAmount === amount.toString() 
@@ -3251,7 +3251,7 @@ const handleDeposit = async (amount: number) => {
                         </div>
                         <div className="ml-auto text-right">
                           <p className="text-lg font-bold text-blue-600">
-                            {calculateTotalEarnings(parseFloat(customAmount)).toFixed(2)} TAPPS
+                            {calculateTotalEarnings(parseFloat(customAmount)).toFixed(2)} Rhiza
                           </p>
                           <p className="text-xs text-green-600">
                             {((calculateTotalEarnings(parseFloat(customAmount)) / parseFloat(customAmount)) * 100).toFixed(1)}% ROI
@@ -3263,25 +3263,25 @@ const handleDeposit = async (amount: number) => {
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Daily (Day 1-7)</span>
                           <span className="text-green-600 font-medium">
-                            +{(parseFloat(customAmount) * 0.0306).toFixed(4)} TAPPs
+                            +{(parseFloat(customAmount) * 0.0306).toFixed(4)} Rhiza
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Daily (Day 8-30)</span>
                           <span className="text-yellow-600 font-medium">
-                            +{(parseFloat(customAmount) * 0.0306 * 1.1).toFixed(4)} TAPPs
+                            +{(parseFloat(customAmount) * 0.0306 * 1.1).toFixed(4)} Rhiza
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Daily (Day 31+)</span>
                           <span className="text-blue-600 font-medium">
-                            +{(parseFloat(customAmount) * 0.0306 * 1.25).toFixed(4)} TAPPs
+                            +{(parseFloat(customAmount) * 0.0306 * 1.25).toFixed(4)} Rhiza
                           </span>
                         </div>
                       </div>
 
                       <p className="text-xs text-gray-500 mt-3">
-                        Rewards are accrued in TAPPS tokens. Amounts are approximate and subject to change.
+                        Rewards are accrued in Rhiza tokens. Amounts are approximate and subject to change.
                       </p>
                     </div>
                   )}
@@ -3374,12 +3374,12 @@ const handleDeposit = async (amount: number) => {
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Claim TAPPS Reward!</h3>
+              <h3 className="text-xl font-bold text-gray-900">Claim Rhiza Reward!</h3>
               <p className="text-gray-600">
                 You've earned rewards while you were away:
               </p>
               <div className="text-3xl font-bold text-green-600">
-                {offlineRewardsAmount.toFixed(8)} TAPPS
+                {offlineRewardsAmount.toFixed(8)} Rhiza
               </div>
               <div className="flex gap-3 mt-6">
                 <button
