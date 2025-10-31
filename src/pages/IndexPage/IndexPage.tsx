@@ -22,7 +22,7 @@ import { Snackbar } from '@telegram-apps/telegram-ui';
 // import DailyUpdateCard from '@/components/DailyUpdateCard/DailyUpdateCard';
 import { NFTMinter } from '@/components/NFTMinter';
 // import AdminWithdrawalPanel from '@/components/AdminWithdrawalPanel';
-import ArcadeMiningUI from '@/components/ArcadeMiningUI';
+import ArcadeMiningUI, { ArcadeMiningUIHandle } from '@/components/ArcadeMiningUI';
 // import WithdrawModal from '@/components/WithdrawModal';
 // import NewsComponent from '@/components/NewsComponent';
 import TonWallet from '@/components/TonWallet';
@@ -2701,23 +2701,12 @@ const handleDeposit = async (amount: number) => {
     }
   }, [user, isLoading]);
 
-  const handleRewardClaimed = async (amount: number) => {
-    try {
-      if (!user?.id) return;
-      const { data: updatedUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      if (updatedUser) {
-        updateUserData(updatedUser);
-        showSnackbar({
-          message: 'Balance Updated',
-          description: `+${amount.toLocaleString()} RhizaCore added to your airdrop balance.`
-        });
-      }
-    } catch (err) {
-      console.error('Failed to refresh user after claim:', err);
+  const arcadeRef = useRef<ArcadeMiningUIHandle>(null);
+
+  // Immediate balance refresh for SocialTasks
+  const handleRewardClaimed = async (_amount: number) => {
+    if (arcadeRef.current && typeof arcadeRef.current.refreshBalance === 'function') {
+      arcadeRef.current.refreshBalance();
     }
   };
 
@@ -2870,11 +2859,16 @@ const handleDeposit = async (amount: number) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-900 text-green-400 font-mono antialiased mb-[3.7rem]">
+      {/* Animated background layers */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+       
+        <div className="absolute -bottom-20 -right-10 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl animate-ping [animation-pulse]" />
+      </div>
       <div className="absolute inset-0 bg-grid-green-500/10 bg-grid-18 [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
       <div className="absolute inset-0 scanline"></div>
       {!isLoading && user && showOnboarding && <OnboardingScreen />}
       {/* Header */}
-      <div className="px-6 py-4 border-b border-green-700/50">
+      <div className="px-6 py-4 border-b border-green-700/50 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {user?.photoUrl ? (
@@ -2916,6 +2910,7 @@ const handleDeposit = async (amount: number) => {
         {/* Keep ArcadeMiningUI mounted; hide when not on Mining tab */}
         <div className={`relative space-y-6 p-custom px-6 pb-6 overflow-y-auto ${currentTab === 'home' ? '' : 'hidden'}`}>
           <ArcadeMiningUI
+            ref={arcadeRef}
             balanceTon={user?.balance || 0}
             tonPrice={tonPrice || 0}
             currentEarningsTon={earningState?.currentEarnings || 0}
@@ -3110,7 +3105,7 @@ const handleDeposit = async (amount: number) => {
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                 <div>

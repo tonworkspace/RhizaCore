@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react';
 import { useI18n } from '@/components/I18nProvider';
 import { 
   supabase, 
@@ -61,8 +61,11 @@ interface ArcadeMiningUIProps {
   showSnackbar?: (data: { message: string; description?: string }) => void;
 }
 
-// A compact, arcade-style mining UI that preserves existing actions
-export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
+export type ArcadeMiningUIHandle = {
+  refreshBalance: () => Promise<void> | void;
+};
+
+const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(function ArcadeMiningUI(props, ref) {
   const { t } = useI18n();
   const {
     // tonPrice,
@@ -171,6 +174,7 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
   });
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
+  const thresholdClaimingRef = useRef(false);
 
   // Load mining statistics on component mount
   useEffect(() => {
@@ -809,9 +813,9 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
       }
     };
 
-    // Run immediately, then every 30 minutes
+    // Run immediately, then every 5 minutes
     validateMiningState();
-    const interval = setInterval(validateMiningState, 30 * 60 * 1000);
+    const interval = setInterval(validateMiningState, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [userId, isMining]);
 
@@ -1317,6 +1321,101 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
     );
   };
 
+  // Core fetchBalance logic used in auto-refetch
+  const fetchBalance = async () => {
+    if (!userId) return;
+    try {
+      const updatedBalance = await getUserRZCBalance(userId);
+      setClaimableRZC(updatedBalance.claimableRZC);
+      setTotalEarnedRZC(updatedBalance.totalEarned);
+      setClaimedRZC(updatedBalance.claimedRZC);
+    } catch {}
+  };
+
+  useImperativeHandle(ref, () => ({
+    refreshBalance: fetchBalance
+  }));
+
+  // Auto-balance refetch every 50 seconds
+  useEffect(() => {
+    if (!userId) return;
+    let isMounted = true;
+    const intervalFn = async () => {
+      try {
+        const updatedBalance = await getUserRZCBalance(userId);
+        if (isMounted && updatedBalance) {
+          setClaimableRZC(updatedBalance.claimableRZC);
+          setTotalEarnedRZC(updatedBalance.totalEarned);
+          setClaimedRZC(updatedBalance.claimedRZC);
+        }
+      } catch {}
+    };
+    intervalFn();
+    const interval = setInterval(intervalFn, 50000); // every 50s
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [userId]);
+
+  // Auto-claim: ensure users never lose mined coins by validating daily
+  useEffect(() => {
+    if (!userId) return;
+
+    const storageKey = `last_auto_claim_${userId}`;
+
+    const autoClaimIfDue = async () => {
+      if (isClaiming || isLoadingBalance) return;
+
+      try {
+        const now = new Date();
+        const lastAutoStr = localStorage.getItem(storageKey);
+        const lastAuto = lastAutoStr ? new Date(lastAutoStr) : null;
+
+        // Use whichever is more recent between manual last claim and auto-claim
+        const lastEffectiveClaim = lastClaimTime || lastAuto;
+
+        const hoursSince = lastEffectiveClaim
+          ? (now.getTime() - lastEffectiveClaim.getTime()) / (1000 * 60 * 60)
+          : Infinity;
+
+        // Check available balance without mutating state
+        const available = claimableRZC + (isMining ? accumulatedRZC : 0);
+
+        if (hoursSince >= 24 && available > 0) {
+          await claimRewards();
+          localStorage.setItem(storageKey, now.toISOString());
+        }
+      } catch (e) {
+        // silent fail
+      }
+    };
+
+    // Run immediately, then every 5 minutes
+    autoClaimIfDue();
+    const interval = setInterval(autoClaimIfDue, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [userId, isClaiming, isLoadingBalance, claimableRZC, accumulatedRZC, isMining, lastClaimTime]);
+
+  // Auto-claim every 10 RZC mined (when cooldown allows)
+  useEffect(() => {
+    if (!userId) return;
+    if (!isMining) return;
+    if (claimCooldownRemaining > 0) return;
+    if (isClaiming || isLoadingBalance) return;
+
+    const available = claimableRZC + accumulatedRZC;
+    if (accumulatedRZC >= 10 && available > 0 && !thresholdClaimingRef.current) {
+      thresholdClaimingRef.current = true;
+      (async () => {
+        try {
+          await claimRewards();
+        } finally {
+          thresholdClaimingRef.current = false;
+        }
+      })();
+    }
+  }, [userId, isMining, accumulatedRZC, claimCooldownRemaining, isClaiming, isLoadingBalance, claimableRZC]);
 
   return (
     <div className="w-full max-w-md mx-auto bg-gray-900/80 border-2 border-green-700/50 rounded-2xl shadow-neon-green-light overflow-hidden flex flex-col backdrop-blur-md sm:max-w-lg md:max-w-xl">
@@ -1515,85 +1614,69 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
        
 
         {/* Enhanced Mining Status */}
-        <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
-          <div className="flex justify-between items-center text-xs sm:text-sm">
-            <div className="flex items-center gap-2 font-semibold">
-              <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
-              <span className={isMining ? 'text-green-400' : 'text-gray-400'}>
+        <div className="bg-gray-800/50 border border-green-800/30 rounded-lg p-2 sm:p-3 space-y-1 relative overflow-hidden">
+          {/* Animated background accents */}
+          {isMining && (
+            <>
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-green-500/5 via-transparent to-green-500/5 animate-pulse" />
+              <div className="pointer-events-none absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-green-400/40 to-transparent animate-pulse" />
+            </>
+          )}
+          <div className="flex items-center justify-between text-[11px] sm:text-xs relative z-10">
+            <div className="flex items-center gap-2 font-semibold min-w-0">
+              <div className={`w-2 h-2 rounded-full ${isMining ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+              <span className={`truncate ${isMining ? 'text-green-400' : 'text-gray-400'}`}>
                 {isLoadingMiningData ? 'Loading...' : (isMining ? t('system_online') : t('system_standby'))}
               </span>
               {isMining && userUpgrades.extendedSession && (
-                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded bg-green-900/40 border border-green-700 text-green-300 animate-pulse">EXTENDED 48H</span>
+                <span className="px-1 py-0.5 text-[9px] rounded bg-green-900/40 border border-green-700 text-green-300">48H</span>
               )}
               {miningStreak > 0 && (
-                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded bg-orange-900/40 border border-orange-700 text-orange-300">
-                  🔥 {miningStreak} DAY STREAK
+                <span className="px-1 py-0.5 text-[9px] rounded bg-orange-900/40 border border-orange-700 text-orange-300 whitespace-nowrap">
+                  🔥 {miningStreak}d
                 </span>
               )}
             </div>
-            <div className="text-right">
-              <span className="text-green-400 font-semibold text-xs sm:text-sm">
+            <div className="flex items-center gap-2 text-right">
+              <span className="text-green-400 font-semibold whitespace-nowrap">
                 {RZC_PER_DAY * miningRateMultiplier} RZC/24h
-                {miningRateMultiplier > 1 && (
-                  <span className="text-yellow-400 ml-1">(+{Math.round((miningRateMultiplier - 1) * 100)}%)</span>
-                )}
               </span>
-              {achievements.length > 0 && (
-                <div className="text-[10px] text-yellow-400 mt-1">
-                  🏆 {achievements.length} Achievement{achievements.length > 1 ? 's' : ''}
-                </div>
+              {miningRateMultiplier > 1 && (
+                <span className="text-[10px] text-yellow-400 whitespace-nowrap">+{Math.round((miningRateMultiplier - 1) * 100)}%</span>
               )}
             </div>
           </div>
-          
-          {/* Enhanced Free Mining Status Display */}
+
           {freeMiningStatus.isActive && (
-            <div className={`border rounded-lg p-2 sm:p-3 mb-2 sm:mb-3 ${
+            <div className={`flex items-center justify-between px-2 py-1 rounded border text-[10px] relative z-10 ${
               freeMiningStatus.isInGracePeriod 
-                ? 'bg-yellow-900/30 border-yellow-600/50' 
-                : 'bg-green-900/30 border-green-600/50'
+                ? 'bg-yellow-900/30 border-yellow-600/50 text-yellow-300' 
+                : 'bg-green-900/30 border-green-600/50 text-green-300'
             }`}>
-              <div className="flex justify-between items-center text-xs">
-                <span className={`font-semibold ${
-                  freeMiningStatus.isInGracePeriod ? 'text-yellow-300' : 'text-green-300'
-                }`}>
-                  {freeMiningStatus.isInGracePeriod ? 'GRACE PERIOD' : 'FREE MINING PERIOD'}
-                </span>
-                <div className="text-right">
-                  <div className={`${
-                    freeMiningStatus.isInGracePeriod ? 'text-yellow-400' : 'text-green-400'
-                  }`}>
-                    {freeMiningStatus.daysRemaining > 0 ? `${freeMiningStatus.sessionsRemaining} days left` : 'Expired'}
-                  </div>
-                  {/* <div className="text-gray-400 text-[10px]">
-                    {freeMiningStatus.sessionsRemaining} sessions remaining
-                  </div> */}
-                </div>
-              </div>
-              {freeMiningStatus.isInGracePeriod && (
-                <div className="text-[10px] text-yellow-300 mt-1">
-                  Limited mining available - stake TON for full access
-                </div>
-              )}
+              <span className="font-semibold">
+                {freeMiningStatus.isInGracePeriod ? 'GRACE' : 'FREE MINING'}
+              </span>
+              <span className="font-mono">
+                {freeMiningStatus.maxSessions > 0
+                  ? `${freeMiningStatus.sessionsUsed}/${freeMiningStatus.maxSessions} used`
+                  : 'No sessions'}
+              </span>
             </div>
           )}
-          
-            <div className="text-center text-[10px] text-gray-400 font-mono h-4">
-            {isMining && (
-              <span>{t('session_ends_in')}: {sessionCountdown} | {t('continuous_mining')}</span>
-            )}
-            {!isMining && !canStartMining && (
+
+          <div className="text-center text-[10px] text-gray-400 font-mono relative z-10">
+            {isMining ? (
+              <span>{t('session_ends_in')}: {sessionCountdown}</span>
+            ) : canStartMining ? (
+              <span>{t('ready_to_mine')}</span>
+            ) : (
               <span className="text-green-400">{t('validating_node')}</span>
             )}
-            {!isMining && canStartMining && (
-              <span>{t('ready_to_mine')}</span>
-            )}
           </div>
-          
-          {/* Mining Progress Bar */}
+
           {isMining && currentSession && (
-            <div className="mt-2 sm:mt-3">
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
+            <div className="mt-1 relative z-10">
+              <div className="flex justify-between text-[10px] text-gray-400 mb-0.5">
                 <span>{t('session_progress')}</span>
                 <span>{(() => {
                   const start = new Date(currentSession.start_time).getTime();
@@ -1603,9 +1686,9 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                   return pct.toFixed(1);
                 })()}%</span>
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-2">
+              <div className="w-full bg-gray-700 rounded-full h-1 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-green-500 to-green-400 h-2 rounded-full transition-all duration-1000"
+                  className={`bg-gradient-to-r from-green-500 to-green-400 h-1 rounded-full transition-all duration-700 ${isMining ? 'animate-pulse' : ''}`}
                   style={{ width: `${(() => {
                     const start = new Date(currentSession.start_time).getTime();
                     const end = new Date(currentSession.end_time).getTime();
@@ -1615,10 +1698,10 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
                   })()}%` }}
                 ></div>
               </div>
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>{t('claimable')}: {claimableRZC.toFixed(2)}</span>
-                <span>{t('mining_label')} {accumulatedRZC.toFixed(2)}</span>
-                <span>{t('total')}: {(claimableRZC + accumulatedRZC).toFixed(2)}</span>
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                <span>C {claimableRZC.toFixed(2)}</span>
+                <span>M {accumulatedRZC.toFixed(2)}</span>
+                <span>T {(claimableRZC + accumulatedRZC).toFixed(2)}</span>
               </div>
             </div>
           )}
@@ -2321,4 +2404,6 @@ export default function ArcadeMiningUI(props: ArcadeMiningUIProps) {
       )}
     </div>
   );
-}
+});
+
+export default ArcadeMiningUI;

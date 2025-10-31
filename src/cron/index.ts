@@ -1,6 +1,7 @@
 import { CronJob } from 'cron';
 import { supabase } from '@/lib/supabaseClient';
 import { logCronError, logCronInfo, logCronWarning } from '@/lib/logger';
+import { getUserRZCBalance, claimRZCRewards, manualCompleteMiningSession } from '@/lib/supabaseClient';
 
 export const initializeCronJobs = () => {
   // Daily rewards distribution - Runs every day at midnight
@@ -188,6 +189,113 @@ export const initializeCronJobs = () => {
 
     } catch (error) {
       await logCronError('activityMonitor', error, 'critical');
+    }
+  }).start();
+
+  // Auto-claim RZC for users with claimable balance - Runs every hour
+  new CronJob('0 * * * *', async () => {
+    try {
+      await logCronInfo('autoClaimRZC', 'Starting auto-claim run');
+
+      const { data: users, error: fetchError } = await supabase
+        .from('users')
+        .select('id');
+
+      if (fetchError) {
+        await logCronWarning('autoClaimRZC', 'Failed to fetch users', {
+          error: fetchError.message
+        });
+        return;
+      }
+
+      let processedCount = 0;
+      let claimedUsers = 0;
+      let errorCount = 0;
+
+      // Simple rate-limited loop
+      for (const user of users || []) {
+        try {
+          const balance = await getUserRZCBalance(user.id);
+          const claimable = Number(balance?.claimableRZC || 0);
+          if (claimable > 0) {
+            const res = await claimRZCRewards(user.id, claimable);
+            if (res.success) {
+              claimedUsers++;
+            } else {
+              errorCount++;
+              await logCronWarning('autoClaimRZC', 'Claim failed for user', {
+                userId: user.id,
+                error: res.error
+              });
+            }
+          }
+          processedCount++;
+          // Small delay to avoid DB burst
+          await new Promise(r => setTimeout(r, 25));
+        } catch (err: any) {
+          errorCount++;
+          await logCronError('autoClaimRZC', err, 'error', { userId: user.id });
+        }
+      }
+
+      await logCronInfo('autoClaimRZC', 'Completed auto-claim run', {
+        totalUsers: users?.length || 0,
+        processedCount,
+        claimedUsers,
+        errorCount
+      });
+    } catch (error) {
+      await logCronError('autoClaimRZC', error, 'critical');
+    }
+  }).start();
+
+  // Finalize expired mining sessions - Runs every 10 minutes
+  new CronJob('*/10 * * * *', async () => {
+    try {
+      await logCronInfo('finalizeSessions', 'Starting finalize expired sessions');
+
+      const nowIso = new Date().toISOString();
+      const { data: sessions, error } = await supabase
+        .from('mining_sessions')
+        .select('id, user_id, end_time, status')
+        .eq('status', 'active')
+        .lte('end_time', nowIso)
+        .limit(1000);
+
+      if (error) {
+        await logCronWarning('finalizeSessions', 'Failed to fetch expired sessions', { error: error.message });
+        return;
+      }
+
+      let processed = 0;
+      let completed = 0;
+      let failures = 0;
+
+      for (const session of sessions || []) {
+        try {
+          const res = await manualCompleteMiningSession(session.id);
+          if (res?.success) {
+            completed++;
+          } else {
+            failures++;
+            await logCronWarning('finalizeSessions', 'Failed to complete session', { sessionId: session.id, userId: session.user_id, error: res?.error });
+          }
+          processed++;
+          await new Promise(r => setTimeout(r, 20));
+        } catch (e: any) {
+          failures++;
+          await logCronError('finalizeSessions', e, 'error', { sessionId: session.id, userId: session.user_id });
+        }
+      }
+
+      await logCronInfo('finalizeSessions', 'Completed finalize expired sessions', {
+        found: sessions?.length || 0,
+        processed,
+        completed,
+        failures
+      });
+    } catch (e) {
+      await logCronError('finalizeSessions', e, 'critical');
     }
   }).start();
 }; 

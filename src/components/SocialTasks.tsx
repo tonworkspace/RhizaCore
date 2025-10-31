@@ -398,20 +398,24 @@ const SocialTasks = ({ showSnackbar, userId, onRewardClaimed }: Props) => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {allTasksCompleted && !hasClaimedAllRewards && (
+            {false && allTasksCompleted && !hasClaimedAllRewards && (
               <button
                 onClick={handleClaimAllRewards}
                 disabled={isClaimingAllRewards}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/30 transition-colors"
+                className={`relative overflow-hidden px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-green-600/30
+                  ${isClaimingAllRewards
+                    ? 'bg-green-600 text-white'
+                    : 'bg-green-600 hover:bg-green-700 text-white animate-pulse'}
+                `}
               >
-                {isClaimingAllRewards ? 'Claiming...' : 'Claim 25K Bonus'}
+                {isClaimingAllRewards ? 'Claiming...' : 'Claim 5K Bonus'}
               </button>
             )}
           </div>
         </div>
 
-        {allTasksCompleted && !hasClaimedAllRewards && (
-          <div className="p-4 rounded-xl bg-green-900/30 border border-green-600/50">
+        {false && allTasksCompleted && !hasClaimedAllRewards && (
+          <div className="p-4 rounded-xl bg-green-900/30 border border-green-600/50 animate-pulse">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-900/50 flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">

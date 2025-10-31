@@ -198,7 +198,7 @@ const SettingsComponent: React.FC = () => {
                  {[
                     { label: 'Help Center', icon: HelpCircle, url: 'https://t.me/RhizaCoreNews' }, // Replace # with actual URL
                     { label: 'Community Chat', icon: Users, url: 'https://t.me/RhizaCore' }, // Example URL
-                    { label: 'Whitepaper v1', icon: FileText, url: 'https://drive.google.com/file/d/1EI7Q_aVvRDe-B8oSzb2QOZUCMg6mJotr/view?usp=sharing' } // Replace #
+                    { label: 'Whitepaper v1', icon: FileText, url: 'https://drive.google.com/file/d/1jm3d7oES1YblsPP6UKHDt_EV7NR7joSq/view?usp=sharing' } // Replace #
                  ].map(item => (
                     <a key={item.label} href={item.url} target="_blank" rel="noopener noreferrer" className="w-full flex justify-between items-center text-sm py-2 px-1 hover:bg-gray-700/50 rounded transition-colors group">
                         <div className="flex items-center gap-2">
