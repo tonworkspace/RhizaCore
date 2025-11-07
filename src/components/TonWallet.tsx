@@ -222,7 +222,7 @@ const TonWallet = () => {
 
              <div className="relative group inline-block">
                {/* Button Styling needs to be handled via TonConnectUI configuration or CSS overrides if possible */}
-               <TonConnectButton className="relative !min-h-[52px] !px-8 !py-3 !bg-green-600 !text-white !rounded-xl hover:!bg-green-700 transition-colors" />
+               <TonConnectButton/>
              </div>
           </div>
           {/* Feature Section - Themed */}
