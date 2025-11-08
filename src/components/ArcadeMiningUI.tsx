@@ -177,8 +177,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   const thresholdClaimingRef = useRef(false);
   
   // Prevent duplicate auto-claim processing
-  const isResumingRef = useRef(false);
-  const lastProcessedRef = useRef<string | null>(null);
+  // const isResumingRef = useRef(false);
+  // const lastProcessedRef = useRef<string | null>(null);
 
   // Load mining statistics on component mount
   useEffect(() => {
@@ -865,355 +865,355 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     };
   }, [userId, isMining, currentSession, lastClaimDuringMining, accumulatedRZC]);
 
-  // Handle returning to the app: calculate offline earnings, complete missed sessions, and auto-claim
-  const handleResume = async () => {
-    if (!userId) return;
+  // // Handle returning to the app: calculate offline earnings, complete missed sessions, and auto-claim
+  // const handleResume = async () => {
+  //   if (!userId) return;
     
-    // Prevent concurrent execution
-    if (isResumingRef.current) {
-      console.log('handleResume already in progress, skipping...');
-      return;
-    }
+  //   // Prevent concurrent execution
+  //   if (isResumingRef.current) {
+  //     console.log('handleResume already in progress, skipping...');
+  //     return;
+  //   }
     
-    const key = `last_seen_${userId}`;
-    const miningStateKey = `mining_state_${userId}`;
-    const processedKey = `last_processed_resume_${userId}`;
-    const lastSeenStr = localStorage.getItem(key);
-    const savedMiningStateStr = localStorage.getItem(miningStateKey);
-    const lastProcessedStr = localStorage.getItem(processedKey);
-    const now = new Date();
+  //   const key = `last_seen_${userId}`;
+  //   const miningStateKey = `mining_state_${userId}`;
+  //   const processedKey = `last_processed_resume_${userId}`;
+  //   const lastSeenStr = localStorage.getItem(key);
+  //   const savedMiningStateStr = localStorage.getItem(miningStateKey);
+  //   const lastProcessedStr = localStorage.getItem(processedKey);
+  //   const now = new Date();
     
-    // Create a unique identifier for this resume attempt based on the offline period
-    // This prevents processing the same period multiple times
-    // Use the lastSeen timestamp and session info to create a unique ID for the offline period
-    let sessionId = 'none';
-    let sessionStartTime = 'none';
-    try {
-      if (savedMiningStateStr) {
-        const savedMiningState = JSON.parse(savedMiningStateStr);
-        sessionId = savedMiningState.sessionId || 'none';
-        sessionStartTime = savedMiningState.sessionStartTime || 'none';
-      }
-    } catch (e) {
-      // Invalid JSON, will use 'none'
-    }
+  //   // Create a unique identifier for this resume attempt based on the offline period
+  //   // This prevents processing the same period multiple times
+  //   // Use the lastSeen timestamp and session info to create a unique ID for the offline period
+  //   let sessionId = 'none';
+  //   let sessionStartTime = 'none';
+  //   try {
+  //     if (savedMiningStateStr) {
+  //       const savedMiningState = JSON.parse(savedMiningStateStr);
+  //       sessionId = savedMiningState.sessionId || 'none';
+  //       sessionStartTime = savedMiningState.sessionStartTime || 'none';
+  //     }
+  //   } catch (e) {
+  //     // Invalid JSON, will use 'none'
+  //   }
     
-    // Create resume ID based on the offline period we're about to process
-    // This ensures the same offline period (same lastSeen + same session) is only processed once
-    const resumeId = `${lastSeenStr || 'none'}_${sessionId}_${sessionStartTime}`;
+  //   // Create resume ID based on the offline period we're about to process
+  //   // This ensures the same offline period (same lastSeen + same session) is only processed once
+  //   const resumeId = `${lastSeenStr || 'none'}_${sessionId}_${sessionStartTime}`;
     
-    // Check if we've already processed this exact resume period
-    if (lastProcessedStr === resumeId) {
-      console.log('Resume period already processed, skipping duplicate...');
-      return;
-    }
+  //   // Check if we've already processed this exact resume period
+  //   if (lastProcessedStr === resumeId) {
+  //     console.log('Resume period already processed, skipping duplicate...');
+  //     return;
+  //   }
     
-    // Also check if we're currently processing (double-check with ref)
-    if (lastProcessedRef.current === resumeId) {
-      console.log('Resume period currently being processed, skipping...');
-      return;
-    }
+  //   // Also check if we're currently processing (double-check with ref)
+  //   if (lastProcessedRef.current === resumeId) {
+  //     console.log('Resume period currently being processed, skipping...');
+  //     return;
+  //   }
     
-    // Mark as processing
-    isResumingRef.current = true;
-    lastProcessedRef.current = resumeId;
+  //   // Mark as processing
+  //   isResumingRef.current = true;
+  //   lastProcessedRef.current = resumeId;
     
-    // IMPORTANT: Update last_seen immediately to prevent reprocessing if called again
-    // This must happen BEFORE any calculations to prevent duplicate processing
-    // Store the old lastSeen before updating, as we need it for calculations
-    const oldLastSeenStr = lastSeenStr;
-    localStorage.setItem(key, now.toISOString());
+  //   // IMPORTANT: Update last_seen immediately to prevent reprocessing if called again
+  //   // This must happen BEFORE any calculations to prevent duplicate processing
+  //   // Store the old lastSeen before updating, as we need it for calculations
+  //   const oldLastSeenStr = lastSeenStr;
+  //   localStorage.setItem(key, now.toISOString());
     
-    let sessionsCompleted = 0;
-    let offlineRZCEarned = 0;
+  //   let sessionsCompleted = 0;
+  //   let offlineRZCEarned = 0;
 
-    try {
-      // Calculate offline RZC earnings if we had an active mining session
-      // Use oldLastSeenStr (before we updated it) for accurate calculations
-      if (savedMiningStateStr && oldLastSeenStr) {
-        try {
-          const savedMiningState = JSON.parse(savedMiningStateStr);
-          const lastSeen = new Date(oldLastSeenStr);
-          const sessionEndTime = new Date(savedMiningState.sessionEndTime);
-          const sessionStartTime = new Date(savedMiningState.sessionStartTime);
+  //   try {
+  //     // Calculate offline RZC earnings if we had an active mining session
+  //     // Use oldLastSeenStr (before we updated it) for accurate calculations
+  //     if (savedMiningStateStr && oldLastSeenStr) {
+  //       try {
+  //         const savedMiningState = JSON.parse(savedMiningStateStr);
+  //         const lastSeen = new Date(oldLastSeenStr);
+  //         const sessionEndTime = new Date(savedMiningState.sessionEndTime);
+  //         const sessionStartTime = new Date(savedMiningState.sessionStartTime);
           
-          // Determine the base time for calculation (last claim time or session start time)
-          const baseTime = savedMiningState.lastClaimTime 
-            ? new Date(savedMiningState.lastClaimTime)
-            : sessionStartTime;
+  //         // Determine the base time for calculation (last claim time or session start time)
+  //         const baseTime = savedMiningState.lastClaimTime 
+  //           ? new Date(savedMiningState.lastClaimTime)
+  //           : sessionStartTime;
           
-          // Calculate offline time (from last seen to now, but capped at session end time)
-          // Also, don't calculate beyond the session end time
-          const offlineEndTime = now > sessionEndTime ? sessionEndTime : now;
-          const offlineStartTime = lastSeen > baseTime ? lastSeen : baseTime;
+  //         // Calculate offline time (from last seen to now, but capped at session end time)
+  //         // Also, don't calculate beyond the session end time
+  //         const offlineEndTime = now > sessionEndTime ? sessionEndTime : now;
+  //         const offlineStartTime = lastSeen > baseTime ? lastSeen : baseTime;
           
-          // Only calculate if offlineStartTime is before offlineEndTime
-          if (offlineStartTime < offlineEndTime) {
-            const offlineSeconds = Math.max(0, Math.floor((offlineEndTime.getTime() - offlineStartTime.getTime()) / 1000));
+  //         // Only calculate if offlineStartTime is before offlineEndTime
+  //         if (offlineStartTime < offlineEndTime) {
+  //           const offlineSeconds = Math.max(0, Math.floor((offlineEndTime.getTime() - offlineStartTime.getTime()) / 1000));
             
-            // Calculate RZC earned during offline period
-            if (offlineSeconds > 0) {
-              // Use the mining rate multiplier from saved state or current (prefer saved to be accurate)
-              // For simplicity, use current multiplier as it should be stable
-              const RZC_PER_SECOND_OFFLINE = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
-              offlineRZCEarned = offlineSeconds * RZC_PER_SECOND_OFFLINE;
+  //           // Calculate RZC earned during offline period
+  //           if (offlineSeconds > 0) {
+  //             // Use the mining rate multiplier from saved state or current (prefer saved to be accurate)
+  //             // For simplicity, use current multiplier as it should be stable
+  //             const RZC_PER_SECOND_OFFLINE = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
+  //             offlineRZCEarned = offlineSeconds * RZC_PER_SECOND_OFFLINE;
               
-              // Cap earnings at session maximum (50 RZC for 24h, 100 RZC for 48h)
-              const sessionDurationHours = (sessionEndTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
-              const maxSessionRZC = sessionDurationHours >= 47 ? 100 : 50; // 48h sessions = 100 RZC max
-              const alreadyEarned = savedMiningState.accumulatedRZC || 0;
-              offlineRZCEarned = Math.min(offlineRZCEarned, maxSessionRZC - alreadyEarned);
+  //             // Cap earnings at session maximum (50 RZC for 24h, 100 RZC for 48h)
+  //             const sessionDurationHours = (sessionEndTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
+  //             const maxSessionRZC = sessionDurationHours >= 47 ? 100 : 50; // 48h sessions = 100 RZC max
+  //             const alreadyEarned = savedMiningState.accumulatedRZC || 0;
+  //             offlineRZCEarned = Math.min(offlineRZCEarned, maxSessionRZC - alreadyEarned);
               
-              // Add to claimable balance if we earned something
-              if (offlineRZCEarned > 0.000001) {
-                try {
-                  // Check if we've already recorded offline earnings for this session/period
-                  // This prevents duplicate entries if handleResume is called multiple times
-                  const { data: existingActivities, error: checkError } = await supabase
-                    .from('activities')
-                    .select('id, amount, created_at')
-                    .eq('user_id', userId)
-                    .eq('type', 'mining_complete')
-                    .eq('status', 'completed')
-                    .gte('created_at', lastSeen.toISOString())
-                    .lte('created_at', now.toISOString())
-                    .order('created_at', { ascending: false })
-                    .limit(5);
+  //             // Add to claimable balance if we earned something
+  //             if (offlineRZCEarned > 0.000001) {
+  //               try {
+  //                 // Check if we've already recorded offline earnings for this session/period
+  //                 // This prevents duplicate entries if handleResume is called multiple times
+  //                 const { data: existingActivities, error: checkError } = await supabase
+  //                   .from('activities')
+  //                   .select('id, amount, created_at')
+  //                   .eq('user_id', userId)
+  //                   .eq('type', 'mining_complete')
+  //                   .eq('status', 'completed')
+  //                   .gte('created_at', lastSeen.toISOString())
+  //                   .lte('created_at', now.toISOString())
+  //                   .order('created_at', { ascending: false })
+  //                   .limit(5);
                   
-                  if (checkError) {
-                    console.error('Error checking existing activities:', checkError);
-                  }
+  //                 if (checkError) {
+  //                   console.error('Error checking existing activities:', checkError);
+  //                 }
                   
-                  // Check if we've already added a similar amount recently (within 1 minute)
-                  // This is a safeguard against duplicate processing
-                  const recentlyAdded = existingActivities?.some(activity => {
-                    const activityTime = new Date(activity.created_at);
-                    const timeDiff = Math.abs(now.getTime() - activityTime.getTime());
-                    const amountDiff = Math.abs(Number(activity.amount) - offlineRZCEarned);
-                    // If added within last minute and amount is very similar, it's likely a duplicate
-                    return timeDiff < 60000 && amountDiff < 0.0001;
-                  });
+  //                 // Check if we've already added a similar amount recently (within 1 minute)
+  //                 // This is a safeguard against duplicate processing
+  //                 const recentlyAdded = existingActivities?.some(activity => {
+  //                   const activityTime = new Date(activity.created_at);
+  //                   const timeDiff = Math.abs(now.getTime() - activityTime.getTime());
+  //                   const amountDiff = Math.abs(Number(activity.amount) - offlineRZCEarned);
+  //                   // If added within last minute and amount is very similar, it's likely a duplicate
+  //                   return timeDiff < 60000 && amountDiff < 0.0001;
+  //                 });
                   
-                  if (!recentlyAdded) {
-                    // Record mining completion activity to add to claimable balance
-                    const { error: activityError } = await supabase.from('activities').insert({
-                      user_id: userId,
-                      type: 'mining_complete',
-                      amount: offlineRZCEarned,
-                      status: 'completed',
-                      created_at: new Date().toISOString()
-                    });
+  //                 if (!recentlyAdded) {
+  //                   // Record mining completion activity to add to claimable balance
+  //                   const { error: activityError } = await supabase.from('activities').insert({
+  //                     user_id: userId,
+  //                     type: 'mining_complete',
+  //                     amount: offlineRZCEarned,
+  //                     status: 'completed',
+  //                     created_at: new Date().toISOString()
+  //                   });
                     
-                    if (!activityError) {
-                      console.log(`Added ${offlineRZCEarned.toFixed(6)} RZC earned offline to claimable balance`);
-                    } else {
-                      console.error('Error adding offline RZC to balance:', activityError);
-                    }
-                  } else {
-                    console.log('Offline earnings already recorded recently, skipping duplicate entry');
-                    // Still count it as earned for display purposes, but don't add to DB again
-                  }
-                } catch (error) {
-                  console.error('Error adding offline RZC to balance:', error);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error parsing saved mining state:', error);
-        }
-      }
+  //                   if (!activityError) {
+  //                     console.log(`Added ${offlineRZCEarned.toFixed(6)} RZC earned offline to claimable balance`);
+  //                   } else {
+  //                     console.error('Error adding offline RZC to balance:', activityError);
+  //                   }
+  //                 } else {
+  //                   console.log('Offline earnings already recorded recently, skipping duplicate entry');
+  //                   // Still count it as earned for display purposes, but don't add to DB again
+  //                 }
+  //               } catch (error) {
+  //                 console.error('Error adding offline RZC to balance:', error);
+  //               }
+  //             }
+  //           }
+  //         }
+  //       } catch (error) {
+  //         console.error('Error parsing saved mining state:', error);
+  //       }
+  //     }
 
-      // Check if we have an active session and handle expired sessions
-      // Get active session from database (not from state, as state might be stale)
-      let active = await getActiveMiningSession(userId);
-      if (active) {
-        const sessionEndTime = new Date(active.end_time);
-        if (now >= sessionEndTime) {
-          // Session expired - we need to complete it and start a new one
-          // Record mining_complete activity for the expired session
-          // Calculate RZC earned (capped at session max: 50 for 24h, 100 for 48h)
-          const sessionStartTime = new Date(active.start_time);
-          const sessionDurationHours = (sessionEndTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
-          const maxSessionRZC = sessionDurationHours >= 47 ? 100 : 50;
-          const elapsedSeconds = (sessionEndTime.getTime() - sessionStartTime.getTime()) / 1000;
-          const RZC_PER_SECOND_SESSION = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
-          const sessionRZCEarned = Math.min(elapsedSeconds * RZC_PER_SECOND_SESSION, maxSessionRZC);
+  //     // Check if we have an active session and handle expired sessions
+  //     // Get active session from database (not from state, as state might be stale)
+  //     let active = await getActiveMiningSession(userId);
+  //     if (active) {
+  //       const sessionEndTime = new Date(active.end_time);
+  //       if (now >= sessionEndTime) {
+  //         // Session expired - we need to complete it and start a new one
+  //         // Record mining_complete activity for the expired session
+  //         // Calculate RZC earned (capped at session max: 50 for 24h, 100 for 48h)
+  //         const sessionStartTime = new Date(active.start_time);
+  //         const sessionDurationHours = (sessionEndTime.getTime() - sessionStartTime.getTime()) / (1000 * 60 * 60);
+  //         const maxSessionRZC = sessionDurationHours >= 47 ? 100 : 50;
+  //         const elapsedSeconds = (sessionEndTime.getTime() - sessionStartTime.getTime()) / 1000;
+  //         const RZC_PER_SECOND_SESSION = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
+  //         const sessionRZCEarned = Math.min(elapsedSeconds * RZC_PER_SECOND_SESSION, maxSessionRZC);
           
-          // Record completion activity
-          if (sessionRZCEarned > 0) {
-            try {
-              await supabase.from('activities').insert({
-                user_id: userId,
-                type: 'mining_complete',
-                amount: sessionRZCEarned,
-                status: 'completed',
-                created_at: sessionEndTime.toISOString()
-              });
-            } catch (error) {
-              console.error('Error recording expired session completion:', error);
-            }
-          }
+  //         // Record completion activity
+  //         if (sessionRZCEarned > 0) {
+  //           try {
+  //             await supabase.from('activities').insert({
+  //               user_id: userId,
+  //               type: 'mining_complete',
+  //               amount: sessionRZCEarned,
+  //               status: 'completed',
+  //               created_at: sessionEndTime.toISOString()
+  //             });
+  //           } catch (error) {
+  //             console.error('Error recording expired session completion:', error);
+  //           }
+  //         }
           
-          sessionsCompleted++;
-          // Start a new unrestricted session
-          await startMiningSessionUnrestricted(userId);
-          // Fetch the new active session
-        active = await getActiveMiningSession(userId);
-        }
-      }
+  //         sessionsCompleted++;
+  //         // Start a new unrestricted session
+  //         await startMiningSessionUnrestricted(userId);
+  //         // Fetch the new active session
+  //       active = await getActiveMiningSession(userId);
+  //       }
+  //     }
 
-      // If no active session after handling expired ones, try to start one unrestricted
-      if (!active) {
-        await maybeAutoStartMining();
-        // Fetch the newly started session
-        active = await getActiveMiningSession(userId);
-      }
+  //     // If no active session after handling expired ones, try to start one unrestricted
+  //     if (!active) {
+  //       await maybeAutoStartMining();
+  //       // Fetch the newly started session
+  //       active = await getActiveMiningSession(userId);
+  //     }
       
-      // Update state with the active session
-      if (active) {
-        setCurrentSession(active);
-        setIsMining(true);
-      }
+  //     // Update state with the active session
+  //     if (active) {
+  //       setCurrentSession(active);
+  //       setIsMining(true);
+  //     }
 
-      // Refresh balances after all calculations
-      const updatedBalance = await getUserRZCBalance(userId);
-      setClaimableRZC(updatedBalance.claimableRZC);
-      setTotalEarnedRZC(updatedBalance.totalEarned);
-      setClaimedRZC(updatedBalance.claimedRZC);
+  //     // Refresh balances after all calculations
+  //     const updatedBalance = await getUserRZCBalance(userId);
+  //     setClaimableRZC(updatedBalance.claimableRZC);
+  //     setTotalEarnedRZC(updatedBalance.totalEarned);
+  //     setClaimedRZC(updatedBalance.claimedRZC);
 
-      // Auto-claim accumulated RZC if there's any to claim
-      const totalClaimable = updatedBalance.claimableRZC;
-      if (totalClaimable > 0.000001) {
-        try {
-          // Check if we've already claimed recently (within the last 30 seconds)
-          // This prevents duplicate claims if handleResume is called multiple times quickly
-          const { data: recentClaims, error: claimCheckError } = await supabase
-            .from('activities')
-            .select('id, amount, created_at')
-            .eq('user_id', userId)
-            .eq('type', 'rzc_claim')
-            .eq('status', 'completed')
-            .gte('created_at', new Date(now.getTime() - 30000).toISOString()) // Last 30 seconds
-            .order('created_at', { ascending: false })
-            .limit(1);
+  //     // Auto-claim accumulated RZC if there's any to claim
+  //     const totalClaimable = updatedBalance.claimableRZC;
+  //     if (totalClaimable > 0.000001) {
+  //       try {
+  //         // Check if we've already claimed recently (within the last 30 seconds)
+  //         // This prevents duplicate claims if handleResume is called multiple times quickly
+  //         const { data: recentClaims, error: claimCheckError } = await supabase
+  //           .from('activities')
+  //           .select('id, amount, created_at')
+  //           .eq('user_id', userId)
+  //           .eq('type', 'rzc_claim')
+  //           .eq('status', 'completed')
+  //           .gte('created_at', new Date(now.getTime() - 30000).toISOString()) // Last 30 seconds
+  //           .order('created_at', { ascending: false })
+  //           .limit(1);
           
-          if (claimCheckError) {
-            console.error('Error checking recent claims:', claimCheckError);
-          }
+  //         if (claimCheckError) {
+  //           console.error('Error checking recent claims:', claimCheckError);
+  //         }
           
-          // If we've claimed very recently (within 30 seconds), skip auto-claim
-          // This prevents duplicate claims from rapid handleResume calls
-          const hasRecentClaim = recentClaims && recentClaims.length > 0;
-          if (hasRecentClaim) {
-            console.log('Recent claim detected, skipping auto-claim to prevent duplicate');
-            // Still show notification about offline earnings
-            if (offlineRZCEarned > 0 || sessionsCompleted > 0) {
-              showSnackbar?.({
-                message: 'Welcome Back!',
-                description: `+${offlineRZCEarned.toFixed(6)} RZC earned offline${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}. Already claimed.`
-              });
-            }
-            return;
-          }
+  //         // If we've claimed very recently (within 30 seconds), skip auto-claim
+  //         // This prevents duplicate claims from rapid handleResume calls
+  //         const hasRecentClaim = recentClaims && recentClaims.length > 0;
+  //         if (hasRecentClaim) {
+  //           console.log('Recent claim detected, skipping auto-claim to prevent duplicate');
+  //           // Still show notification about offline earnings
+  //           if (offlineRZCEarned > 0 || sessionsCompleted > 0) {
+  //             showSnackbar?.({
+  //               message: 'Welcome Back!',
+  //               description: `+${offlineRZCEarned.toFixed(6)} RZC earned offline${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}. Already claimed.`
+  //             });
+  //           }
+  //           return;
+  //         }
           
-          const claimResult = await claimRZCRewards(userId, totalClaimable);
-          if (claimResult.success) {
-            // Refresh balances after claiming
-            const finalBalance = await getUserRZCBalance(userId);
-            setClaimableRZC(finalBalance.claimableRZC);
-            setTotalEarnedRZC(finalBalance.totalEarned);
-            setClaimedRZC(finalBalance.claimedRZC);
+  //         const claimResult = await claimRZCRewards(userId, totalClaimable);
+  //         if (claimResult.success) {
+  //           // Refresh balances after claiming
+  //           const finalBalance = await getUserRZCBalance(userId);
+  //           setClaimableRZC(finalBalance.claimableRZC);
+  //           setTotalEarnedRZC(finalBalance.totalEarned);
+  //           setClaimedRZC(finalBalance.claimedRZC);
             
-            // Update last claim time
-            setLastClaimTime(new Date());
-            localStorage.setItem(`last_claim_time_${userId}`, new Date().toISOString());
+  //           // Update last claim time
+  //           setLastClaimTime(new Date());
+  //           localStorage.setItem(`last_claim_time_${userId}`, new Date().toISOString());
             
-            // If we're mining, set the last claim during mining time
-            if (active) {
-              setLastClaimDuringMining(new Date());
-            }
+  //           // If we're mining, set the last claim during mining time
+  //           if (active) {
+  //             setLastClaimDuringMining(new Date());
+  //           }
             
-            showSnackbar?.({
-              message: 'Welcome Back!',
-              description: `Auto-claimed ${totalClaimable.toFixed(6)} RZC${offlineRZCEarned > 0 ? ` (${offlineRZCEarned.toFixed(6)} earned offline)` : ''}${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
-            });
-          }
-        } catch (error) {
-          console.error('Error auto-claiming RZC:', error);
-          // Show notification about offline earnings even if auto-claim fails
-          if (offlineRZCEarned > 0 || totalClaimable > 0) {
-            showSnackbar?.({
-              message: 'While you were away',
-              description: `+${(offlineRZCEarned + totalClaimable).toFixed(6)} RZC available to claim${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
-            });
-          }
-        }
-      } else if (offlineRZCEarned > 0 || sessionsCompleted > 0) {
-        // Show notification even if no claimable balance (edge case)
-        showSnackbar?.({
-          message: 'While you were away',
-          description: `Estimated +${offlineRZCEarned.toFixed(6)} RZC earned offline${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
-        });
-      }
-    } catch (err) {
-      console.error('Error in handleResume:', err);
-      // Silent resume errors - don't show error to user on resume
-    } finally {
-      // Mark this resume period as processed
-      localStorage.setItem(processedKey, resumeId);
-      lastProcessedRef.current = resumeId;
+  //           showSnackbar?.({
+  //             message: 'Welcome Back!',
+  //             description: `Auto-claimed ${totalClaimable.toFixed(6)} RZC${offlineRZCEarned > 0 ? ` (${offlineRZCEarned.toFixed(6)} earned offline)` : ''}${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
+  //           });
+  //         }
+  //       } catch (error) {
+  //         console.error('Error auto-claiming RZC:', error);
+  //         // Show notification about offline earnings even if auto-claim fails
+  //         if (offlineRZCEarned > 0 || totalClaimable > 0) {
+  //           showSnackbar?.({
+  //             message: 'While you were away',
+  //             description: `+${(offlineRZCEarned + totalClaimable).toFixed(6)} RZC available to claim${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
+  //           });
+  //         }
+  //       }
+  //     } else if (offlineRZCEarned > 0 || sessionsCompleted > 0) {
+  //       // Show notification even if no claimable balance (edge case)
+  //       showSnackbar?.({
+  //         message: 'While you were away',
+  //         description: `Estimated +${offlineRZCEarned.toFixed(6)} RZC earned offline${sessionsCompleted > 0 ? ` · ${sessionsCompleted} session(s) completed` : ''}.`
+  //       });
+  //     }
+  //   } catch (err) {
+  //     console.error('Error in handleResume:', err);
+  //     // Silent resume errors - don't show error to user on resume
+  //   } finally {
+  //     // Mark this resume period as processed
+  //     localStorage.setItem(processedKey, resumeId);
+  //     lastProcessedRef.current = resumeId;
       
-      // Clear saved mining state after processing to prevent duplicate processing
-      if (savedMiningStateStr) {
-        localStorage.removeItem(miningStateKey);
-      }
+  //     // Clear saved mining state after processing to prevent duplicate processing
+  //     if (savedMiningStateStr) {
+  //       localStorage.removeItem(miningStateKey);
+  //     }
       
-      // Clear the processing flag
-      isResumingRef.current = false;
+  //     // Clear the processing flag
+  //     isResumingRef.current = false;
       
-      // Clean up old processed resume IDs (keep only the last 10)
-      // This prevents localStorage from growing indefinitely
-      try {
-        const allKeys = Object.keys(localStorage);
-        const processedKeys = allKeys.filter(k => k.startsWith(`last_processed_resume_`));
-        if (processedKeys.length > 10) {
-          // Remove oldest processed keys (except current user's)
-          const otherUsersKeys = processedKeys.filter(k => k !== processedKey);
-          otherUsersKeys.slice(0, otherUsersKeys.length - 9).forEach(k => localStorage.removeItem(k));
-        }
-      } catch (cleanupError) {
-        // Ignore cleanup errors
-        console.warn('Error cleaning up processed resume IDs:', cleanupError);
-      }
-    }
-  };
+  //     // Clean up old processed resume IDs (keep only the last 10)
+  //     // This prevents localStorage from growing indefinitely
+  //     try {
+  //       const allKeys = Object.keys(localStorage);
+  //       const processedKeys = allKeys.filter(k => k.startsWith(`last_processed_resume_`));
+  //       if (processedKeys.length > 10) {
+  //         // Remove oldest processed keys (except current user's)
+  //         const otherUsersKeys = processedKeys.filter(k => k !== processedKey);
+  //         otherUsersKeys.slice(0, otherUsersKeys.length - 9).forEach(k => localStorage.removeItem(k));
+  //       }
+  //     } catch (cleanupError) {
+  //       // Ignore cleanup errors
+  //       console.warn('Error cleaning up processed resume IDs:', cleanupError);
+  //     }
+  //   }
+  // };
 
-  // Resume listeners: when tab becomes visible or window gains focus
-  // Also run on initial mount to handle app reopening
-  useEffect(() => {
-    if (!userId) return;
+  // // Resume listeners: when tab becomes visible or window gains focus
+  // // Also run on initial mount to handle app reopening
+  // useEffect(() => {
+  //   if (!userId) return;
     
-    // Run handleResume on initial mount (after a short delay to ensure state is loaded)
-    const initialTimer = setTimeout(() => {
-      handleResume();
-    }, 2000); // 2 second delay to allow initial data loading
+  //   // Run handleResume on initial mount (after a short delay to ensure state is loaded)
+  //   const initialTimer = setTimeout(() => {
+  //     handleResume();
+  //   }, 2000); // 2 second delay to allow initial data loading
     
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        handleResume();
-      }
-    };
-    const onFocus = () => handleResume();
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('focus', onFocus);
+  //   const onVisibility = () => {
+  //     if (document.visibilityState === 'visible') {
+  //       handleResume();
+  //     }
+  //   };
+  //   const onFocus = () => handleResume();
+  //   document.addEventListener('visibilitychange', onVisibility);
+  //   window.addEventListener('focus', onFocus);
     
-    return () => {
-      clearTimeout(initialTimer);
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [userId]); // Remove currentSession and isMining from dependencies to avoid excessive calls
+  //   return () => {
+  //     clearTimeout(initialTimer);
+  //     document.removeEventListener('visibilitychange', onVisibility);
+  //     window.removeEventListener('focus', onFocus);
+  //   };
+  // }, [userId]); // Remove currentSession and isMining from dependencies to avoid excessive calls
 
   // Start mining function (enhanced with proper session tracking)
   const startMining = async () => {
@@ -1657,45 +1657,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       clearInterval(interval);
     };
   }, [userId]);
-
-  // Auto-claim: ensure users never lose mined coins by validating daily
-  useEffect(() => {
-    if (!userId) return;
-
-    const storageKey = `last_auto_claim_${userId}`;
-
-    const autoClaimIfDue = async () => {
-      if (isClaiming || isLoadingBalance) return;
-
-      try {
-        const now = new Date();
-        const lastAutoStr = localStorage.getItem(storageKey);
-        const lastAuto = lastAutoStr ? new Date(lastAutoStr) : null;
-
-        // Use whichever is more recent between manual last claim and auto-claim
-        const lastEffectiveClaim = lastClaimTime || lastAuto;
-
-        const hoursSince = lastEffectiveClaim
-          ? (now.getTime() - lastEffectiveClaim.getTime()) / (1000 * 60 * 60)
-          : Infinity;
-
-        // Check available balance without mutating state
-        const available = claimableRZC + (isMining ? accumulatedRZC : 0);
-
-        if (hoursSince >= 24 && available > 0) {
-          await claimRewards();
-          localStorage.setItem(storageKey, now.toISOString());
-        }
-      } catch (e) {
-        // silent fail
-      }
-    };
-
-    // Run immediately, then every 5 minutes
-    autoClaimIfDue();
-    const interval = setInterval(autoClaimIfDue, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [userId, isClaiming, isLoadingBalance, claimableRZC, accumulatedRZC, isMining, lastClaimTime]);
 
   // Auto-claim every 10 RZC mined (when cooldown allows)
   useEffect(() => {
