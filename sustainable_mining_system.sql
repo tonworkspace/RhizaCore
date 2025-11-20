@@ -53,7 +53,7 @@ DECLARE
     referral_boost NUMERIC;
     effective_staking_power NUMERIC;
     network_power NUMERIC;
-    daily_emission NUMERIC := 1000; -- 1000 TAPPS per day total
+    daily_emission NUMERIC := 1000; -- 1000 RZC per day total
     daily_reward NUMERIC;
 BEGIN
     -- Get multipliers

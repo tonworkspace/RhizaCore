@@ -2,7 +2,7 @@
 // import { supabase } from '../lib/supabaseClient'
 // import useAuth from '@/hooks/useAuth'
 // import { GiTrophyCup } from 'react-icons/gi'
-// // import { novatoken } from '@/images' // Removed as we're using TAPPS now
+// // import { novatoken } from '@/images' // Removed as we're using RZC now
 
 // // Update the interface to match your table structure
 // interface ReferralWithUsers {
@@ -59,7 +59,7 @@
 
 
 // // Update the constant
-// const ACTIVE_REFERRAL_REWARD = 1000; // 1000 TAPPS per active referral
+// const ACTIVE_REFERRAL_REWARD = 1000; // 1000 RZC per active referral
 
 // // Add proper type for tree state
 // interface TreeUser {
@@ -370,7 +370,7 @@
 //   const calculateActiveReferralReward = (referrals: ReferralWithUsers[]): number => {
 //     return referrals.reduce((total, referral) => {
 //       if (referral.status === 'active') {
-//         // Premium users give 2000 TAPPS, others give 1000 TAPPS
+//         // Premium users give 2000 RZC, others give 1000 RZC
 //         return total + (referral.referred?.is_premium ? 2000 : ACTIVE_REFERRAL_REWARD);
 //       }
 //       return total;
@@ -606,7 +606,7 @@
 //             </p>
 //           </div>
 //           <div className="text-center">
-//           <div className="text-2xl font-bold text-gray-900 mb-1">{activeReferralReward} TAPPS</div>
+//           <div className="text-2xl font-bold text-gray-900 mb-1">{activeReferralReward} RZC</div>
 //           <div className="text-sm text-gray-500 mb-3">{userActiveReferrals} TON</div>
 //           <div className="text-xs text-gray-400 uppercase tracking-wider mb-3">Airdrop Balance</div>
 //           <button className="px-6 py-2 bg-blue-100 text-blue-600 rounded-lg text-sm hover:bg-blue-200 transition-colors cursor-pointer flex items-center gap-2 mx-auto">
@@ -652,7 +652,7 @@
 //               <div>
 //                 <h2 className="text-lg font-bold text-slate-900">🚀 Share Your Sponsor Link</h2>
 //                 <p className="text-sm text-slate-700 mt-1 max-w-3xl">
-//                   Invite friends to join your team and earn TAPPS rewards for each active member. Share your unique link or code.
+//                   Invite friends to join your team and earn RZC rewards for each active member. Share your unique link or code.
 //                 </p>
 //                 <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
 //                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Your Sponsor Link</div>
@@ -833,7 +833,7 @@
 //                 <div className="text-sm text-slate-700">Members earning</div>
 //               </div>
 //               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-//                 <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">TAPPS Earned</div>
+//                 <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">RZC Earned</div>
 //                 <div className="flex items-baseline gap-2">
 //                   <div className="relative w-6 h-6 flex-shrink-0">
 //                     <span className="text-green-600 text-xl">🎯</span>

@@ -38,7 +38,7 @@
 //       id: 2,
 //       icon: <FaGem className="w-6 h-6 text-purple-500" />,
 //       title: "💎 Exclusive Airdrop for Stakers",
-//       description: "Stake your TAPPS tokens to qualify for our exclusive airdrop. 10,000 TAPPS will be distributed among active stakers.",
+//       description: "Stake your RZC tokens to qualify for our exclusive airdrop. 10,000 RZC will be distributed among active stakers.",
 //       type: "airdrop",
 //       urgency: "high",
 //       action: "Learn More",
@@ -57,8 +57,8 @@
 //     {
 //       id: 4,
 //       icon: <FaChartLine className="w-6 h-6 text-orange-500" />,
-//       title: "📈 TAPPS Price Surge!",
-//       description: "TAPPS token price increased by 25% this week. Don't miss out on the opportunity to stake and earn!",
+//       title: "📈 RZC Price Surge!",
+//       description: "RZC token price increased by 25% this week. Don't miss out on the opportunity to stake and earn!",
 //       type: "price",
 //       urgency: "high",
 //       action: "View Chart",
@@ -78,7 +78,7 @@
 //       id: 6,
 //       icon: <FaStar className="w-6 h-6 text-indigo-500" />,
 //       title: "⭐ VIP Staking Program",
-//       description: "Stake 100+ TAPPS to unlock VIP benefits including higher rewards, priority support, and exclusive features.",
+//       description: "Stake 100+ RZC to unlock VIP benefits including higher rewards, priority support, and exclusive features.",
 //       type: "vip",
 //       urgency: "medium",
 //       action: "Upgrade to VIP",
@@ -196,7 +196,7 @@
 //                 <div className="font-bold">Ready to Start Staking?</div>
 //               </div>
 //               <div className="text-sm opacity-90 mb-3">
-//                 You have {userBalance.toFixed(6)} TAPPS ready to stake. Start earning daily rewards now!
+//                 You have {userBalance.toFixed(6)} RZC ready to stake. Start earning daily rewards now!
 //               </div>
 //               <button
 //                 onClick={() => {

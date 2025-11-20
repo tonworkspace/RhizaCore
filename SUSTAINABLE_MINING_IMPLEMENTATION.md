@@ -48,7 +48,7 @@ const calculateEarningRate = async (
   const referralBoost = getReferralBoost(referralCount);
   const effectiveStakingPower = balance * timeMultiplier * referralBoost;
   const networkPower = await calculateNetworkPower();
-  const dailyEmission = 1000; // 1000 TAPPS per day total
+  const dailyEmission = 1000; // 1000 RZC per day total
   
   const dailyReward = (effectiveStakingPower / networkPower) * dailyEmission;
   return dailyReward / 86400; // Per second rate
@@ -132,7 +132,7 @@ Created comprehensive SQL functions in `sustainable_mining_system.sql`:
 
 ## 🚀 **System is Now Ready!**
 
-The TAPPs mining system has been successfully transformed from an unsustainable 10% daily ROI to a sustainable 1% daily ROI with proper whitepaper-compliant multipliers and referral boosts.
+The RZC mining system has been successfully transformed from an unsustainable 10% daily ROI to a sustainable 1% daily ROI with proper whitepaper-compliant multipliers and referral boosts.
 
 **The system is now:**
 - ✅ **Economically sustainable**

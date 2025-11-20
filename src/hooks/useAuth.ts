@@ -132,6 +132,7 @@ export const useAuth = () => {
   const [, setSyncInterval] = useState<NodeJS.Timeout | null>(null);
 
   const initializeAuth = useCallback(async () => {
+    console.time('useAuth.initializeAuth');
     if (!telegramData?.user) {
       setError('Please open this app in Telegram');
       setIsLoading(false);
@@ -143,6 +144,7 @@ export const useAuth = () => {
       const telegramId = String(telegramUser.id);
       const startParamRaw = telegramData.startParam as unknown as string | undefined;
 
+      console.time('useAuth.fetchExistingUser');
       // First attempt to get existing user with better error handling
       const { data: existingUser, error: fetchError } = await supabase
         .from('users')
@@ -155,18 +157,22 @@ export const useAuth = () => {
         `)
         .eq('telegram_id', telegramId)
         .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors
+      console.timeEnd('useAuth.fetchExistingUser');
 
       // Handle user creation if needed - only if user truly doesn't exist
       if (!existingUser && (!fetchError || fetchError.code === 'PGRST116')) { // User doesn't exist
+        console.time('useAuth.doubleCheckUser');
         // Double-check if user actually exists to prevent duplicates
         const { data: doubleCheckUser, } = await supabase
           .from('users')
           .select('id, telegram_id')
           .eq('telegram_id', telegramId)
           .maybeSingle();
+        console.timeEnd('useAuth.doubleCheckUser');
 
         if (doubleCheckUser) {
           console.log('User already exists, fetching full data for telegram_id:', telegramId);
+          console.time('useAuth.fetchFullUser');
           // User exists, fetch full data
           const { data: fullUser, error: fullFetchError } = await supabase
             .from('users')
@@ -179,6 +185,7 @@ export const useAuth = () => {
             `)
             .eq('telegram_id', telegramId)
             .single();
+          console.timeEnd('useAuth.fetchFullUser');
 
           if (fullFetchError) {
             console.error('Error fetching existing user:', fullFetchError);
@@ -217,6 +224,7 @@ export const useAuth = () => {
 
         console.log('Attempting to create user with data:', newUserData);
 
+        console.time('useAuth.createUser');
         // Create new user idempotently using upsert on telegram_id
         let newUser: any = null;
         const { data: upsertUser, error: upsertError } = await supabase
@@ -230,6 +238,7 @@ export const useAuth = () => {
             )
           `)
           .single();
+        console.timeEnd('useAuth.createUser');
 
         if (upsertError) {
           // If race caused duplicate, fetch existing user instead of failing
@@ -270,6 +279,7 @@ export const useAuth = () => {
         }
 
         // Handle referral attribution via Telegram start_param
+        console.time('useAuth.referralProcessing');
         try {
           const startParam = startParamRaw?.trim();
           const parsedReferrerTgId = startParam ? parseInt(startParam, 10) : NaN;
@@ -277,12 +287,14 @@ export const useAuth = () => {
 
           if (isNumericStartParam) {
             if (String(parsedReferrerTgId) !== telegramId) {
+              console.time('useAuth.findReferrer');
               // Find referrer by telegram_id
               const { data: referrerUser, error: referrerFetchError } = await supabase
                 .from('users')
                 .select('id, telegram_id, direct_referrals')
                 .eq('telegram_id', String(parsedReferrerTgId))
                 .single();
+              console.timeEnd('useAuth.findReferrer');
 
               if (!referrerFetchError && referrerUser?.id) {
                 // Set referrer on the new user if not already set
@@ -311,9 +323,15 @@ export const useAuth = () => {
                       .insert([{ sponsor_id: referrerUser.id, referred_id: newUser.id, status: 'active' }]);
 
                     if (insertReferralError) {
-                      const isDupReferral = (insertReferralError as any)?.code === '23505' || (insertReferralError.message || '').toLowerCase().includes('duplicate');
+                      // Check for duplicate key error (race condition or unique constraint violation)
+                      const isDupReferral = (insertReferralError as any)?.code === '23505' || 
+                                           (insertReferralError.message || '').toLowerCase().includes('duplicate') ||
+                                           (insertReferralError.message || '').toLowerCase().includes('unique');
                       if (!isDupReferral) {
                         console.error('Failed to insert referral row:', insertReferralError);
+                      } else {
+                        // Duplicate detected - this is OK, just log it
+                        console.info('Duplicate referral prevented:', { sponsor_id: referrerUser.id, referred_id: newUser.id });
                       }
                     } else {
                       // Increase direct_referrals count only when a new referral row was created
@@ -345,6 +363,7 @@ export const useAuth = () => {
         } catch (referralErr) {
           console.error('Referral attribution via start_param failed:', referralErr);
         }
+        console.timeEnd('useAuth.referralProcessing');
 
         // Set the newly created user
         setUser({
@@ -384,6 +403,7 @@ export const useAuth = () => {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setIsLoading(false);
+      console.timeEnd('useAuth.initializeAuth');
     }
   }, [telegramData]);
 

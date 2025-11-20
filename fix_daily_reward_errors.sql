@@ -72,7 +72,7 @@ CREATE OR REPLACE FUNCTION calculate_daily_reward(
     p_streak_count INTEGER
 ) RETURNS NUMERIC(18,8) AS $$
 DECLARE
-    base_reward NUMERIC(18,8) := 1000; -- Base reward in TAPPS
+    base_reward NUMERIC(18,8) := 1000; -- Base reward in RZC
     multiplier NUMERIC(3,2);
 BEGIN
     -- Calculate multiplier based on streak

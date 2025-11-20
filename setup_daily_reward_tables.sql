@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS daily_rewards (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT REFERENCES users(id),
     claim_date DATE NOT NULL,
-    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 1000, -- Base daily reward in TAPPS
+    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 1000, -- Base daily reward in RZC
     streak_count INTEGER DEFAULT 1,
     bonus_multiplier NUMERIC(3,2) DEFAULT 1.0, -- Multiplier for streak bonuses
     total_reward NUMERIC(18,8) NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS twitter_engagement_tasks (
     user_id BIGINT REFERENCES users(id),
     tweet_url TEXT NOT NULL,
     engagement_type VARCHAR(20) NOT NULL CHECK (engagement_type IN ('like', 'retweet', 'reply', 'follow')),
-    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 10, -- 10 TAPPs per engagement
+    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 10, -- 10 RZC per engagement
     completed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     verified BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

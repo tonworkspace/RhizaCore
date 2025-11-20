@@ -31,7 +31,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
     {
       id: 'twitter_like_1',
       title: 'Like Our Latest Tweet',
-      description: 'Show some love! Like our latest tweet about TAPPS and earn 10 TAPPS tokens.',
+      description: 'Show some love! Like our latest tweet about RZC and earn 10 RZC tokens.',
       reward: 10,
       engagement_type: 'like',
       tweet_url: 'https://x.com/TAPPs_WHALE/status/1977881526143418805',
@@ -40,7 +40,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
     {
       id: 'twitter_retweet_1',
       title: 'Retweet TAPPS News',
-      description: 'Help spread the word! Retweet our latest TAPPS announcement and earn 10 TAPPS tokens.',
+      description: 'Help spread the word! Retweet our latest RZC announcement and earn 10 RZC tokens.',
       reward: 10,
       engagement_type: 'retweet',
       tweet_url: 'https://x.com/TAPPs_WHALE/status/1977881526143418805',
@@ -49,7 +49,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
     {
       id: 'twitter_reply_1',
       title: 'Reply with Your Thoughts',
-      description: 'Share your thoughts! Reply to our latest tweet and earn 10 TAPPS tokens.',
+      description: 'Share your thoughts! Reply to our latest tweet and earn 10 RZC tokens.',
       reward: 10,
       engagement_type: 'reply',
       tweet_url: 'https://x.com/TAPPs_WHALE/status/1977881526143418805',
@@ -58,7 +58,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
     {
       id: 'twitter_follow_1',
       title: 'Follow TAPPS on Twitter',
-      description: 'Stay updated! Follow our Twitter account for the latest news and earn 10 TAPPS tokens.',
+      description: 'Stay updated! Follow our Twitter account for the latest news and earn 10 RZC tokens.',
       reward: 10,
       engagement_type: 'follow',
       tweet_url: 'https://x.com/TAPPs_WHALE',
@@ -150,7 +150,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
 
         showSnackbar?.({
           message: '🎉 Twitter Engagement Complete!',
-          description: `You earned ${data.reward_amount} TAPPS tokens!`
+          description: `You earned ${data.reward_amount} RZC tokens!`
         });
       } else {
         showSnackbar?.({
@@ -237,7 +237,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
             </div>
             <div>
               <div className="text-[11px] text-slate-500 font-semibold tracking-wide uppercase">Twitter Engagement</div>
-              <div className="text-base sm:text-lg font-semibold text-slate-900">Earn 10 TAPPS per action</div>
+              <div className="text-base sm:text-lg font-semibold text-slate-900">Earn 10 RZC per action</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export default function TwitterEngagementTask({ userId, onRewardClaimed, showSna
 
                 <div className="flex items-center sm:items-end gap-3 sm:gap-2 sm:ml-auto w-full sm:w-auto">
                   <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-700 border border-slate-200 w-fit">
-                    {task.reward} TAPPS
+                    {task.reward} RZC
                   </span>
 
                   {task.isCompleted ? (

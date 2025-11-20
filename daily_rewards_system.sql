@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS daily_rewards (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT REFERENCES users(id),
     claim_date DATE NOT NULL,
-    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 1000, -- Base daily reward in TAPPS
+    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 1000, -- Base daily reward in RZC
     streak_count INTEGER DEFAULT 1,
     bonus_multiplier NUMERIC(3,2) DEFAULT 1.0, -- Multiplier for streak bonuses
     total_reward NUMERIC(18,8) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS twitter_engagement_tasks (
     user_id BIGINT REFERENCES users(id),
     tweet_url TEXT NOT NULL,
     engagement_type VARCHAR(20) NOT NULL CHECK (engagement_type IN ('like', 'retweet', 'reply', 'follow')),
-    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 10, -- 10 TAPPs per engagement
+    reward_amount NUMERIC(18,8) NOT NULL DEFAULT 10, -- 10 RZC per engagement
     completed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     verified BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -48,7 +48,7 @@ CREATE OR REPLACE FUNCTION calculate_daily_reward(
     p_streak_count INTEGER
 ) RETURNS NUMERIC(18,8) AS $$
 DECLARE
-    base_reward NUMERIC(18,8) := 1000; -- Base reward in TAPPS
+    base_reward NUMERIC(18,8) := 1000; -- Base reward in RZC
     multiplier NUMERIC(3,2);
 BEGIN
     -- Calculate multiplier based on streak
@@ -236,7 +236,7 @@ CREATE OR REPLACE FUNCTION complete_twitter_engagement(
     p_engagement_type VARCHAR
 ) RETURNS JSON AS $$
 DECLARE
-    reward_amount NUMERIC(18,8) := 10; -- 10 TAPPs per engagement
+    reward_amount NUMERIC(18,8) := 10; -- 10 RZC per engagement
     result JSON;
 BEGIN
     -- Check if user already completed this specific engagement
@@ -291,11 +291,11 @@ CREATE INDEX IF NOT EXISTS idx_daily_reward_streaks_user_id ON daily_reward_stre
 
 -- Insert some sample Twitter engagement tasks
 INSERT INTO tasks (id, title, description, reward, reward_type, difficulty, status, requirements) VALUES
-(100, 'Daily Reward Bonus', 'Claim your daily TAPPS bonus! Come back every 24 hours to maintain your streak and earn bonus multipliers.', 1000, 'TAPPS', 'EASY', 'ACTIVE', '{"type": "daily_claim", "cooldown_hours": 24}'),
-(101, 'Twitter Like Engagement', 'Like our latest tweet to earn 10 TAPPS! Help us grow our community.', 10, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "like", "reward": 10}'),
-(102, 'Twitter Retweet Engagement', 'Retweet our latest tweet to earn 10 TAPPS! Spread the word about TAPPS.', 10, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "retweet", "reward": 10}'),
-(103, 'Twitter Reply Engagement', 'Reply to our latest tweet to earn 10 TAPPS! Share your thoughts with the community.', 10, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "reply", "reward": 10}'),
-(104, 'Twitter Follow Engagement', 'Follow our Twitter account to earn 10 TAPPS! Stay updated with the latest news.', 10, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "follow", "reward": 10}');
+(100, 'Daily Reward Bonus', 'Claim your daily RZC bonus! Come back every 24 hours to maintain your streak and earn bonus multipliers.', 1000, 'RZC', 'EASY', 'ACTIVE', '{"type": "daily_claim", "cooldown_hours": 24}'),
+(101, 'Twitter Like Engagement', 'Like our latest tweet to earn 10 RZC! Help us grow our community.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "like", "reward": 10}'),
+(102, 'Twitter Retweet Engagement', 'Retweet our latest tweet to earn 10 RZC! Spread the word about RZC.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "retweet", "reward": 10}'),
+(103, 'Twitter Reply Engagement', 'Reply to our latest tweet to earn 10 RZC! Share your thoughts with the community.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "reply", "reward": 10}'),
+(104, 'Twitter Follow Engagement', 'Follow our Twitter account to earn 10 RZC! Stay updated with the latest news.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "follow", "reward": 10}');
 
 -- Update existing tasks to use new task IDs
 UPDATE tasks SET id = id + 10 WHERE id <= 5;

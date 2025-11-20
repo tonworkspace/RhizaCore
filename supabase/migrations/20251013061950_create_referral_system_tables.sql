@@ -1,7 +1,7 @@
 /*
   # Create Referral System Tables
   
-  This migration creates the complete referral system infrastructure for TAPPS Mine.
+  This migration creates the complete referral system infrastructure for RZC Mine.
   
   ## New Tables
   

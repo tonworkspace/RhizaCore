@@ -20,11 +20,11 @@ CREATE TABLE tasks (
 
 -- Insert default social tasks
 INSERT INTO tasks (id, title, description, reward, reward_type, difficulty, status, requirements) VALUES
-(1, 'Join TAPPS Telegram Group', 'Join our vibrant community and stay updated with the latest news!', 10000, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "telegram", "action": "join", "link": "https://t.me/TAPPs_Chat"}'),
-(2, 'Join TAPPS Telegram Channel', 'Stay connected with official announcements and updates!', 10000, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "telegram", "action": "join", "link": "https://t.me/TAPPs_News"}'),
-(3, 'Follow TAPPS on X/Twitter', 'Follow us on X for the latest news, updates, and community discussions!', 15000, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "follow", "link": "https://x.com/TAPP_Whale"}'),
-(4, 'Like TAPPS Whale Facebook Page', 'Show your support by liking our Facebook page and joining our community!', 10000, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "facebook", "action": "like", "link": "https://web.facebook.com/TAPPsWeb3"}'),
-(5, 'Join TAPPS Discord Server', 'Connect with fellow TAPPS community members on Discord!', 12000, 'TAPPS', 'EASY', 'ACTIVE', '{"platform": "discord", "action": "join", "link": "https://discord.gg/tapps"}');
+(1, 'Join RZC Telegram Group', 'Join our vibrant community and stay updated with the latest news!', 10000, 'RZC', 'EASY', 'ACTIVE', '{"platform": "telegram", "action": "join", "link": "https://t.me/TAPPs_Chat"}'),
+(2, 'Join RZC Telegram Channel', 'Stay connected with official announcements and updates!', 10000, 'RZC', 'EASY', 'ACTIVE', '{"platform": "telegram", "action": "join", "link": "https://t.me/TAPPs_News"}'),
+(3, 'Follow RZC on X/Twitter', 'Follow us on X for the latest news, updates, and community discussions!', 15000, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "follow", "link": "https://x.com/TAPP_Whale"}'),
+(4, 'Like RZC Whale Facebook Page', 'Show your support by liking our Facebook page and joining our community!', 10000, 'RZC', 'EASY', 'ACTIVE', '{"platform": "facebook", "action": "like", "link": "https://web.facebook.com/TAPPsWeb3"}'),
+(5, 'Join RZC Discord Server', 'Connect with fellow RZC community members on Discord!', 12000, 'RZC', 'EASY', 'ACTIVE', '{"platform": "discord", "action": "join", "link": "https://discord.gg/tapps"}');
 
 -- Create function to increment SBT balance (airdrop balance)
 CREATE OR REPLACE FUNCTION increment_sbt(

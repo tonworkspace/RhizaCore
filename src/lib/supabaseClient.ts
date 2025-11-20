@@ -795,7 +795,7 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
       return;
     }
 
-    // Calculate reward amount (1000 TAPPS or 10% of staked amount, whichever is higher)
+    // Calculate reward amount (1000 RZC or 10% of staked amount, whichever is higher)
     const rewardAmount = Math.max(1000, stakedAmount * 0.1);
 
     // Update sponsor's balance with TAPPS reward
@@ -835,7 +835,7 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
       .eq('sponsor_id', user.sponsor_id)
       .eq('referred_id', userId);
 
-    console.log(`Processed referral staking reward: ${rewardAmount} TAPPS for sponsor ${user.sponsor_id} from user ${userId}'s stake of ${stakedAmount}`);
+    console.log(`Processed referral staking reward: ${rewardAmount} RZC for sponsor ${user.sponsor_id} from user ${userId}'s stake of ${stakedAmount}`);
 
   } catch (error) {
     console.error('Error processing referral staking rewards:', error);
@@ -1285,7 +1285,7 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
     if (amount < 1) {
       return {
         success: false,
-        error: 'Minimum withdrawal amount is 1 TAPPS'
+        error: 'Minimum withdrawal amount is 1 RZC'
       };
     }
 
@@ -2100,8 +2100,8 @@ export const getUserRZCBalance = async (userId: number): Promise<{
           claimedRZC += activity.amount;
           if (!lastClaimTime) lastClaimTime = activity.created_at;
         } else {
-          // Negative claim (upgrade purchase) - add back to claimable
-          claimableRZC += Math.abs(activity.amount);
+          // Negative claim (upgrade purchase) - deduct from claimed RZC balance
+          claimedRZC += activity.amount; // This will subtract since amount is negative
         }
       } else if (activity.type === 'mining_complete') {
         claimableRZC += activity.amount;
@@ -2117,6 +2117,24 @@ export const getUserRZCBalance = async (userId: number): Promise<{
       claimedRZC,
       lastClaimTime
     });
+
+    // Update the available_balance column in users table
+    try {
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          available_balance: claimedRZC
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('Error updating available_balance:', updateError);
+      } else {
+        console.log(`Updated available_balance for user ${userId} to ${claimedRZC}`);
+      }
+    } catch (updateErr) {
+      console.error('Error updating user available_balance:', updateErr);
+    }
 
     return {
       claimableRZC,
@@ -2162,11 +2180,12 @@ export const claimRZCRewards = async (userId: number, amount: number): Promise<{
 
     if (claimError) throw claimError;
 
-    // Update user's total_earned in users table
+    // Update user's total_earned and available_balance in users table
     const { error: updateError } = await supabase
       .from('users')
-      .update({ 
+      .update({
         total_earned: balance.totalEarned + amount,
+        available_balance: balance.claimedRZC + amount, // Update available_balance immediately
         last_claim_time: new Date().toISOString()
       })
       .eq('id', userId);
@@ -2490,12 +2509,118 @@ export const recordUpgradeActivity = async (
   }
 };
 // Purchase an upgrade
+// Calculate cost for passive income boost based on level (exponential growth)
+export const getPassiveIncomeBoostCost = (level: number): number => {
+  // Level 1: 100 RZC, Level 2: 200, Level 3: 400, Level 4: 800, etc.
+  // Formula: 100 * 2^(level - 1)
+  return 100 * Math.pow(2, level - 1);
+};
+
+// Get current passive income boost level for a user
+export const getPassiveIncomeBoostLevel = async (userId: number): Promise<number> => {
+  try {
+    const { data: activities, error } = await supabase
+      .from('activities')
+      .select('metadata')
+      .eq('user_id', userId)
+      .eq('type', 'passive_income_boost')
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+    if (!activities || activities.length === 0) return 0;
+
+    // Get the latest activity and check metadata for level
+    const latestActivity = activities[0];
+    const level = latestActivity.metadata?.level || 1;
+    return typeof level === 'number' ? level : 1;
+  } catch (error) {
+    console.error('Error getting passive income boost level:', error);
+    return 0;
+  }
+};
+
 export const purchaseUpgrade = async (
   userId: number,
-  upgradeType: 'mining_rig_mk2' | 'extended_session',
-  cost: number,
+  upgradeType: 'mining_rig_mk2' | 'extended_session' | 'passive_income_boost',
+  cost?: number,
+  level?: number,
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    // For passive_income_boost, handle level-based upgrades
+    if (upgradeType === 'passive_income_boost') {
+      if (level === undefined || level < 1 || level > 10) {
+        return { success: false, error: 'Invalid level. Must be between 1 and 10.' };
+      }
+
+      // Get current level
+      const currentLevel = await getPassiveIncomeBoostLevel(userId);
+      
+      // Check if trying to upgrade to same or lower level
+      if (level <= currentLevel) {
+        return { success: false, error: `You already have level ${currentLevel}. Upgrade to level ${currentLevel + 1} or higher.` };
+      }
+
+      // Calculate cost for the target level
+      const calculatedCost = getPassiveIncomeBoostCost(level);
+      const finalCost = cost || calculatedCost;
+
+      // Check if user has enough *claimed* RZC (validated balance)
+      const { claimedRZC } = await getUserRZCBalance(userId);
+      if (claimedRZC < finalCost) {
+        return { success: false, error: 'Insufficient validated RZC balance.' };
+      }
+
+      // Deduct the cost and update available_balance
+      const { error: deductError } = await supabase.from('activities').insert({
+        user_id: userId,
+        type: 'rzc_claim',
+        amount: -finalCost,
+        status: 'completed',
+      });
+      if (deductError) throw deductError;
+
+      // Update available_balance immediately
+      const { error: balanceUpdateError } = await supabase
+        .from('users')
+        .update({
+          available_balance: claimedRZC - finalCost
+        })
+        .eq('id', userId);
+
+      if (balanceUpdateError) {
+        console.error('Error updating available_balance after passive income boost:', balanceUpdateError);
+      }
+
+      // Record the upgrade with level in metadata
+      const { error: recordError } = await supabase.from('activities').insert({
+        user_id: userId,
+        type: 'passive_income_boost',
+        amount: finalCost,
+        status: 'completed',
+        metadata: { level: level }
+      });
+
+      if (recordError) {
+        // Rollback deduction
+        await supabase.from('activities').insert({
+          user_id: userId,
+          type: 'rzc_claim',
+          amount: finalCost,
+          status: 'completed',
+        });
+        throw recordError;
+      }
+
+      return { success: true };
+    }
+
+    // For other upgrades (mining_rig_mk2, extended_session), use existing logic
+    if (!cost) {
+      return { success: false, error: 'Cost is required for this upgrade type.' };
+    }
+
     // 1. Check if user has already purchased this upgrade
     const { data: existingUpgrade, error: checkError } = await supabase
       .from('activities')
@@ -2524,6 +2649,18 @@ export const purchaseUpgrade = async (
       status: 'completed',
     });
     if (deductError) throw deductError;
+
+    // Update available_balance immediately
+    const { error: balanceUpdateError } = await supabase
+      .from('users')
+      .update({
+        available_balance: claimedRZC - cost
+      })
+      .eq('id', userId);
+
+    if (balanceUpdateError) {
+      console.error('Error updating available_balance after upgrade purchase:', balanceUpdateError);
+    }
     
     // 4. Record the specific upgrade activity itself
     const { error: recordError } = await supabase.from('activities').insert({
@@ -2552,6 +2689,36 @@ export const purchaseUpgrade = async (
     return { success: false, error: error.message };
   }
 };
+// Generate passive income for a user (10 RZC per minute per level)
+export const generatePassiveIncome = async (userId: number): Promise<{ success: boolean; amount?: number; error?: string }> => {
+  try {
+    const level = await getPassiveIncomeBoostLevel(userId);
+    
+    if (level === 0) {
+      return { success: false, error: 'No passive income boost active.' };
+    }
+
+    // Calculate amount: 10 RZC per minute per level
+    const amount = 10 * level;
+
+    // Record as mining_complete activity to add to claimable balance
+    const { error } = await supabase.from('activities').insert({
+      user_id: userId,
+      type: 'mining_complete',
+      amount: amount,
+      status: 'completed',
+      created_at: new Date().toISOString()
+    });
+
+    if (error) throw error;
+
+    return { success: true, amount };
+  } catch (error: any) {
+    console.error('Error generating passive income:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Record RZC claim activity
 export const recordRZCClaimActivity = async (
   userId: number,

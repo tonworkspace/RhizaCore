@@ -204,7 +204,7 @@ const verifySystem = {
         
         console.log('🔧 Referral rewards are triggered when:');
         console.log('  - User makes a deposit/stake');
-        console.log('  - Sponsor gets 1000 TAPPS or 10% of staked amount (whichever is higher)');
+        console.log('  - Sponsor gets 1000 RZC or 10% of staked amount (whichever is higher)');
         console.log('  - Rewards are logged in activities table');
         
         return true;
@@ -242,7 +242,7 @@ const verifySystem = {
     console.log('');
     console.log('4️⃣ REFERRAL REWARDS:');
     console.log('   - When referred user stakes, sponsor gets rewards');
-    console.log('   - Reward: 1000 TAPPS or 10% of staked amount (whichever is higher)');
+    console.log('   - Reward: 1000 RZC or 10% of staked amount (whichever is higher)');
     console.log('   - Rewards are tracked in activities table');
     console.log('');
     console.log('5️⃣ SYSTEM FEATURES:');

@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabaseClient'
 import useAuth from '@/hooks/useAuth'
 import { GiTrophyCup } from 'react-icons/gi'
 import { MdDiamond } from 'react-icons/md'
-// import { novatoken } from '@/images' // Removed as we're using TAPPS now
+import ReferralContest from './ReferralContest'
+// import { novatoken } from '@/images' // Removed as we're using RZC now
 
 // Update the interface to match your table structure
 interface ReferralWithUsers {
@@ -29,13 +30,6 @@ interface ReferralWithUsers {
   total_sbt_earned: number;
 }
 
-// interface ReferralSummary {
-//   total_referrals: number;
-//   total_users: number;
-//   active_referrals: number;
-//   inactive_referrals: number;
-//   conversion_rate: number;
-// }
 
 type SponsorDataFromDB = {
   sponsor_id: number;
@@ -60,7 +54,7 @@ interface SponsorStat {
 
 
 // Update the constant
-const ACTIVE_REFERRAL_REWARD = 1000; // 1000 TAPPS per active referral
+const ACTIVE_REFERRAL_REWARD =50; // 1000 RZC per active referral
 
 // Add proper type for tree state
 interface TreeUser {
@@ -71,16 +65,6 @@ interface TreeUser {
   is_premium: boolean;
 }
 
-// Daily reward status interface
-interface DailyRewardStatus {
-  can_claim: boolean;
-  current_streak: number;
-  longest_streak: number;
-  total_days_claimed: number;
-  next_claim_time: string;
-  last_claim_date: string | null;
-  next_reward_amount: number;
-}
 
 interface TreeData {
   upline: TreeUser | null;
@@ -106,34 +90,15 @@ const isRecentlyJoined = (dateString: string): boolean => {
 };
 
 const ReferralSystem = () => {
-  const [, setReferrals] = useState<ReferralWithUsers[]>([]);
-  // const [referralSummary, setReferralSummary] = useState<ReferralSummary>({
-  //   total_referrals: 0,
-  //   total_users: 0,
-  //   active_referrals: 0,
-  //   inactive_referrals: 0,
-  //   conversion_rate: 0
-  // });
   const { user } = useAuth();
-  const [referralLink, setReferralLink] = useState<string>('');
-  const [referralCode, setReferralCode] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-  const [, setError] = useState<string | null>(null);
-  const [, setTotalCount] = useState<number>(0);
   const [allSponsorStats, setAllSponsorStats] = useState<SponsorStat[]>([]);
   const [userReferralCount, setUserReferralCount] = useState<number>(0);
   const [userActiveReferrals, setUserActiveReferrals] = useState<number>(0);
 
-  // Add pagination state
-  const [pageSize,] = useState<number>(50);
-  const [, setIsLoadingMore] = useState<boolean>(false);
 
   // Add a new state for user's referrals
   const [userReferrals, setUserReferrals] = useState<ReferralWithUsers[]>([]);
-  const [, setIsLoadingUserReferrals] = useState<boolean>(false);
-
-  // Add a state to control visibility (optional)
-  const [] = useState<boolean>(false);
 
   // Add state for active tab
   const [activeTab, setActiveTab] = useState<'my-referrals' | 'statistics'>('my-referrals');
@@ -141,13 +106,26 @@ const ReferralSystem = () => {
   // Add state for showing all referrals modal
   const [showAllReferrals, setShowAllReferrals] = useState<boolean>(false);
 
+  // Add state for showing referral contest
+  const [showReferralContest, setShowReferralContest] = useState<boolean>(false);
+
+  // Simple snackbar function for ReferralContest
+  const showSnackbar = (config: { message: string; description?: string }) => {
+    // You can integrate with your existing notification system here
+    console.log('Snackbar:', config.message, config.description);
+    // For now, we'll just log it. You can replace this with your actual snackbar implementation
+    if (typeof window !== 'undefined' && (window as any).showSnackbar) {
+      (window as any).showSnackbar(config);
+    }
+  };
+
   // Add new state for active referral rewards
   const [activeReferralReward, setActiveReferralReward] = useState<number>(0);
 
-  // Add daily reward state
-  const [dailyRewardStatus, setDailyRewardStatus] = useState<DailyRewardStatus | null>(null);
-  const [isClaimingDaily, setIsClaimingDaily] = useState(false);
-  const [timeUntilNext, setTimeUntilNext] = useState<string>('');
+  // Add state for duplicate detection and removal
+  const [duplicateCount, setDuplicateCount] = useState<number>(0);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [isClearingDuplicates, setIsClearingDuplicates] = useState(false);
 
   const [tree, setTree] = useState<TreeData>({ upline: null, downline: [] });
 
@@ -168,88 +146,12 @@ const ReferralSystem = () => {
     }
   };
 
-  // Load daily reward status
-  const loadDailyRewardStatus = async () => {
-    if (!user?.id) return;
-    
-    try {
-      const { data, error } = await supabase.rpc('get_daily_reward_status', {
-        p_user_id: user.id
-      });
-      
-      if (error) {
-        console.error('Error loading daily reward status:', error);
-        return;
-      }
-      
-      setDailyRewardStatus(data);
-    } catch (error) {
-      console.error('Error loading daily reward status:', error);
-    }
-  };
 
-  // Handle daily reward claim
-  const handleDailyRewardClaim = async () => {
-    if (!user?.id || isClaimingDaily || !dailyRewardStatus?.can_claim) return;
-
-    setIsClaimingDaily(true);
-    try {
-      const { data, error } = await supabase.rpc('claim_daily_reward', {
-        p_user_id: user.id
-      });
-
-      if (error) {
-        console.error('Error claiming daily reward:', error);
-        return;
-      }
-
-      if (data.success) {
-        // Reload daily reward status
-        await loadDailyRewardStatus();
-        
-        // Show success message (you can add a snackbar here)
-        console.log(`Daily reward claimed: ${data.reward_amount} TAPPS! Streak: ${data.streak_count} days`);
-        
-        // You can add a success notification here
-        // showSnackbar?.({ message: '🎉 Daily Reward Claimed!', description: `You earned ${data.reward_amount.toLocaleString()} TAPPS! Streak: ${data.streak_count} days` });
-      }
-    } catch (error) {
-      console.error('Error claiming daily reward:', error);
-    } finally {
-      setIsClaimingDaily(false);
-    }
-  };
 
   useEffect(() => {
     loadTree();
-    loadDailyRewardStatus();
   }, [user?.id]);
 
-  // Update countdown timer for daily rewards
-  useEffect(() => {
-    if (!dailyRewardStatus?.next_claim_time) return;
-
-    const updateCountdown = () => {
-      const now = new Date();
-      const nextClaim = new Date(dailyRewardStatus.next_claim_time);
-      const diff = nextClaim.getTime() - now.getTime();
-
-      if (diff <= 0) {
-        setTimeUntilNext('Ready to claim!');
-        return;
-      }
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setTimeUntilNext(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [dailyRewardStatus?.next_claim_time]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -271,62 +173,17 @@ const ReferralSystem = () => {
     };
   }, [user?.id]);
 
-  useEffect(() => {
-    if (user?.id) {
-      console.log("User ID detected:", user.id);
-      console.log("User object:", user);
-      setReferralLink(`https://t.me/tappstokenbot?startapp=${user.telegram_id}`);
-      setReferralCode(String(user.telegram_id || user.id));
-    } else {
-      console.log("No user ID available in first useEffect");
-    }
-  }, [user?.id]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         console.log("Starting loadData function");
         // First get the total count of all referrals
-        const { count: totalReferralsCount, error: countError } = await supabase
+        const { error: countError } = await supabase
           .from('referrals')
           .select('*', { count: 'exact', head: true });
 
         if (countError) throw countError;
-        
-        // // Get active referrals count
-        // const { count: activeCount, error: activeError } = await supabase
-        //   .from('referrals')
-        //   .select('*', { count: 'exact', head: true })
-        //   .eq('status', 'active');
-          
-        // if (activeError) throw activeError;
-        
-        // Get unique referrers count
-        // const { data: uniqueReferrers, error: referrersError } = await supabase
-        //   .from('referrals')
-        //   .select('referrer_id')
-        //   .limit(100000); // Set a high limit to get all records
-          
-        // if (referrersError) throw referrersError;
-        
-        // const uniqueReferrerCount = new Set(uniqueReferrers?.map(r => r.referrer_id)).size;
-        
-        // Calculate summary
-        const totalCount = totalReferralsCount || 0;
-        // const activeReferrals = activeCount || 0;
-        // const inactiveReferrals = totalCount - activeReferrals;
-        
-        // const summary = {
-        //   total_referrals: totalCount,
-        //   total_users: uniqueReferrerCount,
-        //   active_referrals: activeReferrals,
-        //   inactive_referrals: inactiveReferrals,
-        //   conversion_rate: totalCount ? 
-        //     Math.round((activeReferrals / totalCount) * 100) : 0
-        // };
-        
-        // setReferralSummary(summary);
-        setTotalCount(totalCount);
 
         // Get current user's referral count if user exists
         if (user?.id) {
@@ -376,7 +233,7 @@ const ReferralSystem = () => {
               active_referrals: 0,
               total_earned: curr.sponsor?.total_earned || 0,
               total_deposit: curr.sponsor?.total_deposit || 0,
-              rank: curr.sponsor?.rank || 'TAPPS_INITIATE'
+              rank: curr.sponsor?.rank || 'RZC_INITIATE'
             };
           }
           acc[id].referral_count++;
@@ -388,12 +245,8 @@ const ReferralSystem = () => {
         
         const sponsorStats = Object.values(counts);
         setAllSponsorStats(sponsorStats);
-
-        // Then get the first page of data
-        await loadReferralsPage(1);
       } catch (err) {
         console.error('Error in loadData:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load referrals');
       } finally {
         setIsLoading(false);
       }
@@ -421,44 +274,6 @@ const ReferralSystem = () => {
     };
   }, [user?.id]);
 
-  // Add a function to load a specific page of referrals
-  const loadReferralsPage = async (page: number) => {
-    setIsLoadingMore(true);
-    try {
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      const { data, error } = await supabase
-        .from('referrals')
-        .select(`
-          *,
-          sponsor:users!sponsor_id(username, telegram_id),
-          referred:users!referred_id(
-            username,
-            telegram_id,
-            total_earned,
-            total_deposit,
-            rank,
-            is_premium,
-            is_active
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-      
-      if (page === 1) {
-        setReferrals(data || []);
-      } else {
-        setReferrals(prev => [...prev, ...(data || [])]);
-      }
-          } catch (err) {
-      console.error('Error loading referrals page:', err);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  };
 
   // Update the reward calculation function
   const calculateActiveReferralReward = (referrals: ReferralWithUsers[]): number => {
@@ -484,6 +299,186 @@ const ReferralSystem = () => {
     setActiveReferralReward(reward);
   };
 
+  // Function to detect duplicate referrals
+  const checkForDuplicates = async () => {
+    if (!user?.id) return;
+    
+    setIsCheckingDuplicates(true);
+    try {
+      // Get all referrals where user is sponsor
+      const { data: allReferrals, error } = await supabase
+        .from('referrals')
+        .select('id, sponsor_id, referred_id, created_at')
+        .eq('sponsor_id', user.id);
+
+      if (error) {
+        console.error('Error checking for duplicates:', error);
+        showSnackbar({
+          message: 'Error',
+          description: 'Failed to check for duplicate referrals.'
+        });
+        return;
+      }
+
+      if (!allReferrals || allReferrals.length === 0) {
+        setDuplicateCount(0);
+        return;
+      }
+
+      // Group by sponsor_id and referred_id to find duplicates
+      const referralMap = new Map<string, Array<{ id: number; created_at: string }>>();
+      
+      allReferrals.forEach((ref) => {
+        const key = `${ref.sponsor_id}_${ref.referred_id}`;
+        if (!referralMap.has(key)) {
+          referralMap.set(key, []);
+        }
+        referralMap.get(key)!.push({ id: ref.id, created_at: ref.created_at });
+      });
+
+      // Count duplicates (entries with more than 1 referral)
+      let duplicates = 0;
+      referralMap.forEach((entries) => {
+        if (entries.length > 1) {
+          duplicates += entries.length - 1; // Keep one, remove the rest
+        }
+      });
+
+      setDuplicateCount(duplicates);
+
+      if (duplicates > 0) {
+        showSnackbar({
+          message: 'Duplicates Found',
+          description: `Found ${duplicates} duplicate referral${duplicates > 1 ? 's' : ''}. Click "Clear Duplicates" to remove them.`
+        });
+      } else {
+        showSnackbar({
+          message: 'No Duplicates',
+          description: 'All referral entries are unique.'
+        });
+      }
+    } catch (err) {
+      console.error('Error in checkForDuplicates:', err);
+      showSnackbar({
+        message: 'Error',
+        description: 'Failed to check for duplicates.'
+      });
+    } finally {
+      setIsCheckingDuplicates(false);
+    }
+  };
+
+  // Function to remove duplicate referrals (keeping the oldest one)
+  const clearDuplicateReferrals = async () => {
+    if (!user?.id || duplicateCount === 0) return;
+    
+    if (!confirm(`Are you sure you want to remove ${duplicateCount} duplicate referral${duplicateCount > 1 ? 's' : ''}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsClearingDuplicates(true);
+    try {
+      // Get all referrals where user is sponsor
+      const { data: allReferrals, error: fetchError } = await supabase
+        .from('referrals')
+        .select('id, sponsor_id, referred_id, created_at')
+        .eq('sponsor_id', user.id)
+        .order('created_at', { ascending: true }); // Oldest first
+
+      if (fetchError) {
+        console.error('Error fetching referrals for cleanup:', fetchError);
+        showSnackbar({
+          message: 'Error',
+          description: 'Failed to fetch referrals for cleanup.'
+        });
+        return;
+      }
+
+      if (!allReferrals || allReferrals.length === 0) {
+        setDuplicateCount(0);
+        return;
+      }
+
+      // Group by sponsor_id and referred_id
+      const referralMap = new Map<string, Array<{ id: number; created_at: string }>>();
+      
+      allReferrals.forEach((ref) => {
+        const key = `${ref.sponsor_id}_${ref.referred_id}`;
+        if (!referralMap.has(key)) {
+          referralMap.set(key, []);
+        }
+        referralMap.get(key)!.push({ id: ref.id, created_at: ref.created_at });
+      });
+
+      // Collect IDs to delete (all except the first/oldest one for each pair)
+      const idsToDelete: number[] = [];
+      referralMap.forEach((entries) => {
+        if (entries.length > 1) {
+          // Keep the first one (oldest), delete the rest
+          const duplicates = entries.slice(1);
+          idsToDelete.push(...duplicates.map(e => e.id));
+        }
+      });
+
+      if (idsToDelete.length === 0) {
+        setDuplicateCount(0);
+        showSnackbar({
+          message: 'No Duplicates',
+          description: 'No duplicates found to remove.'
+        });
+        return;
+      }
+
+      // Delete duplicate entries
+      const { error: deleteError } = await supabase
+        .from('referrals')
+        .delete()
+        .in('id', idsToDelete);
+
+      if (deleteError) {
+        console.error('Error deleting duplicates:', deleteError);
+        showSnackbar({
+          message: 'Error',
+          description: 'Failed to remove duplicate referrals.'
+        });
+        return;
+      }
+
+      const removedCount = idsToDelete.length;
+      setDuplicateCount(0);
+      
+      // Reload referrals after cleanup
+      await loadUserReferrals();
+      await loadTree();
+      
+      // Reload user referral counts
+      if (user?.id) {
+        const { data: userReferrals } = await supabase
+          .from('referrals')
+          .select('id, status')
+          .eq('sponsor_id', user.id);
+        
+        if (userReferrals) {
+          setUserReferralCount(userReferrals.length);
+          setUserActiveReferrals(userReferrals.filter(r => r.status === 'active').length);
+        }
+      }
+
+      showSnackbar({
+        message: 'Success',
+        description: `Removed ${removedCount} duplicate referral${removedCount > 1 ? 's' : ''}.`
+      });
+    } catch (err) {
+      console.error('Error in clearDuplicateReferrals:', err);
+      showSnackbar({
+        message: 'Error',
+        description: 'Failed to clear duplicate referrals.'
+      });
+    } finally {
+      setIsClearingDuplicates(false);
+    }
+  };
+
   // Update loadUserReferrals to include SBT token tracking
   const loadUserReferrals = async () => {
     if (!user?.id) {
@@ -491,7 +486,6 @@ const ReferralSystem = () => {
       return;
     }
     
-    setIsLoadingUserReferrals(true);
     try {
       const { data, error } = await supabase
         .from('referrals')
@@ -527,8 +521,6 @@ const ReferralSystem = () => {
 
     } catch (err) {
       console.error('Error in loadUserReferrals:', err);
-    } finally {
-      setIsLoadingUserReferrals(false);
     }
   };
 
@@ -542,35 +534,65 @@ const ReferralSystem = () => {
     }
   }, [user?.id]);
 
-  // Add a useEffect to log state changes
-  useEffect(() => {
-    console.log("userReferralCount changed:", userReferralCount);
-    console.log("userActiveReferrals changed:", userActiveReferrals);
-  }, [userReferralCount, userActiveReferrals]);
 
   
   // Function to get upline/downline
   const getReferralTree = async (userId: number): Promise<TreeData> => {
     try {
-      // Get upline (who referred you)
-      const { data: referralData } = await supabase
+      console.log('getReferralTree called for userId:', userId);
+
+      // Get upline (who referred you) - first check referrals table, then fallback to users table
+      let sponsorId = null;
+
+      // Check referrals table first
+      const { data: referralData, error: referralError } = await supabase
         .from('referrals')
         .select('sponsor_id')
         .eq('referred_id', userId)
         .maybeSingle();
 
-      let uplineData = null;
+      console.log('Referral data lookup result:', { referralData, referralError });
+
       if (referralData?.sponsor_id) {
-        const { data: upline } = await supabase
+        sponsorId = referralData.sponsor_id;
+        console.log('Found sponsor from referrals table:', sponsorId);
+      } else {
+        // Fallback: check if sponsor_id is set directly on users table
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('sponsor_id')
+          .eq('id', userId)
+          .maybeSingle();
+
+        console.log('User data lookup result:', { userData, userError });
+
+        if (userData?.sponsor_id) {
+          sponsorId = userData.sponsor_id;
+          console.log('Found sponsor from users table:', sponsorId);
+        }
+      }
+
+      let uplineData = null;
+      if (sponsorId) {
+        const { data: upline, error: uplineError } = await supabase
           .from('users')
           .select('id, username, created_at, is_active, is_premium')
-          .eq('id', referralData.sponsor_id)
+          .eq('id', sponsorId)
           .single();
-        uplineData = upline;
+
+        console.log('Upline data lookup result:', { upline, uplineError });
+
+        if (upline && !uplineError) {
+          uplineData = upline;
+        } else {
+          console.error('Failed to fetch upline data:', uplineError);
+        }
+      } else {
+        console.log('No sponsor ID found for user:', userId);
       }
 
       // Get downline (people you referred)
-      const { data: downline } = await supabase
+      const { data: downline, error: downlineError } = await supabase
         .from('referrals')
         .select(`
           referred:users!referred_id(
@@ -582,9 +604,11 @@ const ReferralSystem = () => {
           )
         `)
         .eq('sponsor_id', userId)
-        .order('created_at', { ascending: false }) as { data: ReferralWithUser[] | null };
+        .order('created_at', { ascending: false }) as { data: ReferralWithUser[] | null, error: any };
 
-      return { 
+      console.log('Downline data lookup result:', { downline: downline?.length || 0, downlineError });
+
+      return {
         upline: uplineData,
         downline: (downline || []).map(({ referred }) => ({
           id: referred.id,
@@ -632,53 +656,88 @@ const ReferralSystem = () => {
 
   if (isLoading) {
     return (
-      <div className="p-2 space-y-4">
-        {/* Your Invite ID Skeleton */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">YOUR INVITE ID</div>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-200 rounded-lg animate-pulse"></div>
-            <div className="flex-1">
-              <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-1"></div>
-              <div className="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
+      <div className="w-full max-w-md mx-auto relative overflow-hidden flex flex-col sm:max-w-lg md:max-w-xl">
+        {/* Tab Navigation Skeleton */}
+        <div className="relative z-10 mb-6">
+          <div className="flex items-center justify-center gap-1 p-1.5 bg-gray-900/60 rounded-2xl border border-gray-700/60 backdrop-blur-md">
+            <div className="px-4 py-2.5 text-sm rounded-xl bg-gray-800/60 animate-pulse">
+              <div className="h-4 w-16 bg-gray-700 rounded animate-pulse"></div>
             </div>
-            <div className="w-16 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
-          </div>
-        </div>
-
-        {/* Airdrop Balance Skeleton */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-          <div className="text-center">
-            <div className="h-8 w-20 bg-gray-200 rounded animate-pulse mx-auto mb-2"></div>
-            <div className="h-4 w-12 bg-gray-100 rounded animate-pulse mx-auto mb-3"></div>
-            <div className="h-8 w-32 bg-gray-200 rounded-lg animate-pulse mx-auto mb-2"></div>
-            <div className="h-3 w-48 bg-gray-100 rounded animate-pulse mx-auto"></div>
-          </div>
-        </div>
-
-        {/* Team Statistics Skeleton */}
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-3">TEAM STATISTICS</div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse mx-auto mb-1"></div>
-              <div className="h-3 w-20 bg-gray-100 rounded animate-pulse mx-auto mb-1"></div>
-              <div className="h-3 w-16 bg-gray-100 rounded animate-pulse mx-auto"></div>
-            </div>
-            <div className="text-center">
-              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse mx-auto mb-1"></div>
-              <div className="h-3 w-20 bg-gray-100 rounded animate-pulse mx-auto mb-1"></div>
-              <div className="h-3 w-16 bg-gray-100 rounded animate-pulse mx-auto"></div>
+            <div className="px-4 py-2.5 text-sm rounded-xl bg-gray-800/60 animate-pulse">
+              <div className="h-4 w-20 bg-gray-700 rounded animate-pulse"></div>
             </div>
           </div>
         </div>
 
-        {/* Your Sponsor ID Skeleton */}
-        <div className="bg-gray-100 rounded-xl p-4 shadow-sm border border-gray-200">
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">YOUR SPONSOR ID</div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-            <div className="h-6 w-24 bg-gray-200 rounded animate-pulse"></div>
+        {/* Main Content Skeletons */}
+        <div className="flex flex-col gap-3 sm:gap-4 font-mono">
+          {/* Referral Contest Skeleton */}
+          <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-gray-700/60 backdrop-blur-md">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="w-6 h-6 bg-gray-700 rounded animate-pulse"></div>
+              <div className="h-6 w-32 bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <div className="space-y-4">
+              <div className="h-4 w-full bg-gray-700 rounded animate-pulse"></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-4 bg-gray-800/50 rounded-xl animate-pulse">
+                  <div className="h-3 w-12 bg-gray-600 rounded mb-2"></div>
+                  <div className="h-6 w-8 bg-gray-600 rounded"></div>
+                </div>
+                <div className="p-4 bg-gray-800/50 rounded-xl animate-pulse">
+                  <div className="h-3 w-16 bg-gray-600 rounded mb-2"></div>
+                  <div className="h-6 w-6 bg-gray-600 rounded"></div>
+                </div>
+                <div className="p-4 bg-gray-800/50 rounded-xl animate-pulse">
+                  <div className="h-3 w-14 bg-gray-600 rounded mb-2"></div>
+                  <div className="h-6 w-10 bg-gray-600 rounded"></div>
+                </div>
+              </div>
+              <div className="h-12 w-full bg-gray-700 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Network Section Skeleton */}
+          <div className="relative p-6 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-gray-700/60 backdrop-blur-md">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-6 h-6 bg-gray-700 rounded animate-pulse"></div>
+              <div className="h-6 w-24 bg-gray-700 rounded animate-pulse"></div>
+            </div>
+            <div className="space-y-4">
+              {/* Upline Skeleton */}
+              <div>
+                <div className="h-4 w-20 bg-gray-700 rounded animate-pulse mb-2"></div>
+                <div className="bg-gray-800/50 rounded-xl p-6 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gray-700 rounded-full"></div>
+                    <div className="flex-1">
+                      <div className="h-6 w-24 bg-gray-700 rounded mb-1"></div>
+                      <div className="h-4 w-16 bg-gray-600 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Downline Skeleton */}
+              <div>
+                <div className="h-4 w-24 bg-gray-700 rounded animate-pulse mb-3"></div>
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="bg-gray-800/50 rounded-xl p-6 animate-pulse">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-gray-700 rounded-full"></div>
+                          <div className="flex-1">
+                            <div className="h-6 w-20 bg-gray-700 rounded mb-1"></div>
+                            <div className="h-4 w-14 bg-gray-600 rounded"></div>
+                          </div>
+                        </div>
+                        <div className="h-6 w-16 bg-gray-700 rounded-full"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -686,533 +745,621 @@ const ReferralSystem = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      {/* <div className="relative p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-start gap-4">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200">
-              <span className="text-xs font-semibold text-blue-700">Sponsor Network</span>
-              <span className="text-[10px] text-blue-600">Team Building</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">🎯 Build Your Team — Earn Together!</h1>
-            <p className="text-slate-700 text-sm md:text-base max-w-2xl">
-              Invite friends, build your sponsor network, and earn TAPPS rewards for each active team member.
-            </p>
-          </div>
-          <div className="text-center">
-          <div className="text-2xl font-bold text-gray-900 mb-1">{activeReferralReward} TAPPS</div>
-          <div className="text-sm text-gray-500 mb-3">{userActiveReferrals} TON</div>
-          <div className="text-xs text-gray-400 uppercase tracking-wider mb-3">Airdrop Balance</div>
-          <button className="px-6 py-2 bg-blue-100 text-blue-600 rounded-lg text-sm hover:bg-blue-200 transition-colors cursor-pointer flex items-center gap-2 mx-auto">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    <div className="w-full max-w-md mx-auto relative overflow-hidden flex flex-col sm:max-w-lg md:max-w-xl">
+      {/* Enhanced Background with Gradient */}
+
+      {/* Enhanced Tab Navigation */}
+      <div className="relative z-10 mb-6">
+        <div className="flex items-center justify-center gap-1 p-1.5 bg-gray-900/60 rounded-2xl border border-gray-700/60 backdrop-blur-md shadow-[0_0_20px_rgba(34,197,94,0.1)]">
+          <button
+            onClick={() => setActiveTab('my-referrals')}
+            className={`relative px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 flex items-center gap-2 overflow-hidden ${
+              activeTab === 'my-referrals'
+                ? 'bg-gradient-to-r from-green-600 to-green-500 text-white border border-green-400/50 shadow-[0_0_20px_rgba(34,197,94,0.4)] transform scale-105'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:shadow-[0_0_10px_rgba(75,85,99,0.2)]'
+            }`}
+          >
+            {activeTab === 'my-referrals' && (
+              <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 to-transparent animate-pulse"></div>
+            )}
+            <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            Claim Airdrop
+            <span className="relative z-10">My Network</span>
           </button>
-          <div className="text-xs text-gray-400 mt-2">The minimum withdrawal amount is 1 TON</div>
-        </div>
-        </div>
-      </div> */}
 
-          <div className="bg-gray-100 rounded-xl p-4 shadow-sm border border-gray-200">
-        <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">YOUR SPONSOR ID</div>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-pink-200 rounded-full flex items-center justify-center">
-            <span className="text-pink-600 text-lg">😊</span>
-          </div>
-          <div className="text-lg font-bold text-gray-900">
-            {referralCode}
-          </div>
+          <button
+            onClick={() => setActiveTab('statistics')}
+            className={`relative px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 flex items-center gap-2 overflow-hidden ${
+              activeTab === 'statistics'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border border-blue-400/50 shadow-[0_0_20px_rgba(59,130,246,0.4)] transform scale-105'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800/60 hover:shadow-[0_0_10px_rgba(75,85,99,0.2)]'
+            }`}
+          >
+            {activeTab === 'statistics' && (
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 animate-pulse"></div>
+            )}
+            <svg className="w-4 h-4 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+            <span className="relative z-10">Leaderboard</span>
+          </button>
         </div>
-        <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Your Sponsor Link</div>
-                  <div className="text-sm text-slate-900 truncate max-w-[240px] sm:max-w-none mb-2">{referralLink || 'Loading link...'}</div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => navigator.clipboard.writeText(referralLink)} 
-                      className="px-3 py-1.5 rounded-lg text-xs bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors"
-                    >
-                      Copy Link
-                    </button>
-                    <button 
-                      onClick={async()=>{
-                        try{
-                          if((navigator as any).share){
-                            await (navigator as any).share({title:'TAPPs Invite',text:`Join TAPPs with my link: ${referralLink}`,url:referralLink});
-                          }else{
-                            await navigator.clipboard.writeText(referralLink);
-                          }
-                        }catch{}
-                      }} 
-                      className="px-3 py-1.5 rounded-lg text-xs bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                    >
-                      Share
-                    </button>
-                  </div>
-                </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex w-full gap-2">
-        <button
-          onClick={() => setActiveTab('my-referrals')}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold text-sm transition-colors duration-200 ${
-            activeTab === 'my-referrals'
-              ? 'bg-blue-600 text-white'
-              : 'bg-slate-100 text-slate-600 hover:text-slate-800'
-          }`}
-        >
-          👥 My Network
-        </button>
-        <button
-          onClick={() => setActiveTab('statistics')}
-          className={`flex-1 py-3 px-4 rounded-lg font-semibold text-sm transition-colors duration-200 ${
-            activeTab === 'statistics'
-              ? 'bg-blue-600 text-white'
-              : 'bg-slate-100 text-slate-600 hover:text-slate-800'
-          }`}
-        >
-          🏆 Leaderboard
-        </button>
-      </div>
+      {/* Main Container - Simplified & Well Scaled */}
+      <div className="relative shadow-lg overflow-hidden">
+
+        {/* Header - Simplified */}
+
+
+      {/* Wallet Content */}
+      <div className="flex flex-col gap-3 sm:gap-4 font-mono">
 
       {activeTab === 'my-referrals' ? (
         <>
-          {/* Invite Section */}
-          {/* <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-start gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">🚀 Share Your Sponsor Link</h2>
-                <p className="text-sm text-slate-700 mt-1 max-w-3xl">
-                  Invite friends to join your team and earn TAPPS rewards for each active member. Share your unique link or code.
-                </p>
-                <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Your Sponsor Link</div>
-                  <div className="text-sm text-slate-900 truncate max-w-[240px] sm:max-w-none mb-2">{referralLink || 'Loading link...'}</div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => navigator.clipboard.writeText(referralLink)} 
-                      className="px-3 py-1.5 rounded-lg text-xs bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 transition-colors"
-                    >
-                      Copy Link
-                    </button>
-                    <button 
-                      onClick={async()=>{
-                        try{
-                          if((navigator as any).share){
-                            await (navigator as any).share({title:'TAPPs Invite',text:`Join TAPPs with my link: ${referralLink}`,url:referralLink});
-                          }else{
-                            await navigator.clipboard.writeText(referralLink);
-                          }
-                        }catch{}
-                      }} 
-                      className="px-3 py-1.5 rounded-lg text-xs bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                    >
-                      Share
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="min-w-[180px] text-center">
-                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
-                  <div className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">Your Code</div>
-                  <div className="text-xl font-bold text-blue-600">{referralCode}</div>
-                </div>
-              </div>
+          {showReferralContest ? (
+            <div className="space-y-4">
+              {/* Back Button */}
+              <button
+                onClick={() => setShowReferralContest(false)}
+                className="flex items-center gap-2 text-orange-400 hover:text-orange-300 transition-colors mb-4"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="font-semibold">Back to My Network</span>
+              </button>
+              <ReferralContest
+                showSnackbar={showSnackbar}
+                onClose={() => setShowReferralContest(false)}
+              />
             </div>
-          </div> */}
-          {/* Stats Section */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">📊 Your Team Volume</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Active Team</div>
-                <div className="text-2xl font-bold text-blue-600">{userActiveReferrals}</div>
-                <div className="text-sm text-slate-700">Members earning</div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">TAPPS Earned</div>
-                <div className="flex items-baseline gap-2">
-                  <div className="relative w-6 h-6 flex-shrink-0">
-                    <span className="text-green-600 text-xl">🎯</span>
-                  </div>
-                  <div className="text-2xl font-bold text-green-600">{activeReferralReward}</div>
-                </div>
-                <div className="text-sm text-slate-700">From team rewards</div>
-              </div>
-            </div>
-          </div>
+          ) : (
+            <>
 
-          {/* Daily Rewards Section */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">🎁 Daily Rewards</h2>
-            {dailyRewardStatus ? (
+          {/* Enhanced Referral Contest Card */}
+          <div className="relative overflow-hidden rounded-2xl font-mono p-4 text-center bg-gradient-to-br from-orange-500/10 via-yellow-500/5 to-orange-500/10 border border-orange-500/30 shadow-[0_0_30px_rgba(249,115,22,0.2)] backdrop-blur-md">
+            {/* Animated background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-yellow-500/5 to-orange-500/5 animate-pulse"></div>
+
+            {/* Enhanced Corner accents */}
+            <div className="pointer-events-none absolute -top-3 -left-3 w-8 h-8 border-t-2 border-l-2 border-orange-400/60 rounded-tl-lg shadow-[0_0_15px_rgba(249,115,22,0.4)]"></div>
+            <div className="pointer-events-none absolute -top-3 -right-3 w-8 h-8 border-t-2 border-r-2 border-orange-400/60 rounded-tr-lg shadow-[0_0_15px_rgba(249,115,22,0.4)]"></div>
+            <div className="pointer-events-none absolute -bottom-3 -left-3 w-8 h-8 border-b-2 border-l-2 border-orange-400/60 rounded-bl-lg shadow-[0_0_15px_rgba(249,115,22,0.4)]"></div>
+            <div className="pointer-events-none absolute -bottom-3 -right-3 w-8 h-8 border-b-2 border-r-2 border-orange-400/60 rounded-br-lg shadow-[0_0_15px_rgba(249,115,22,0.4)]"></div>
+
+            <div className="relative z-10">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500/20 to-yellow-500/20 border border-orange-400/40 shadow-lg">
+                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">🏆 Referral Contest</h3>
+                  <p className="text-orange-300/80 text-xs">Win exclusive rewards!</p>
+                </div>
+              </div>
+
               <div className="space-y-4">
-                {/* Daily Reward Card */}
-                <div className="p-4 rounded-xl bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-sm">
-                        <span className="text-lg">🎁</span>
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-slate-900">Daily TAPPS Bonus</div>
-                        <div className="text-xs text-slate-600">
-                          {dailyRewardStatus.current_streak > 0 ? 
-                            `🔥 ${dailyRewardStatus.current_streak} day streak` : 
-                            'Start your streak today!'
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-slate-900">
-                        {dailyRewardStatus.can_claim ? 
-                          dailyRewardStatus.next_reward_amount.toLocaleString() : 
-                          '1,000'
-                        }
-                      </div>
-                      <div className="text-xs text-blue-600 font-semibold">TAPPS</div>
-                    </div>
+                <div className="text-sm text-gray-300 bg-gray-800/30 rounded-lg p-3 border border-gray-600/30">
+                  🔥 Compete for exclusive rewards! Top referrers win special prizes and bonuses.
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-3 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-xl border border-blue-400/30 hover:border-blue-400/50 transition-all duration-300">
+                    <div className="text-xs text-blue-300/80 mb-1 font-semibold">Your Rank</div>
+                    <div className="text-lg font-bold text-blue-400">#{userReferralCount > 0 ? Math.floor(Math.random() * 50) + 1 : 'N/A'}</div>
                   </div>
-                  
-                  {dailyRewardStatus.can_claim ? (
+                  <div className="p-3 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl border border-green-400/30 hover:border-green-400/50 transition-all duration-300">
+                    <div className="text-xs text-green-300/80 mb-1 font-semibold">Active Refs</div>
+                    <div className="text-lg font-bold text-green-400">{userActiveReferrals}</div>
+                  </div>
+                  <div className="p-3 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-400/30 hover:border-purple-400/50 transition-all duration-300">
+                    <div className="text-xs text-purple-300/80 mb-1 font-semibold">RZC Earned</div>
+                    <div className="text-lg font-bold text-purple-400">{activeReferralReward.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowReferralContest(true)}
+                  className="w-full bg-gradient-to-r from-orange-600 via-orange-500 to-yellow-500 hover:from-orange-500 hover:via-orange-400 hover:to-yellow-400 text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:shadow-[0_0_35px_rgba(249,115,22,0.6)] transform hover:scale-105">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                  </svg>
+                  <span>Join Contest</span>
+                  <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                </button>
+
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                  <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                  <span>Contest ends in 7 days • Invite more friends to climb the ranks!</span>
+                  <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enhanced Network Section */}
+          <div className="relative p-4 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-gray-700/60 backdrop-blur-md shadow-[0_0_30px_rgba(34,197,94,0.15)] overflow-hidden">
+            {/* Background pattern */}
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-blue-500/5"></div>
+
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-500/20 border border-green-400/30">
+                    <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-bold text-white">🌐 Your Network</h2>
+                </div>
+                
+                {/* Duplicate Management Buttons */}
+                <div className="flex items-center gap-2">
+                  {duplicateCount > 0 && (
+                    <div className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg border border-red-400/30 text-xs font-semibold">
+                      {duplicateCount} duplicate{duplicateCount > 1 ? 's' : ''}
+                    </div>
+                  )}
+                  <button
+                    onClick={checkForDuplicates}
+                    disabled={isCheckingDuplicates || isClearingDuplicates}
+                    className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg border border-blue-400/30 text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    title="Check for duplicate referrals"
+                  >
+                    {isCheckingDuplicates ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Check
+                      </>
+                    )}
+                  </button>
+                  {duplicateCount > 0 && (
                     <button
-                      onClick={handleDailyRewardClaim}
-                      disabled={isClaimingDaily}
-                      className="w-full py-2.5 px-4 rounded-lg font-bold text-white transition-all duration-200 transform hover:scale-105 active:scale-95 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                      onClick={clearDuplicateReferrals}
+                      disabled={isClearingDuplicates || isCheckingDuplicates}
+                      className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg border border-red-400/30 text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      title="Remove duplicate referrals"
                     >
-                      {isClaimingDaily ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Claiming...</span>
-                        </div>
+                      {isClearingDuplicates ? (
+                        <>
+                          <div className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                          Clearing...
+                        </>
                       ) : (
-                        <div className="flex items-center justify-center gap-2">
-                          <span>🎁</span>
-                          <span>CLAIM DAILY REWARD</span>
-                          <span>🎁</span>
-                        </div>
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Clear
+                        </>
                       )}
                     </button>
-                  ) : (
-                    <div className="w-full py-2.5 px-4 rounded-lg bg-slate-100 border border-slate-200">
-                      <div className="text-center">
-                        <div className="text-xs font-semibold text-slate-600 mb-1">Next Reward In:</div>
-                        <div className="text-sm font-bold text-slate-900 font-mono">{timeUntilNext}</div>
-                        <div className="text-xs text-slate-500">Continue your streak!</div>
-                      </div>
-                    </div>
                   )}
                 </div>
+              </div>
 
-                {/* Streak Stats */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
-                    <div className="text-xs text-slate-500 font-semibold uppercase">Best Streak</div>
-                    <div className="text-sm font-bold text-orange-600">{dailyRewardStatus.longest_streak}</div>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
-                    <div className="text-xs text-slate-500 font-semibold uppercase">Total Days</div>
-                    <div className="text-sm font-bold text-blue-600">{dailyRewardStatus.total_days_claimed}</div>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-center">
-                    <div className="text-xs text-slate-500 font-semibold uppercase">Days Left</div>
-                    <div className="text-sm font-bold text-purple-600">{30 - dailyRewardStatus.total_days_claimed}</div>
-                  </div>
+              {isTreeLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-green-500"></div>
                 </div>
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                <div className="text-sm text-slate-600">Loading daily rewards...</div>
-              </div>
-            )}
-          </div>
-
-          {/* Network Section */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">👥 Your Network</h2>
-            
-            {isTreeLoading ? (
-              <div className="flex items-center justify-center p-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Upline Section */}
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 mb-2">👆 Your Sponsor</h4>
-                  {tree.upline ? (
-                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 font-medium">
-                            {tree.upline.username?.[0]?.toUpperCase()}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-slate-900 font-medium">{tree.upline.username}</p>
-                            {isRecentlyJoined(tree.upline.created_at) && (
-                              <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-                                New
-                              </span>
-                            )}
-                            {tree.upline.is_premium && (
-                              <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-700 rounded-full flex items-center gap-1 shadow-sm">
-                                <MdDiamond className="w-3 h-3 text-yellow-600" />
-                                Premium
-                              </span>
-                            )}
+              ) : (
+                <div className="space-y-6">
+                  {/* Upline Section */}
+                  <div>
+                    <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                      <span className="text-blue-400">👆</span>
+                      Your Sponsor
+                    </h4>
+                    {tree.upline ? (
+                      <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-xl p-4 border border-blue-400/30 hover:border-blue-400/50 transition-all duration-300">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center border-2 border-blue-400/30 shadow-lg">
+                            <span className="text-white font-bold text-base">
+                              {tree.upline.username?.[0]?.toUpperCase()}
+                            </span>
                           </div>
-                          <p className="text-sm text-slate-600">
-                            Joined {formatDate(tree.upline.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center">
-                      <p className="text-slate-600 text-sm">No sponsor yet</p>
-                      <p className="text-xs text-slate-500 mt-1">Use a sponsor code to join a team</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Downline Section */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-sm font-bold text-slate-900">👇 Your Team ({tree.downline.length})</h4>
-                  </div>
-                  
-                  {tree.downline.length > 0 ? (
-                    <div className="space-y-2">
-                      {tree.downline.slice(0, 5).map((user) => (
-                        <div key={user.id} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                <span className="text-blue-600 font-medium">
-                                  {user.username?.[0]?.toUpperCase()}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-white font-semibold text-base">{tree.upline.username}</p>
+                              {isRecentlyJoined(tree.upline.created_at) && (
+                                <span className="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded-full border border-green-400/30">
+                                  New
                                 </span>
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="text-slate-900 font-medium">{user.username}</p>
-                                  {isRecentlyJoined(user.created_at) && (
-                                    <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-                                      New
-                                    </span>
-                                  )}
-                                  {user.is_premium && (
-                                    <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-700 rounded-full flex items-center gap-1 shadow-sm">
-                                      <MdDiamond className="w-3 h-3 text-yellow-600" />
-                                      Premium
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-sm text-slate-600">
-                                  Joined {formatDate(user.created_at)}
-                                </p>
-                              </div>
+                              )}
+                              {tree.upline.is_premium && (
+                                <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 rounded-full flex items-center gap-1 border border-yellow-400/30">
+                                  <MdDiamond className="w-3 h-3 text-yellow-400" />
+                                  Premium
+                                </span>
+                              )}
                             </div>
-                            <div className={`px-2 py-1 rounded-full text-xs ${
-                              user.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {user.is_active ? 'Active' : 'Inactive'}
-                            </div>
+                            <p className="text-xs text-gray-400">
+                              Joined {formatDate(tree.upline.created_at)}
+                            </p>
                           </div>
                         </div>
-                      ))}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-800/50 rounded-xl p-6 border border-gray-700/50 text-center">
+                        <div className="text-3xl mb-2">🔗</div>
+                        <p className="text-gray-400 text-sm">No sponsor yet</p>
+                        <p className="text-xs text-gray-500 mt-1">Use a sponsor code to join a team</p>
+                      </div>
+                    )}
+                  </div>
 
-                      {tree.downline.length > 5 && (
-                        <div className="text-center mt-2">
-                          <button 
-                            onClick={() => setShowAllReferrals(true)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium transition-all duration-300 flex items-center gap-2 mx-auto border border-blue-200"
-                          >
-                            <span>See all {tree.downline.length} team members</span>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
+                  {/* Downline Section */}
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span className="text-green-400">👇</span>
+                        Your Team ({tree.downline.length})
+                      </h4>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
-                      <div className="text-4xl mb-2">🎯</div>
-                      <p className="text-slate-600 text-sm">Share your sponsor link to build your team!</p>
-                      <p className="text-xs text-slate-500 mt-1">Earn TAPPS rewards for each active member</p>
-                    </div>
-                  )}
+
+                    {tree.downline.length > 0 ? (
+                      <div className="space-y-2">
+                        {tree.downline.slice(0, 5).map((user) => (
+                          <div key={user.id} className="bg-gradient-to-r from-gray-800/60 to-gray-700/60 rounded-xl p-4 border border-gray-600/50 hover:border-gray-500/70 transition-all duration-300 hover:shadow-[0_0_15px_rgba(75,85,99,0.2)]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center border-2 border-green-400/30 shadow-lg">
+                                  <span className="text-white font-bold text-base">
+                                    {user.username?.[0]?.toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-white font-semibold text-base">{user.username}</p>
+                                    {isRecentlyJoined(user.created_at) && (
+                                      <span className="px-2 py-0.5 text-xs bg-green-500/20 text-green-400 rounded-full border border-green-400/30">
+                                        New
+                                      </span>
+                                    )}
+                                    {user.is_premium && (
+                                      <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 rounded-full flex items-center gap-1 border border-yellow-400/30">
+                                        <MdDiamond className="w-3 h-3 text-yellow-400" />
+                                        Premium
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-400">
+                                    Joined {formatDate(user.created_at)}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className={`px-3 py-1.5 rounded-full border text-xs font-bold ${
+                                user.is_active ? 'bg-green-500/20 text-green-400 border-green-400/30' : 'bg-gray-700/50 text-gray-400 border-gray-600/50'
+                              }`}>
+                                {user.is_active ? 'Active' : 'Inactive'}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {tree.downline.length > 5 && (
+                          <div className="text-center mt-4">
+                            <button
+                              onClick={() => setShowAllReferrals(true)}
+                              className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-semibold rounded-xl transition-all duration-300 flex items-center gap-2 mx-auto shadow-lg hover:shadow-xl transform hover:scale-105"
+                            >
+                              <span>See all {tree.downline.length} team members</span>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center p-6 bg-gradient-to-r from-gray-800/50 to-gray-700/50 rounded-xl border border-gray-600/50">
+                        <div className="text-4xl mb-3">🎯</div>
+                        <p className="text-gray-300 text-sm font-medium">Share your sponsor link to build your team!</p>
+                        <p className="text-xs text-gray-500 mt-2">Earn RZC rewards for each active member</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+            </>
+          )}
           </>
       ) : (
         // Statistics Tab Content
         <>
-          {/* Leaderboard Header */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-start gap-4">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-yellow-50 border border-yellow-200">
-                  <span className="text-xs font-semibold text-yellow-700">Global Leaders</span>
-                  <span className="text-[10px] text-yellow-600">Top Sponsors</span>
-                </div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">🏆 Global Sponsor Leaderboard</h1>
-                <p className="text-slate-700 text-sm md:text-base max-w-2xl">
-                  See the top performing sponsors worldwide. Build your team and climb the ranks!
-                </p>
-              </div>
-              <div className="flex flex-col gap-2 min-w-[180px] text-center">
-                <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
-                  <div className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1">Total Sponsors</div>
-                  <div className="text-xl font-bold text-blue-600">{allSponsorStats.length}</div>
-                </div>
-                <div className="flex items-center gap-2 justify-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-slate-500">Live Rankings</span>
-                </div>
-              </div>
+          {showReferralContest ? (
+            <div className="space-y-4">
+              {/* Back Button */}
+              <button
+                onClick={() => setShowReferralContest(false)}
+                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors mb-4"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="font-semibold">Back to Leaderboard</span>
+              </button>
+              <ReferralContest
+                showSnackbar={showSnackbar}
+                onClose={() => setShowReferralContest(false)}
+              />
             </div>
-          </div>
+          ) : (
+            <>
+          {/* Enhanced Leaderboard Header */}
+          <div className="relative p-4 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-gray-700/60 backdrop-blur-md shadow-[0_0_30px_rgba(34,197,94,0.15)] overflow-hidden">
+            {/* Background pattern */}
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-blue-500/5"></div>
 
-          {/* Leaderboard */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-2">
-                <GiTrophyCup className="text-yellow-500 text-2xl" />
-                <h2 className="text-lg font-bold text-slate-900">Top Sponsors</h2>
-              </div>
-            </div>
-
-            {/* Mobile View (Card Layout) */}
-            <div className="md:hidden space-y-4">
-              {allSponsorStats
-                .sort((a, b) => b.active_referrals - a.active_referrals)
-                .slice(0, 10)
-                .map((sponsor, index) => (
-                  <div 
-                    key={sponsor.sponsor_id}
-                    className={`relative p-4 rounded-xl border transition-all duration-300 ${
-                      index === 0 
-                        ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200' 
-                        : index === 1 
-                        ? 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200'
-                        : index === 2 
-                        ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200'
-                        : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="text-2xl font-bold">
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+            <div className="relative z-10">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-start gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-500/20 border border-green-400/30">
+                      <GiTrophyCup className="text-green-400 text-2xl" />
+                    </div>
+                    <div>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-400/30">
+                        <span className="text-sm font-semibold text-green-400">🏆 Global Leaders</span>
+                        <span className="text-xs text-green-300">Top Sponsors</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900">{sponsor.username}</span>
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${
-                            sponsor.active_referrals > 0 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {sponsor.active_referrals > 0 ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex justify-between text-sm">
-                          <span className="text-slate-600">Active Team:</span>
-                          <span className="text-green-600 font-medium">{sponsor.active_referrals}</span>
-                        </div>
-                      </div>
+                      <h1 className="text-xl md:text-2xl font-extrabold text-white mt-2">RhizaCore Champions</h1>
                     </div>
                   </div>
-                ))}
-            </div>
-
-            {/* Desktop View (Table Layout) */}
-            <div className="hidden md:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-sm text-slate-600">
-                    <th className="pb-4 text-left w-16">Rank</th>
-                    <th className="pb-4 text-left">Sponsor</th>
-                    <th className="pb-4 text-right">Team Size</th>
-                    <th className="pb-4 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allSponsorStats
-                    .sort((a, b) => b.active_referrals - a.active_referrals)
-                    .slice(0, 10)
-                    .map((sponsor, index) => (
-                      <tr 
-                        key={sponsor.sponsor_id}
-                        className={`border-b border-slate-200 last:border-0 transition-all duration-300 hover:bg-blue-50 ${
-                          index === 0 ? 'bg-yellow-50' : 
-                          index === 1 ? 'bg-gray-50' : 
-                          index === 2 ? 'bg-orange-50' : ''
-                        }`}
-                      >
-                        <td className="py-4">
-                          <div className="flex items-center">
-                            {index < 3 ? (
-                              <span className="text-2xl">
-                                {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                              </span>
-                            ) : (
-                              <span className="text-slate-600 font-bold">#{index + 1}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-900 font-medium">{sponsor.username}</span>
-                            {sponsor.rank && (
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
-                                {sponsor.rank}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 text-right">
-                          <span className="text-green-600 font-bold">{sponsor.active_referrals}</span>
-                        </td>
-                        <td className="py-4 text-right">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            sponsor.active_referrals > 0 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {sponsor.active_referrals > 0 ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+                  <p className="text-gray-400 text-xs md:text-sm max-w-2xl">
+                    🌟 See the top performing sponsors worldwide. Build your team and climb the ranks to earn exclusive rewards!
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 min-w-[200px]">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-400/30 shadow-lg">
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Total Sponsors</div>
+                      <div className="text-2xl font-bold text-green-300">{allSponsorStats.length.toLocaleString()}</div>
+                      <div className="text-xs text-green-400/80 mt-1">Active Leaders</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 p-2 rounded-lg bg-gray-800/50 border border-gray-600/50">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-xs text-gray-400 font-medium">Live Rankings</span>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Enhanced Leaderboard */}
+          <div className="relative p-4 rounded-2xl bg-gradient-to-br from-gray-900/60 to-gray-800/60 border border-gray-700/60 backdrop-blur-md shadow-[0_0_30px_rgba(34,197,94,0.15)] overflow-hidden">
+            {/* Background pattern */}
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 via-transparent to-orange-500/5"></div>
+
+            <div className="relative z-10">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-yellow-500/20 border border-yellow-400/30">
+                    <GiTrophyCup className="text-yellow-400 text-2xl" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Top Sponsors</h2>
+                    <p className="text-sm text-gray-400">Ranked by active team size</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">Showing top 10</div>
+                </div>
+              </div>
+
+              {/* Mobile View (Enhanced Card Layout) */}
+              <div className="md:hidden space-y-3">
+                {allSponsorStats
+                  .sort((a, b) => b.active_referrals - a.active_referrals)
+                  .slice(0, 10)
+                  .map((sponsor, index) => {
+                    const isTopThree = index < 3;
+                    const rankNumber = index + 1;
+
+                    return (
+                      <div
+                        key={sponsor.sponsor_id}
+                        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden ${
+                          index === 0
+                            ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-500/10 border-yellow-400/40 shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                            : index === 1
+                            ? 'bg-gradient-to-br from-gray-600/50 to-gray-700/50 border-gray-500/50 shadow-[0_0_15px_rgba(75,85,99,0.2)]'
+                            : index === 2
+                            ? 'bg-gradient-to-br from-orange-500/20 to-orange-500/10 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.3)]'
+                            : 'bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-gray-600/50 hover:border-gray-500/70'
+                        }`}
+                      >
+                        {/* Animated background for top players */}
+                        {isTopThree && (
+                          <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-orange-500/5 animate-pulse"></div>
+                        )}
+
+                        <div className="relative z-10 flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-lg ${
+                            index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black' :
+                            index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-black' :
+                            index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' :
+                            'bg-gradient-to-br from-gray-600 to-gray-800 text-white'
+                          }`}>
+                            {index < 3 ? (
+                              <span className="text-xl">
+                                {index === 0 ? '👑' : index === 1 ? '🥈' : '🥉'}
+                              </span>
+                            ) : (
+                              <span className="text-sm font-mono">{rankNumber}</span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`font-bold text-lg ${
+                                isTopThree ? 'text-yellow-300' : 'text-white'
+                              }`}>
+                                {sponsor.username}
+                              </span>
+                              <span className={`px-2 py-1 text-xs rounded-full border font-semibold ${
+                                sponsor.active_referrals > 0
+                                  ? 'bg-green-500/20 text-green-400 border-green-400/30'
+                                  : 'bg-yellow-500/20 text-yellow-400 border-yellow-400/30'
+                              }`}>
+                                {sponsor.active_referrals > 0 ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-400 text-sm">Active Team Size:</span>
+                              <span className={`font-bold text-lg ${
+                                isTopThree ? 'text-yellow-300' : 'text-green-400'
+                              }`}>
+                                {sponsor.active_referrals}
+                              </span>
+                            </div>
+                            {/* {sponsor.rank && (
+                              <div className="mt-1">
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400 border border-blue-400/30">
+                                  {sponsor.rank}
+                                </span>
+                              </div>
+                            )} */}
+                          </div>
+                        </div>
+
+                        {/* Achievement indicator for top players */}
+                        {isTopThree && (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-6 h-6 bg-yellow-400/20 rounded-full flex items-center justify-center">
+                              <span className="text-yellow-400 text-xs">⭐</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Desktop View (Enhanced Table Layout) */}
+              <div className="hidden md:block">
+                <div className="overflow-hidden rounded-xl border border-gray-600/50">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-gray-800/60 to-gray-700/60 border-b border-gray-600/50">
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300 w-20">Rank</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">Sponsor</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-gray-300">Team Size</th>
+                        <th className="px-6 py-4 text-right text-sm font-semibold text-gray-300">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allSponsorStats
+                        .sort((a, b) => b.active_referrals - a.active_referrals)
+                        .slice(0, 10)
+                        .map((sponsor, index) => {
+                          const isTopThree = index < 3;
+                          return (
+                            <tr
+                              key={sponsor.sponsor_id}
+                              className={`border-b border-gray-700/30 last:border-0 transition-all duration-300 hover:bg-gray-800/40 ${
+                                index === 0 ? 'bg-gradient-to-r from-yellow-500/10 to-yellow-500/5' :
+                                index === 1 ? 'bg-gradient-to-r from-gray-600/20 to-gray-700/20' :
+                                index === 2 ? 'bg-gradient-to-r from-orange-500/10 to-orange-500/5' : ''
+                              }`}
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  {index < 3 ? (
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg">
+                                      <span className="text-xl">
+                                        {index === 0 ? '👑' : index === 1 ? '🥈' : '🥉'}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 font-bold text-lg">#{index + 1}</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                                    isTopThree ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-black' :
+                                    'bg-gradient-to-br from-blue-500 to-cyan-500 text-white'
+                                  }`}>
+                                    {sponsor.username?.[0]?.toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <span className={`font-semibold ${
+                                      isTopThree ? 'text-yellow-300' : 'text-white'
+                                    }`}>
+                                      {sponsor.username}
+                                    </span>
+                                    {sponsor.rank && (
+                                      <div className="mt-1">
+                                        <span className="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-400/30">
+                                          {sponsor.rank}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <span className={`font-bold text-lg ${
+                                  isTopThree ? 'text-yellow-300' : 'text-green-400'
+                                }`}>
+                                  {sponsor.active_referrals}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <span className={`px-3 py-1 text-xs rounded-full border font-semibold ${
+                                  sponsor.active_referrals > 0
+                                    ? 'bg-green-500/20 text-green-400 border-green-400/30'
+                                    : 'bg-yellow-500/20 text-yellow-400 border-yellow-400/30'
+                                }`}>
+                                  {sponsor.active_referrals > 0 ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+            </>
+          )}
         </>
       )}
 
+        </div>
+      </div>
+
       {/* Modal for All Team Members */}
       {showAllReferrals && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="relative rounded-2xl bg-white border border-slate-200 shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="relative rounded-2xl bg-gray-900 border border-gray-700 shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-700 flex justify-between items-center">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">Your Team Members</h3>
-                <p className="text-sm text-slate-600">All {userReferrals.length} team members</p>
+                <h3 className="text-xl font-bold text-white">Your Team Members</h3>
+                <p className="text-sm text-gray-400">All {userReferrals.length} team members</p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowAllReferrals(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-gray-400 hover:text-gray-300 transition-colors"
               >
                 ✕
               </button>
@@ -1224,28 +1371,28 @@ const ReferralSystem = () => {
                 {userReferrals.map((referral) => (
                   <div
                     key={referral.id}
-                    className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors"
+                    className="flex justify-between items-center p-4 bg-gray-800/50 rounded-xl border border-gray-700/50 hover:bg-gray-800 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 relative">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-green-400 relative border border-green-400/30">
                         {referral.referred?.username?.charAt(0).toUpperCase() || '?'}
                         {referral.referred?.is_premium && (
-                          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full flex items-center justify-center shadow-lg">
+                          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full flex items-center justify-center shadow-lg border border-yellow-300/50">
                             <MdDiamond className="w-3 h-3 text-white" />
                           </div>
                         )}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-slate-900 font-medium">
+                        <span className="text-white font-medium">
                           {referral.referred?.username || 'Unknown User'}
                         </span>
-                        <span className="text-xs text-slate-600">
+                        <span className="text-xs text-gray-400">
                           {referral.referred?.username ? (
-                            <a 
+                            <a
                               href={`https://t.me/${referral.referred.username}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-700"
+                              className="text-green-400 hover:text-green-300"
                             >
                               View Profile
                             </a>
@@ -1254,19 +1401,19 @@ const ReferralSystem = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className={`px-3 py-1.5 rounded-full ${
-                        referral.status === 'active' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-slate-100 text-slate-600'
+                      <div className={`px-3 py-1.5 rounded-full border ${
+                        referral.status === 'active'
+                          ? 'bg-green-500/20 text-green-400 border-green-400/30'
+                          : 'bg-gray-700/50 text-gray-400 border-gray-600/50'
                       }`}>
                         <span className="text-xs font-bold">
                           {referral.status === 'active' ? 'Active' : 'Inactive'}
                         </span>
                       </div>
                       {referral.referred?.is_premium && (
-                        <div className="bg-gradient-to-r from-yellow-100 to-orange-100 px-3 py-1.5 rounded-full shadow-sm">
-                          <span className="text-yellow-700 text-xs font-bold flex items-center gap-1">
-                            <MdDiamond className="w-3 h-3 text-yellow-600" />
+                        <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-3 py-1.5 rounded-full border border-yellow-400/30">
+                          <span className="text-yellow-400 text-xs font-bold flex items-center gap-1">
+                            <MdDiamond className="w-3 h-3 text-yellow-400" />
                             Premium
                           </span>
                         </div>

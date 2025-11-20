@@ -16,10 +16,7 @@ import {
   recordMiningActivity,
   updateFreeMiningSessionCount,
   // getUserActivities,
-  MiningSession,
-  generatePassiveIncome,
-  getPassiveIncomeBoostCost,
-  purchaseUpgrade
+  MiningSession
 } from '../lib/supabaseClient';
 import { Copy } from 'lucide-react';
 
@@ -68,22 +65,6 @@ export type ArcadeMiningUIHandle = {
   refreshBalance: () => Promise<void> | void;
 };
 
-const computeSessionProgressPercent = (session: MiningSession | null, reference: Date = new Date()): number => {
-  if (!session) return 0;
-  const startTime = new Date(session.start_time).getTime();
-  const endTime = new Date(session.end_time).getTime();
-  const totalDuration = Math.max(endTime - startTime, 1);
-  const elapsed = Math.min(Math.max(reference.getTime() - startTime, 0), totalDuration);
-  return (elapsed / totalDuration) * 100;
-};
-
-const formatClockLabel = (date: Date | null): string => {
-  if (!date || Number.isNaN(date.getTime())) {
-    return '--:--';
-  }
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
-
 const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(function ArcadeMiningUI(props, ref) {
   const { t } = useI18n();
   const {
@@ -127,8 +108,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   const [currentSession, setCurrentSession] = useState<MiningSession | null>(null);
   const [sessionCountdown, setSessionCountdown] = useState('');
   const [sessionDurationHours, setSessionDurationHours] = useState<number | null>(null);
-  const [sessionProgress, setSessionProgress] = useState(0);
-  const [lastLiveUpdate, setLastLiveUpdate] = useState('');
   const [accumulatedRZC, setAccumulatedRZC] = useState(0);
   const [claimableRZC, setClaimableRZC] = useState(0);
   const [, setTotalEarnedRZC] = useState(0);
@@ -143,11 +122,9 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   const [userUpgrades, setUserUpgrades] = useState<{
     miningRigMk2: boolean;
     extendedSession: boolean;
-    passiveIncomeBoostLevel: number;
   }>({
     miningRigMk2: false,
-    extendedSession: false,
-    passiveIncomeBoostLevel: 0
+    extendedSession: false
   });
   const [miningRateMultiplier, setMiningRateMultiplier] = useState(1.0);
   
@@ -188,10 +165,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   
   // Telegram popup state
   const [showTelegramPopup, setShowTelegramPopup] = useState(false);
-
-  // Session details toggle
-  const [showSessionDetails, setShowSessionDetails] = useState(false);
-
+  
   // AirdropCards state
    
 
@@ -216,38 +190,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   const [soundEnabled,] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
   const thresholdClaimingRef = useRef(false);
-
-  // Smooth balance animation state
-  const [displayBalance, setDisplayBalance] = useState(0);
-
-  // Calculate actual balance for animation
-  const actualBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
-
-  // Smooth balance animation
-  useEffect(() => {
-    let animationId: number;
-    const animate = () => {
-      setDisplayBalance(prev => {
-        const diff = actualBalance - prev;
-        if (Math.abs(diff) < 0.00001) return actualBalance;
-        return prev + diff * 0.05; // Smooth lerp
-      });
-      animationId = requestAnimationFrame(animate);
-    };
-    animate();
-    return () => {
-      if (animationId) cancelAnimationFrame(animationId);
-    };
-  }, [actualBalance]);
-
-  useEffect(() => {
-    if (!isMining || !currentSession) {
-      setSessionProgress(0);
-    }
-    if (!isMining) {
-      setLastLiveUpdate('');
-    }
-  }, [isMining, currentSession]);
   
   // Prevent duplicate auto-claim processing
   // const isResumingRef = useRef(false);
@@ -301,11 +243,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     
     loadMiningStats();
   }, [userId]);
-
-  useEffect(() => {
-    if (!isMining) return;
-    setLastLiveUpdate(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-  }, [accumulatedRZC, isMining]);
 
   // Allow claiming anytime there's balance (including during mining)
   const canClaim = (claimableRZC > 0 || accumulatedRZC > 0) && !isLoadingBalance && !isClaiming && claimCooldownRemaining === 0;
@@ -410,25 +347,13 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       // Check if user has purchased upgrades
       const { data: activities } = await supabase
         .from('activities')
-        .select('type, metadata')
+        .select('type')
         .eq('user_id', userId)
-        .in('type', ['mining_rig_mk2', 'extended_session', 'passive_income_boost']);
-      
-      // Get passive income boost level - use the highest level from metadata
-      const passiveBoostActivities = activities?.filter(a => a.type === 'passive_income_boost') || [];
-      let passiveIncomeBoostLevel = 0;
-      if (passiveBoostActivities.length > 0) {
-        // Get the highest level from all passive boost activities
-        const levels = passiveBoostActivities
-          .map(a => a.metadata?.level || 0)
-          .filter(level => typeof level === 'number' && level > 0);
-        passiveIncomeBoostLevel = levels.length > 0 ? Math.max(...levels) : 0;
-      }
+        .in('type', ['mining_rig_mk2', 'extended_session']);
       
       const upgrades = {
         miningRigMk2: activities?.some(a => a.type === 'mining_rig_mk2') || false,
-        extendedSession: activities?.some(a => a.type === 'extended_session') || false,
-        passiveIncomeBoostLevel: passiveIncomeBoostLevel
+        extendedSession: activities?.some(a => a.type === 'extended_session') || false
       };
       
       setUserUpgrades(upgrades);
@@ -565,23 +490,15 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             // Compute and store session duration in hours for diagnostics
             const durationMs = new Date(activeSession.end_time).getTime() - new Date(activeSession.start_time).getTime();
             setSessionDurationHours(Math.max(0, durationMs / (1000 * 60 * 60)));
-
-            // Calculate and set session countdown immediately for fast loading
-            const remainingSeconds = Math.max(0, (endTime.getTime() - now.getTime()) / 1000);
-            const hours = Math.floor(remainingSeconds / 3600);
-            const minutes = Math.floor((remainingSeconds % 3600) / 60);
-            const seconds = Math.floor(remainingSeconds % 60);
-            setSessionCountdown(`${hours}h ${minutes}m ${seconds}s`);
-            setSessionProgress(computeSessionProgressPercent(activeSession, now));
-
+            
             // Determine the correct start time for accumulation. If the user has claimed *during* this session,
             // we need to calculate accumulated rewards from the last claim time to avoid "re-earning" what was
             // just claimed. Otherwise, we start from the beginning of the session.
             const sessionStartTime = new Date(activeSession.start_time);
             const lastClaimTime = rzcBalance.lastClaimTime ? new Date(rzcBalance.lastClaimTime) : new Date(0); // Use epoch if no claim time
-
+          
             const accumulationStartTime = lastClaimTime > sessionStartTime ? lastClaimTime : sessionStartTime;
-
+            
             // Set the `lastClaimDuringMining` state, which is used by the interval calculator.
             // This ensures that even on the first load, the interval knows where to start from.
             if (lastClaimTime > sessionStartTime) {
@@ -592,14 +509,12 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
             // Also, calculate the initial accumulated RZC immediately on load.
             // This prevents a flicker where the balance shows 0 before the interval kicks in.
+            const now = new Date();
             const elapsedSeconds = Math.max(0, (now.getTime() - accumulationStartTime.getTime()) / 1000);
             const RZC_PER_DAY = 50; // Make sure this is defined or imported
             const RZC_PER_SECOND = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
             const initialAccumulated = elapsedSeconds * RZC_PER_SECOND;
             setAccumulatedRZC(initialAccumulated);
-
-            // Initialize display balance to prevent flicker
-            setDisplayBalance(rzcBalance.claimableRZC + initialAccumulated);
           }
         }
       } catch (error) {
@@ -676,7 +591,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         const counts = sponsorStatsData.reduce((acc: { [key: string]: any }, curr: any) => {
           // Use sponsor_id as primary identifier
           const id = curr.sponsor_id;
-
+          
           // Skip if no sponsor_id
           if (!id) {
             return acc;
@@ -699,7 +614,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
           // Count referrals
           acc[id].referral_count++;
-
+          
           // Count active referrals (case-insensitive check to handle both 'active' and 'ACTIVE')
           const status = (curr.status || '').toLowerCase();
           if (status === 'active') {
@@ -743,15 +658,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       }
     };
 
-    // Initial load
     loadLeaderboards();
-
-    // Auto-refresh leaderboard every 3 minutes (180000 ms)
-    const leaderboardInterval = setInterval(() => {
-      loadLeaderboards();
-    }, 180000);
-
-    return () => clearInterval(leaderboardInterval);
   }, [userId]);
 
   // Load top balances data
@@ -761,13 +668,14 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     const loadTopBalances = async () => {
       setIsLoadingBalances(true);
       try {
-        // Get all users who have RZC claim activities (positive claims minus spending)
-        const { data: allActivities, error: activitiesError } = await supabase
+        // Get claimed RZC activities to determine top users by claimed amount
+        const { data: activities, error: activitiesError } = await supabase
           .from('activities')
-          .select('user_id, amount, type')
+          .select('user_id, amount')
           .eq('type', 'rzc_claim')
           .eq('status', 'completed')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(2000); // Get enough activities to cover top users
 
         if (activitiesError) {
           console.error('Error loading activities:', activitiesError);
@@ -775,19 +683,17 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           return;
         }
 
-        // Calculate net claimed RZC for each user (positive claims minus spending)
-        const userBalances: { [key: string]: number } = {};
-        (allActivities || []).forEach(activity => {
+        // Calculate claimed sums per user
+        const claimedSums: { [key: string]: number } = {};
+        (activities || []).forEach(activity => {
           const userId = activity.user_id;
-          if (!userBalances[userId]) {
-            userBalances[userId] = 0;
-          }
-          userBalances[userId] += Number(activity.amount) || 0;
+          const amount = activity.amount || 0;
+          claimedSums[String(userId)] = (claimedSums[String(userId)] || 0) + amount;
         });
 
-        // Get top 100 users by net claimed RZC balance
-        const topUsers = Object.entries(userBalances)
-          .filter(([_, balance]) => balance > 0)
+        // Get top 100 users by claimed RZC
+        const topUsers = Object.entries(claimedSums)
+          .filter(([_, sum]) => sum > 0)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 100);
 
@@ -832,9 +738,9 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         if (userIndex !== -1) {
           setUserRank(userIndex + 1);
         } else {
-          // User not in top 50, get their current claimed balance and count users with higher balance
-          const userClaimed = userBalances[String(userId)] || 0;
-          const higherCount = sortedBalances.filter(b => b.claimedRZC > userClaimed).length;
+          // User not in top 50, count users with higher claimed RZC
+          const userClaimed = claimedSums[String(userId)] || 0;
+          const higherCount = topUsers.filter(([_, sum]) => sum > userClaimed).length;
           setUserRank(higherCount + 1);
         }
       } catch (error) {
@@ -845,16 +751,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       }
     };
 
-    // Initial load
     loadTopBalances();
-
-    // Auto-refresh top balances every 3 minutes (180000 ms)
-    const balancesInterval = setInterval(() => {
-      loadTopBalances();
-    }, 180000);
-
-    return () => clearInterval(balancesInterval);
-  }, [userId, showAllPlayers]); // Removed claimedRZC dependency - leaderboard should only load when userId changes, not on every balance update
+  }, [userId, claimedRZC]);
 
   // Check and show Telegram popup daily
   useEffect(() => {
@@ -887,80 +785,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     return () => clearTimeout(timer);
   }, [userId]);
 
-  // Passive income generation - gives 10 RZC per minute per level
-  useEffect(() => {
-    if (!userId || userUpgrades.passiveIncomeBoostLevel === 0) return;
-
-    // Track last passive income generation time to prevent duplicate generation
-    const lastPassiveIncomeKey = `last_passive_income_${userId}`;
-    const lastPassiveIncome = localStorage.getItem(lastPassiveIncomeKey);
-    const now = Date.now();
-    
-    // Only generate if at least 60 seconds have passed since last generation
-    if (lastPassiveIncome) {
-      const timeSinceLastGeneration = (now - parseInt(lastPassiveIncome)) / 1000;
-      if (timeSinceLastGeneration < 60) {
-        // Set up interval to wait for the remaining time
-        const remainingSeconds = 60 - timeSinceLastGeneration;
-        const timer = setTimeout(async () => {
-          const result = await generatePassiveIncome(userId);
-          if (result.success) {
-            localStorage.setItem(lastPassiveIncomeKey, Date.now().toString());
-            // Refresh balance after generating passive income
-            const updatedBalance = await getUserRZCBalance(userId);
-            setClaimableRZC(updatedBalance.claimableRZC);
-            setTotalEarnedRZC(updatedBalance.totalEarned);
-          }
-        }, remainingSeconds * 1000);
-        
-        // Set up recurring interval after initial wait
-        const interval = setInterval(async () => {
-          const result = await generatePassiveIncome(userId);
-          if (result.success) {
-            localStorage.setItem(lastPassiveIncomeKey, Date.now().toString());
-            // Refresh balance after generating passive income
-            const updatedBalance = await getUserRZCBalance(userId);
-            setClaimableRZC(updatedBalance.claimableRZC);
-            setTotalEarnedRZC(updatedBalance.totalEarned);
-          }
-        }, 60000); // Every 60 seconds (1 minute)
-
-        return () => {
-          clearTimeout(timer);
-          clearInterval(interval);
-        };
-      }
-    }
-
-    // Generate immediately if enough time has passed or never generated before
-    const generateIncome = async () => {
-      const result = await generatePassiveIncome(userId);
-      if (result.success) {
-        localStorage.setItem(lastPassiveIncomeKey, Date.now().toString());
-        // Refresh balance after generating passive income
-        const updatedBalance = await getUserRZCBalance(userId);
-        setClaimableRZC(updatedBalance.claimableRZC);
-        setTotalEarnedRZC(updatedBalance.totalEarned);
-      }
-    };
-
-    generateIncome();
-
-    // Set up recurring interval every minute
-    const interval = setInterval(async () => {
-      const result = await generatePassiveIncome(userId);
-      if (result.success) {
-        localStorage.setItem(lastPassiveIncomeKey, Date.now().toString());
-        // Refresh balance after generating passive income
-        const updatedBalance = await getUserRZCBalance(userId);
-        setClaimableRZC(updatedBalance.claimableRZC);
-        setTotalEarnedRZC(updatedBalance.totalEarned);
-      }
-    }, 60000); // Every 60 seconds (1 minute)
-
-    return () => clearInterval(interval);
-  }, [userId, userUpgrades.passiveIncomeBoostLevel]);
-
   // Calculate accumulated RZC based on mining time
   useEffect(() => {
     let miningInterval: NodeJS.Timeout;
@@ -974,7 +798,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
         if (remainingSeconds <= 0) {
           // Session completed - rollover to a new one to keep mining
-          setSessionProgress(100);
           await rolloverSession();
           clearInterval(miningInterval);
         } else {
@@ -984,10 +807,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           const seconds = Math.floor(remainingSeconds % 60);
           setSessionCountdown(`${hours}h ${minutes}m ${seconds}s`);
 
-          const totalDurationSeconds = Math.max((endTime.getTime() - startTime.getTime()) / 1000, 1);
-          const elapsedSeconds = Math.min(Math.max((now.getTime() - startTime.getTime()) / 1000, 0), totalDurationSeconds);
-          setSessionProgress((elapsedSeconds / totalDurationSeconds) * 100);
-
           // Calculate accumulated RZC
           const baseTime = lastClaimDuringMining || startTime;
           const timeSinceBase = (now.getTime() - baseTime.getTime()) / 1000;
@@ -995,11 +814,11 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           const previousAccumulated = accumulatedRZC;
           setAccumulatedRZC(earnedRZC);
 
-          // Show earning animation for every 0.001 RZC earned
-          if (earnedRZC - previousAccumulated > 0.001) {
+          // Show earning animation less frequently (every 0.01 RZC instead of 0.001)
+          if (earnedRZC - previousAccumulated > 0.01) {
             setRecentEarnings(earnedRZC - previousAccumulated);
             setShowEarningAnimation(true);
-            setTimeout(() => setShowEarningAnimation(false), 1000); // Shorter duration
+            setTimeout(() => setShowEarningAnimation(false), 1500); // Shorter duration
           }
 
           // Check for milestones (every 1 RZC earned) - same frequency
@@ -1022,7 +841,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             });
           }
         }
-      }, 1000); // Update every second for smoother live counting
+      }, 2000); // Reduced from 1000ms to 2000ms for better performance
     }
 
     return () => {
@@ -1057,7 +876,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         if (active) {
           setCurrentSession(active);
           setIsMining(true);
-          setSessionProgress(computeSessionProgressPercent(active));
         }
       }
     } catch (err) {
@@ -1542,7 +1360,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         
         if (activeSession) {
           setCurrentSession(activeSession);
-          setSessionProgress(0);
           const durationMs = new Date(activeSession.end_time).getTime() - new Date(activeSession.start_time).getTime();
           setSessionDurationHours(Math.max(0, durationMs / (1000 * 60 * 60)));
         }
@@ -1590,8 +1407,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         setCurrentSession(null);
         setAccumulatedRZC(0);
         setLastClaimDuringMining(null);
-        setSessionProgress(0);
-        setLastLiveUpdate('');
 
         // Refresh RZC balance and free mining status
         const [updatedBalance, updatedFreeMining] = await Promise.all([
@@ -1624,8 +1439,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     }
   };
 
-  // Claim rewards function with bulk claim support
-  const claimRewards = async (bulkClaim: boolean = false) => {
+  // Claim rewards function
+  const claimRewards = async () => {
     if (!userId) {
       showSnackbar?.({
         message: 'Error',
@@ -1636,7 +1451,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
     // Check if there's any balance to claim
     const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
-
+    
     if (availableBalance <= 0) {
       showSnackbar?.({
         message: 'No Balance to Claim',
@@ -1645,8 +1460,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       return;
     }
 
-    // Check cooldown (5 minutes) - skip for bulk claims
-    if (!bulkClaim && claimCooldownRemaining > 0) {
+    // Check cooldown (5 minutes)
+    if (claimCooldownRemaining > 0) {
       showSnackbar?.({
         message: 'Cooldown Active',
         description: `Please wait ${formatCooldownTime(claimCooldownRemaining)} before claiming again.`
@@ -1659,25 +1474,20 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
         try {
       setIsLoadingBalance(true);
-
+      
       // Determine how much to claim
+      // Priority: claim accumulated RZC during active session first, then claimable balance
       let amountToClaim = 0;
-      let claimSource = '';
-
-      if (bulkClaim) {
-        // Bulk claim: claim everything available
-        amountToClaim = availableBalance;
-        claimSource = 'all_sources';
-      } else if (isMining && accumulatedRZC > 0) {
-        // Priority: claim accumulated RZC during active session first
+      
+      if (isMining && accumulatedRZC > 0) {
+        // If actively mining, claim the accumulated amount from the current session
+        // This immediately adds it to claimable balance and then claims it
         amountToClaim = accumulatedRZC;
-        claimSource = 'mining_session';
       } else if (claimableRZC > 0) {
         // Otherwise, claim from already accumulated balance
         amountToClaim = claimableRZC;
-        claimSource = 'completed_sessions';
       }
-
+      
       if (amountToClaim <= 0) {
         showSnackbar?.({
           message: 'No Balance to Claim',
@@ -1686,24 +1496,23 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         setIsLoadingBalance(false);
         return;
       }
-
-      // Handle mining session completion for bulk claims or mining session claims
-      if ((bulkClaim || claimSource === 'mining_session') && isMining && accumulatedRZC > 0) {
+      
+      // First, if mining, add accumulated RZC to claimable balance
+      if (isMining && accumulatedRZC > 0) {
         try {
-          // Record mining completion activity to add accumulated RZC to claimable balance
-          const miningAmount = bulkClaim ? accumulatedRZC : amountToClaim;
+          // Record mining completion activity to add to claimable balance
           const { error: activityError } = await supabase.from('activities').insert({
             user_id: userId,
             type: 'mining_complete',
-            amount: miningAmount,
+            amount: amountToClaim,
             status: 'completed',
             created_at: new Date().toISOString()
           });
-
+          
           if (activityError) throw activityError;
-
+          
           // Update the claimable balance state
-          setClaimableRZC(prev => prev + miningAmount);
+          setClaimableRZC(prev => prev + amountToClaim);
         } catch (error) {
           console.error('Error adding accumulated RZC to balance:', error);
           // Show error but continue
@@ -1713,55 +1522,43 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           });
         }
       }
-
-      // Now claim the total amount
+      
+      // Now claim the amount
       const result = await claimRZCRewards(userId, amountToClaim);
-
+      
       if (result.success) {
-        // Set cooldown timer (only for non-bulk claims)
-        if (!bulkClaim) {
-          const now = new Date();
-          setLastClaimTime(now);
-          setClaimCooldownRemaining(30 * 60); // 30 minutes
-          localStorage.setItem(`last_claim_time_${userId}`, now.toISOString());
-        }
+        // Activity is already recorded in claimRZCRewards function
+        
+        // Set cooldown timer
+        const now = new Date();
+        setLastClaimTime(now);
+        setClaimCooldownRemaining(30 * 60); // 30 minutes
+        
+        // Store last claim time in localStorage for persistence
+        localStorage.setItem(`last_claim_time_${userId}`, now.toISOString());
+        
+        // Refresh RZC balance
+        const updatedBalance = await getUserRZCBalance(userId);
+        setClaimableRZC(updatedBalance.claimableRZC);
+        setTotalEarnedRZC(updatedBalance.totalEarned);
+        setClaimedRZC(updatedBalance.claimedRZC);
 
-        // Handle mining session reset for bulk claims or mining session claims
-        if ((bulkClaim || claimSource === 'mining_session') && isMining) {
+        // If we were mining and claimed accumulated RZC, DON'T reset to 0
+        // Instead, set the last claim time so accumulation continues from this point
+        if (isMining) {
+          // Keep the accumulated RZC as is - don't reset to 0
+          // Set the last claim time so accumulation restarts from this point
           setLastClaimDuringMining(new Date());
-          // Reset accumulated RZC immediately for UI update
-          setAccumulatedRZC(0);
         }
-
-        // Immediately update UI balances for instant feedback
-        // Subtract from claimable and add to claimed
-        setClaimableRZC(prev => Math.max(0, prev - amountToClaim));
-        setClaimedRZC(prev => prev + amountToClaim);
 
         // Play claim sound and trigger celebration
         playSound('claim');
         triggerCelebration();
-
-        const sourceMessage = bulkClaim ? 'all available sources' :
-                            claimSource === 'mining_session' ? 'current mining session' :
-                            'completed sessions';
-
+        
         showSnackbar?.({
           message: 'RZC Claimed Successfully!',
-          description: `Claimed ${amountToClaim.toFixed(6)} RZC from ${sourceMessage}${bulkClaim ? '' : '! Next claim available in 30 minutes.'}`
+          description: `You claimed ${amountToClaim.toFixed(6)} RZC! Next claim available in 30 minutes.`
         });
-
-        // Force server balance refresh after successful claim to ensure accuracy
-        setTimeout(async () => {
-          try {
-            const updatedBalance = await getUserRZCBalance(userId);
-            setClaimableRZC(updatedBalance.claimableRZC);
-            setTotalEarnedRZC(updatedBalance.totalEarned);
-            setClaimedRZC(updatedBalance.claimedRZC);
-          } catch (error) {
-            console.error('Error refreshing balance after claim:', error);
-          }
-        }, 1000); // Longer delay to ensure backend processing is complete
       } else {
         showSnackbar?.({
           message: 'Claim Failed',
@@ -1982,18 +1779,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   useImperativeHandle(ref, () => ({
     refreshBalance: fetchBalance
   }));
-
-  const sessionStartDate = currentSession ? new Date(currentSession.start_time) : null;
-  const sessionEndDate = currentSession ? new Date(currentSession.end_time) : null;
-  const sessionTotalSeconds = sessionStartDate && sessionEndDate ? Math.max(1, (sessionEndDate.getTime() - sessionStartDate.getTime()) / 1000) : 0;
-  const projectedSessionYield = sessionTotalSeconds ? RZC_PER_SECOND * sessionTotalSeconds : 0;
-  const liveRatePerHour = RZC_PER_SECOND * 3600;
-  const normalizedSessionProgress = Number.isFinite(sessionProgress) ? Math.min(Math.max(sessionProgress, 0), 100) : 0;
-  const sessionProgressLabel = normalizedSessionProgress.toFixed(1);
-  const formattedSessionStart = formatClockLabel(sessionStartDate);
-  const formattedSessionEnd = formatClockLabel(sessionEndDate);
-  const autoClaimCycleProgress = accumulatedRZC % 10;
-  const nextAutoClaimThreshold = autoClaimCycleProgress === 0 ? 10 : Math.max(0.01, 10 - autoClaimCycleProgress);
 
   // Auto-balance refetch every 50 seconds
   useEffect(() => {
@@ -2252,7 +2037,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             <span className="sm:inline">Boost</span>
           </button>
 
-          {/* <button
+          <button
             onClick={() => setActiveTab('leaderboard')}
             className={`relative px-3 py-2 text-xs sm:text-sm font-medium rounded-xl flex items-center gap-2 ${
               activeTab === 'leaderboard'
@@ -2264,7 +2049,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
             <span className="sm:inline">Rank</span>
-          </button> */}
+          </button>
 
           {/* <button
             onClick={() => setActiveTab('balances')}
@@ -2347,7 +2132,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       {/* Mining Balance Card - Merged with Referral Section */}
         <div className="relative overflow-hidden rounded-2xl font-mono flex-1
                         p-6
-                        mx-3 sm:mx-4 mt-[-23px] sm:mt-4 mb-3 sm:mb-4
+                        mx-3 sm:mx-4 mt-3 sm:mt-4 mb-3 sm:mb-4
                         text-center">
           {/* Optimized Earning Animation - Simpler and shorter */}
           {showEarningAnimation && (
@@ -2404,7 +2189,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                   <div className={`text-2xl sm:text-xl md:text-2xl lg:text-3xl font-bold tabular-nums ${
                     isMining ? 'text-green-300 drop-shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'text-gray-300'
                   }`}>
-                    {displayBalance.toFixed(4)}
+                    {(claimableRZC + (isMining ? accumulatedRZC : 0)).toFixed(4)}
                   </div>
 
                   {/* Mining Indicator Dot */}
@@ -2490,91 +2275,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {currentSession && (
-              <div className="relative z-10 mt-2 sm:mt-3 w-full max-w-md">
-                {/* Toggle Button */}
-                <button
-                  onClick={() => setShowSessionDetails(!showSessionDetails)}
-                  className="w-full mb-2 p-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg border border-green-500/20 hover:border-green-500/30 transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  <span className="text-xs font-medium text-green-300">
-                    Session Details
-                  </span>
-                  <svg
-                    className={`w-4 h-4 text-green-400 transition-transform duration-200 ${showSessionDetails ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {/* Collapsible Session Details */}
-                {showSessionDetails && (
-                  <div className="relative p-3 bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-cyan-500/10 rounded-lg border border-green-500/20 backdrop-blur-sm shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isMining ? 'bg-green-400 opacity-75' : 'bg-gray-500 opacity-40'}`}></span>
-                          <span className={`relative inline-flex rounded-full h-2 w-2 ${isMining ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-                        </span>
-                        <span className="text-[10px] font-semibold text-white">
-                          {isMining ? 'Live mining' : 'Session ready'}
-                        </span>
-                      </div>
-                      <span className="text-[9px] text-gray-300 font-mono">
-                        {isMining && lastLiveUpdate ? lastLiveUpdate : 'waiting'}
-                      </span>
-                    </div>
-
-                    <div className="mb-2">
-                      <div className="flex items-center justify-between text-[9px] text-gray-400 mb-1">
-                        <span>Progress</span>
-                        <span className="text-green-300 font-semibold">{sessionProgressLabel}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-black/30 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-green-500 via-emerald-400 to-cyan-400 shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-300"
-                          style={{ width: `${normalizedSessionProgress}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-[8px] text-gray-500 mt-0.5 font-mono">
-                        <span>{formattedSessionStart}</span>
-                        <span>{sessionCountdown || '--:--'}</span>
-                        <span>{formattedSessionEnd}</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-left">
-                      <div className="p-2 bg-black/20 rounded border border-white/5">
-                        <p className="text-[8px] text-gray-400 uppercase tracking-wide">Rate</p>
-                        <p className="text-xs font-semibold text-white">+{liveRatePerHour.toFixed(3)}/h</p>
-                        <p className="text-[8px] text-gray-500">x{miningRateMultiplier.toFixed(2)}</p>
-                      </div>
-                      <div className="p-2 bg-black/20 rounded border border-white/5">
-                        <p className="text-[8px] text-gray-400 uppercase tracking-wide">Yield</p>
-                        <p className="text-xs font-semibold text-white">{accumulatedRZC.toFixed(3)}/{projectedSessionYield.toFixed(1)}</p>
-                        <p className="text-[8px] text-gray-500">Claim@{nextAutoClaimThreshold.toFixed(2)}</p>
-                      </div>
-                      <div className="p-2 bg-black/20 rounded border border-white/5">
-                        <p className="text-[8px] text-gray-400 uppercase tracking-wide">ID</p>
-                        <p className="text-xs font-semibold text-white">#{currentSession.id}</p>
-                        <p className="text-[8px] text-gray-500">{sessionDurationHours ? `${sessionDurationHours.toFixed(1)}h` : '...'}</p>
-                      </div>
-                      <div className="p-2 bg-black/20 rounded border border-white/5">
-                        <p className="text-[8px] text-gray-400 uppercase tracking-wide">Claim</p>
-                        <p className="text-xs font-semibold text-white">
-                          {claimCooldownRemaining > 0 ? formatCooldownTime(claimCooldownRemaining) : 'Ready'}
-                        </p>
-                        <p className="text-[8px] text-gray-500">Sync 50s</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -2862,7 +2562,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
       {/* Leaderboard Tab */}
       {activeTab === 'leaderboard' && (
-        <div className="space-y-2 sm:space-y-3 px-1 sm:px-0">
+        <div className="space-y-3 sm:space-y-4 px-2 sm:px-0">
           {/* Leaderboard Header */}
           <div className="text-center mb-4 sm:mb-6">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -2907,7 +2607,12 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             </div>
           ) : (
             <div className="space-y-4 sm:space-y-6">
-              
+              {/* Top Referrers */}
+              {/*  */}
+
+              {/* Top Claimers */}
+             
+
               {/* Top Balances */}
               {topBalances && topBalances.length > 0 && (
                 <div className="space-y-2 sm:space-y-3">
@@ -2929,7 +2634,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                           key={balance.id || index}
                           className={`relative overflow-hidden rounded-xl font-mono
                                     backdrop-blur-sm
-                                    p-3 sm:p-4
+                                    p-4 sm:p-5
+                                    hover:scale-[1.02]
                                     ${isUser
                                       ? 'bg-gradient-to-r from-green-500/15 to-emerald-500/15 border-2 border-green-400/50 shadow-[0_0_25px_rgba(34,197,94,0.3)]'
                                       : isTopThree
@@ -2965,8 +2671,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                           }`}></div>
 
                           {/* Enhanced Rank Badge */}
-                          <div className="absolute top-2 left-2 z-10">
-                            <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold shadow-lg ${
+                          <div className="absolute top-3 left-3 z-10">
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm sm:text-base font-bold shadow-lg ${
                               index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black shadow-yellow-400/50' :
                               index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-black shadow-gray-400/50' :
                               index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-orange-400/50' :
@@ -2974,7 +2680,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                               'bg-gradient-to-br from-gray-600 to-gray-800 text-white shadow-gray-600/50'
                             }`}>
                               {index < 3 ? (
-                                <span className="text-sm sm:text-base">
+                                <span className="text-lg">
                                   {index === 0 ? '👑' : index === 1 ? '🥈' : '🥉'}
                                 </span>
                               ) : (
@@ -2983,34 +2689,34 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between ml-10 sm:ml-12 gap-2">
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0 shadow-lg border-2 border-white/20">
+                          <div className="flex items-center justify-between ml-12 sm:ml-14 gap-3">
+                            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm sm:text-base flex-shrink-0 shadow-lg border-2 border-white/20">
                                 {balance.username?.charAt(0).toUpperCase() || '?'}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className={`font-semibold text-sm sm:text-base truncate ${
+                                <div className={`font-semibold text-base sm:text-lg truncate ${
                                   isUser ? 'text-green-300' :
                                   isTopThree ? 'text-yellow-300' :
                                   'text-white'
                                 }`}>
                                   {balance.username || 'Unknown'}
-                                  {isUser && <span className="ml-1 text-green-400 text-xs">(You)</span>}
+                                  {isUser && <span className="ml-2 text-green-400 text-sm">(You)</span>}
                                 </div>
-                                <div className="text-gray-400 text-xs">
+                                <div className="text-gray-400 text-xs sm:text-sm">
                                   {isTopThree ? 'Elite Miner' : 'Active Miner'}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right flex-shrink-0">
-                              <div className={`font-bold text-base sm:text-lg tabular-nums ${
+                              <div className={`font-bold text-lg sm:text-xl tabular-nums ${
                                 isUser ? 'text-green-300' :
                                 isTopThree ? 'text-yellow-300' :
                                 'text-blue-400'
                               }`}>
                                 {Number(balance.claimedRZC || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                               </div>
-                              <div className="text-gray-400 text-xs font-medium">RZC</div>
+                              <div className="text-gray-400 text-xs sm:text-sm font-medium">RZC</div>
                             </div>
                           </div>
 
@@ -3053,26 +2759,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             <h2 className="text-lg sm:text-xl font-bold text-white mb-1 sm:mb-2">💰 Balance Overview</h2>
             <p className="text-gray-400 text-xs sm:text-sm">Your RZC balance breakdown</p>
           </div>
-
-          {/* Available Balance Summary */}
-          {(() => {
-            const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
-            return availableBalance > 0 && (
-              <div className="relative overflow-hidden rounded-lg sm:rounded-xl font-mono
-                            bg-gradient-to-r from-emerald-500/10 to-teal-500/10
-                            border border-emerald-500/20
-                            p-3 sm:p-4 mb-4">
-                <div className="text-center">
-                  <div className="text-emerald-300 font-bold text-lg mb-1">
-                    {availableBalance.toFixed(6)} RZC Available
-                  </div>
-                  <div className="text-emerald-400/80 text-sm">
-                    Ready to claim instantly
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {/* Balance Cards */}
           <div className="space-y-3 sm:space-y-4">
@@ -3153,69 +2839,35 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             </div>
           </div>
 
-          {/* Claim Buttons */}
-          {(() => {
-            const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
-            return (
-              <div className="space-y-3">
-                {/* Claim All Button */}
-                <button
-                  onClick={() => claimRewards(true)}
-                  disabled={availableBalance <= 0 || isClaiming || isLoadingBalance}
-                  className={`w-full rounded-xl font-semibold py-3 px-4 text-sm flex items-center justify-center gap-2 transform translate-z-0 ${
-                    availableBalance <= 0 || isClaiming || isLoadingBalance
-                      ? 'bg-gray-900/50 border border-gray-700/50 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 border border-blue-400/50 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]'
-                  }`}
-                  style={{ willChange: 'transform' }}
-                >
-                  {isClaiming || isLoadingBalance ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Claiming All...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Claim All Available ({availableBalance.toFixed(4)} RZC)</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Regular Claim Button */}
-                <button
-                  onClick={() => claimRewards(false)}
-                  disabled={!canClaim || isClaiming || isLoadingBalance}
-                  className={`w-full rounded-xl font-semibold py-3 px-4 text-sm flex items-center justify-center gap-2 transform translate-z-0 ${
-                    !canClaim || isClaiming || isLoadingBalance
-                      ? 'bg-gray-900/50 border border-gray-700/50 text-gray-500 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 border border-green-400/50 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)]'
-                  }`}
-                  style={{ willChange: 'transform' }}
-                >
-                  {isClaiming || isLoadingBalance ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Claiming...</span>
-                    </>
-                  ) : claimCooldownRemaining > 0 ? (
-                    <>
-                      <span>⏱️ Cooldown: {formatCooldownTime(claimCooldownRemaining)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                      </svg>
-                      <span>Claim Rewards</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            );
-          })()}
+          {/* Claim Button */}
+          <button
+            onClick={claimRewards}
+            disabled={!canClaim || isClaiming || isLoadingBalance}
+            className={`w-full rounded-xl font-semibold py-3 px-4 text-sm flex items-center justify-center gap-2 transform translate-z-0 ${
+              !canClaim || isClaiming || isLoadingBalance
+                ? 'bg-gray-900/50 border border-gray-700/50 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 border border-green-400/50 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)]'
+            }`}
+            style={{ willChange: 'transform' }}
+          >
+            {isClaiming || isLoadingBalance ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Claiming...</span>
+              </>
+            ) : claimCooldownRemaining > 0 ? (
+              <>
+                <span>⏱️ Cooldown: {formatCooldownTime(claimCooldownRemaining)}</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
+                <span>Claim Rewards</span>
+              </>
+            )}
+          </button>
         </div>
       )}
 
@@ -3305,50 +2957,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                       <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
                     </div>
                   ) : (
-                    <button
-                      onClick={async () => {
-                        if (!userId) return;
-                        const cost = 50; // Mining Rig MK2 cost
-                        
-                        if (claimedRZC < cost) {
-                          showSnackbar?.({
-                            message: 'Insufficient Balance',
-                            description: `You need ${cost} RZC to purchase Mining Rig MK2`
-                          });
-                          return;
-                        }
-
-                        setIsLoadingBalance(true);
-                        try {
-                          const result = await purchaseUpgrade(userId, 'mining_rig_mk2', cost);
-                          if (result.success) {
-                            showSnackbar?.({
-                              message: 'Upgrade Successful!',
-                              description: 'Mining Rig MK2 purchased! Your mining rate has increased by 25%'
-                            });
-                            // Reload upgrades and balance
-                            await loadUserUpgrades();
-                            const updatedBalance = await getUserRZCBalance(userId);
-                            setClaimableRZC(updatedBalance.claimableRZC);
-                            setClaimedRZC(updatedBalance.claimedRZC);
-                            setTotalEarnedRZC(updatedBalance.totalEarned);
-                          } else {
-                            showSnackbar?.({
-                              message: 'Purchase Failed',
-                              description: result.error || 'Unknown error occurred'
-                            });
-                          }
-                        } catch (error: any) {
-                          showSnackbar?.({
-                            message: 'Error',
-                            description: error.message || 'Failed to purchase upgrade'
-                          });
-                        } finally {
-                          setIsLoadingBalance(false);
-                        }
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105"
-                    >
+                    <button className="px-4 py-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105">
                       Purchase
                     </button>
                   )}
@@ -3411,175 +3020,9 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                       <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
                     </div>
                   ) : (
-                    <button
-                      onClick={async () => {
-                        if (!userId) return;
-                        const cost = 100; // Extended Session cost
-                        
-                        if (claimedRZC < cost) {
-                          showSnackbar?.({
-                            message: 'Insufficient Balance',
-                            description: `You need ${cost} RZC to purchase Extended Session`
-                          });
-                          return;
-                        }
-
-                        setIsLoadingBalance(true);
-                        try {
-                          const result = await purchaseUpgrade(userId, 'extended_session', cost);
-                          if (result.success) {
-                            showSnackbar?.({
-                              message: 'Upgrade Successful!',
-                              description: 'Extended Session purchased! You can now run 48-hour mining sessions'
-                            });
-                            // Reload upgrades and balance
-                            await loadUserUpgrades();
-                            const updatedBalance = await getUserRZCBalance(userId);
-                            setClaimableRZC(updatedBalance.claimableRZC);
-                            setClaimedRZC(updatedBalance.claimedRZC);
-                            setTotalEarnedRZC(updatedBalance.totalEarned);
-                          } else {
-                            showSnackbar?.({
-                              message: 'Purchase Failed',
-                              description: result.error || 'Unknown error occurred'
-                            });
-                          }
-                        } catch (error: any) {
-                          showSnackbar?.({
-                            message: 'Error',
-                            description: error.message || 'Failed to purchase upgrade'
-                          });
-                        } finally {
-                          setIsLoadingBalance(false);
-                        }
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105"
-                    >
+                    <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105">
                       Purchase
                     </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Passive Income Boost Upgrade */}
-            <div className={`relative overflow-hidden rounded-xl font-mono p-4 ${
-              userUpgrades.passiveIncomeBoostLevel > 0
-                ? 'bg-gradient-to-r from-purple-500/10 to-purple-400/5 border border-purple-500/30'
-                : 'bg-gradient-to-r from-gray-900/50 to-gray-800/50 border border-gray-700/50'
-            }`}>
-              {/* Corner accents */}
-              <div className={`pointer-events-none absolute -top-2 -left-2 w-6 h-6 border-t border-l rounded-tl-lg ${
-                userUpgrades.passiveIncomeBoostLevel > 0 ? 'border-purple-500/40' : 'border-gray-600/40'
-              }`}></div>
-              <div className={`pointer-events-none absolute -top-2 -right-2 w-6 h-6 border-t border-r rounded-tr-lg ${
-                userUpgrades.passiveIncomeBoostLevel > 0 ? 'border-purple-500/40' : 'border-gray-600/40'
-              }`}></div>
-              <div className={`pointer-events-none absolute -bottom-2 -left-2 w-6 h-6 border-b border-l rounded-bl-lg ${
-                userUpgrades.passiveIncomeBoostLevel > 0 ? 'border-purple-500/40' : 'border-gray-600/40'
-              }`}></div>
-              <div className={`pointer-events-none absolute -bottom-2 -right-2 w-6 h-6 border-b border-r rounded-br-lg ${
-                userUpgrades.passiveIncomeBoostLevel > 0 ? 'border-purple-500/40' : 'border-gray-600/40'
-              }`}></div>
-
-              <div className="relative">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-3 rounded-lg ${
-                      userUpgrades.passiveIncomeBoostLevel > 0
-                        ? 'bg-purple-500/20 border border-purple-500/30'
-                        : 'bg-gray-800/50 border border-gray-700/50'
-                    }`}>
-                      <svg className={`w-6 h-6 ${
-                        userUpgrades.passiveIncomeBoostLevel > 0 ? 'text-purple-400' : 'text-gray-400'
-                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className={`font-bold text-sm ${
-                        userUpgrades.passiveIncomeBoostLevel > 0 ? 'text-purple-300' : 'text-white'
-                      }`}>
-                        Passive Income Boost
-                      </div>
-                      <div className="text-gray-400 text-xs">
-                        Earn 10 RZC every minute per level
-                      </div>
-                      {userUpgrades.passiveIncomeBoostLevel > 0 && (
-                        <div className="text-purple-400 text-xs font-medium mt-1">
-                          Current Level: {userUpgrades.passiveIncomeBoostLevel} ({10 * userUpgrades.passiveIncomeBoostLevel} RZC/min)
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Level Selection */}
-                <div className="mt-3 space-y-2">
-                  {userUpgrades.passiveIncomeBoostLevel < 10 && (
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-400 text-xs">
-                        Upgrade to Level {userUpgrades.passiveIncomeBoostLevel + 1}
-                      </div>
-                      <button
-                        onClick={async () => {
-                          if (!userId) return;
-                          const nextLevel = userUpgrades.passiveIncomeBoostLevel + 1;
-                          const cost = getPassiveIncomeBoostCost(nextLevel);
-                          
-                          if (claimedRZC < cost) {
-                            showSnackbar?.({
-                              message: 'Insufficient Balance',
-                              description: `You need ${cost.toFixed(2)} RZC to upgrade to level ${nextLevel}`
-                            });
-                            return;
-                          }
-
-                          setIsLoadingBalance(true);
-                          try {
-                            const result = await purchaseUpgrade(userId, 'passive_income_boost', cost, nextLevel);
-                            if (result.success) {
-                              showSnackbar?.({
-                                message: 'Upgrade Successful!',
-                                description: `Passive Income Boost upgraded to level ${nextLevel}`
-                              });
-                              // Reload upgrades and balance
-                              await loadUserUpgrades();
-                              const updatedBalance = await getUserRZCBalance(userId);
-                              setClaimableRZC(updatedBalance.claimableRZC);
-                              setClaimedRZC(updatedBalance.claimedRZC);
-                              setTotalEarnedRZC(updatedBalance.totalEarned);
-                            } else {
-                              showSnackbar?.({
-                                message: 'Upgrade Failed',
-                                description: result.error || 'Unknown error occurred'
-                              });
-                            }
-                          } catch (error: any) {
-                            showSnackbar?.({
-                              message: 'Error',
-                              description: error.message || 'Failed to upgrade'
-                            });
-                          } finally {
-                            setIsLoadingBalance(false);
-                          }
-                        }}
-                        className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-sm font-medium rounded-lg transition-all duration-200 transform hover:scale-105"
-                      >
-                        Upgrade ({getPassiveIncomeBoostCost(userUpgrades.passiveIncomeBoostLevel + 1).toFixed(0)} RZC)
-                      </button>
-                    </div>
-                  )}
-                  {userUpgrades.passiveIncomeBoostLevel === 0 && (
-                    <div className="text-gray-500 text-xs">
-                      Cost: {getPassiveIncomeBoostCost(1).toFixed(0)} RZC (Level 1)
-                    </div>
-                  )}
-                  {userUpgrades.passiveIncomeBoostLevel >= 10 && (
-                    <div className="flex items-center gap-2">
-                      <div className="text-purple-400 text-sm font-medium">Max Level Reached!</div>
-                      <div className="w-3 h-3 bg-purple-400 rounded-full animate-pulse"></div>
-                    </div>
                   )}
                 </div>
               </div>
@@ -3592,7 +3035,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             <ul className="text-gray-400 text-xs space-y-1">
               <li>• Higher mining rates mean more RZC earned per day</li>
               <li>• Extended sessions allow continuous mining for longer periods</li>
-              <li>• Passive Income Boost: Earn 10 RZC every minute per level (up to 100 RZC/min at max level)</li>
               <li>• Upgrades are permanent and stack with future improvements</li>
             </ul>
           </div>

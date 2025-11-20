@@ -137,7 +137,7 @@ const calculateEarningRate = async (userBalance: number, daysStaked: number, ref
   const networkPower = await calculateNetworkPower();
   
   const effectiveStakingPower = userBalance * timeMultiplier * referralBoost;
-  const dailyEmission = 1000; // Fixed daily emission in TAPPS
+  const dailyEmission = 1000; // Fixed daily emission in RZC
   
   const dailyReward = (effectiveStakingPower / networkPower) * dailyEmission;
   return dailyReward / 86400; // Per second rate

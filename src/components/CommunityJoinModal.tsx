@@ -149,7 +149,7 @@ export const CommunityJoinModal: FC<CommunityJoinModalProps> = ({
             </div>
             <div>
               <h3 className="text-2xl font-bold text-gray-800">Join Our Community</h3>
-              <p className="text-gray-600">Connect with thousands of TAPPS holders worldwide</p>
+              <p className="text-gray-600">Connect with thousands of RZC holders worldwide</p>
             </div>
           </div>
           <button

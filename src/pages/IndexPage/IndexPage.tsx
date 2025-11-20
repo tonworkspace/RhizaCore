@@ -2,7 +2,7 @@ import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { FC, useState, useEffect, useRef } from 'react';
 import { I18nProvider, useI18n } from '@/components/I18nProvider';
-import { FaCogs, FaMagento, FaTasks, FaWallet } from 'react-icons/fa';
+import { FaMagento, FaNetworkWired, FaTasks, FaTh, FaCube } from 'react-icons/fa';
 // import { MdDiamond } from 'react-icons/md';
 // import { BiNetworkChart } from 'react-icons/bi';
 // import { TonConnectButton, } from '@tonconnect/ui-react';
@@ -25,13 +25,16 @@ import { NFTMinter } from '@/components/NFTMinter';
 import ArcadeMiningUI, { ArcadeMiningUIHandle } from '@/components/ArcadeMiningUI';
 // import WithdrawModal from '@/components/WithdrawModal';
 // import NewsComponent from '@/components/NewsComponent';
-import TonWallet from '@/components/TonWallet';
+// import TonWallet from '@/components/TonWallet';
 // import DailyRewardCard from '@/components/DailyRewardCard';
 // import NonStakedEngagement from '@/components/NonStakedEngagement';
-import DappExplorer from '@/components/DappExplorer';
 import SettingsComponent from '@/components/SettingsComponent';
 import { SponsorGate } from '@/components/SponsorGate';
 import SocialTasks from '@/components/SocialTasks';
+import ReferralSystem from '@/components/ReferralSystem';
+import ReferralContest from '@/components/ReferralContest';
+// import WalletComingSoon from '../../components/WalletComingSoon';
+import RhizaCoreAIComingSoon from '@/components/RhizaCoreAIComingSoon';
 
 // Time-based multipliers as per whitepaper
 const getTimeMultiplier = (daysStaked: number): number => {
@@ -397,13 +400,14 @@ const IndexPageContent: FC = () => {
   const [currentTab, setCurrentTab] = useState('home');
   const [userReferralCode, setUserReferralCode] = useState<string>('');
   const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showReferralContest, setShowReferralContest] = useState(false);
   // const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const { user, isLoading, error, updateUserData } = useAuth();
   const { lang, setLang } = useI18n();
   
   // Mining simulator states
   const [miningProgress, setMiningProgress] = useState(0);
-  const [miningStatus, setMiningStatus] = useState('Initializing mining rig...');
+  const [, setMiningStatus] = useState('Initializing mining rig...');
   
   // Sponsor code gate states
   const [hasSponsor, setHasSponsor] = useState<boolean | null>(null);
@@ -413,10 +417,12 @@ const IndexPageContent: FC = () => {
   // Check if user has a sponsor
   const checkSponsorStatus = async () => {
     if (!user?.id) return;
-    
+
+    console.time('IndexPage.checkSponsorStatus');
     try {
       console.log('🔍 Checking sponsor status for user:', user.id);
-      
+
+      console.time('IndexPage.checkFirstUser');
       // Check if user is the first user (admin bypass)
       const { data: firstUser } = await supabase
         .from('users')
@@ -424,6 +430,7 @@ const IndexPageContent: FC = () => {
         .order('created_at', { ascending: true })
         .limit(1)
         .single();
+      console.timeEnd('IndexPage.checkFirstUser');
         
       console.log('👑 First user ID:', firstUser?.id, 'Current user ID:', user.id);
         
@@ -435,12 +442,14 @@ const IndexPageContent: FC = () => {
         return;
       }
       
+      console.time('IndexPage.checkReferralData');
       // Check if user already has a sponsor (from start parameters or manual entry)
       const { data: referralData } = await supabase
         .from('referrals')
         .select('sponsor_id')
         .eq('referred_id', user.id)
         .maybeSingle();
+      console.timeEnd('IndexPage.checkReferralData');
         
        console.log('📊 Referral data:', referralData);
        console.log('👤 User sponsor_id:', user.sponsor_id);
@@ -486,6 +495,8 @@ const IndexPageContent: FC = () => {
       // On error, show sponsor gate to ensure user can still enter
       setHasSponsor(false);
       setShowSponsorGate(true);
+    } finally {
+      console.timeEnd('IndexPage.checkSponsorStatus');
     }
   };
 
@@ -642,6 +653,22 @@ const IndexPageContent: FC = () => {
         return;
       }
       
+      // Check if referral already exists (prevent duplicates)
+      const { data: existingReferral } = await supabase
+        .from('referrals')
+        .select('id')
+        .eq('sponsor_id', sponsor.id)
+        .eq('referred_id', user.id)
+        .maybeSingle();
+        
+      if (existingReferral) {
+        showSnackbar({
+          message: 'Referral Already Exists',
+          description: 'This referral relationship already exists.'
+        });
+        return;
+      }
+      
       // Check if sponsor is trying to refer themselves
       const { data: reverseCheck } = await supabase
         .from('referrals')
@@ -669,6 +696,19 @@ const IndexPageContent: FC = () => {
         });
         
       if (insertErr) {
+        // Check if it's a duplicate key error (race condition)
+        const isDuplicate = (insertErr as any)?.code === '23505' || 
+                           (insertErr.message || '').toLowerCase().includes('duplicate') ||
+                           (insertErr.message || '').toLowerCase().includes('unique');
+        
+        if (isDuplicate) {
+          showSnackbar({
+            message: 'Referral Already Exists',
+            description: 'This referral relationship already exists.'
+          });
+          return;
+        }
+        
         console.error('Insert error:', insertErr);
         throw insertErr;
       }
@@ -1797,6 +1837,7 @@ const handleDeposit = async (amount: number) => {
     const fetchActivities = async () => {
       if (!user?.id) return;
 
+      console.time('IndexPage.fetchActivities');
       setIsLoadingActivities(true);
       try {
         const { data, error } = await supabase
@@ -1812,6 +1853,7 @@ const handleDeposit = async (amount: number) => {
         console.error('Error fetching activities:', error);
       } finally {
         setIsLoadingActivities(false);
+        console.timeEnd('IndexPage.fetchActivities');
       }
     };
 
@@ -2084,7 +2126,7 @@ const handleDeposit = async (amount: number) => {
 
             showSnackbar({
               message: 'Offline Earnings Added',
-              description: `You earned ${offlineEarnings.toFixed(8)} TON while offline`
+              description: `You earned ${offlineEarnings.toFixed(8)} RZC while offline`
             });
           }
         }
@@ -2747,41 +2789,41 @@ const handleDeposit = async (amount: number) => {
   // }, [tonConnectUI.connected, user?.id]);
 
   // Add this useEffect to check staking completion
-  useEffect(() => {
-    // Check if user has staked enough and hasn't already claimed
-    if (user?.balance && user.balance >= 1 && !isStakingCompleted) {
-      // Mark as completed
-      localStorage.setItem('hasCompletedStaking', 'true');
-      setIsStakingCompleted(true);
+  // useEffect(() => {
+  //   // Check if user has staked enough and hasn't already claimed
+  //   if (user?.balance && user.balance >= 1 && !isStakingCompleted) {
+  //     // Mark as completed
+  //     localStorage.setItem('hasCompletedStaking', 'true');
+  //     setIsStakingCompleted(true);
       
-      // Update user with NOVA tokens
-      if (user) {
-        const updatedUser = {
-          ...user,
-          total_sbt: (user.total_sbt || 0) + 10000
-        };
-        updateUserData(updatedUser);
-      }
+  //     // Update user with NOVA tokens
+  //     if (user) {
+  //       const updatedUser = {
+  //         ...user,
+  //         total_sbt: (user.total_sbt || 0) + 10000
+  //       };
+  //       updateUserData(updatedUser);
+  //     }
       
-      // Add to activity log
-      const newActivity: Activity = {
-        id: Date.now().toString(),
-        user_id: String(user?.id || ''),
-        type: 'nova_reward',
-        amount: 10000,
-        status: 'completed',
-        created_at: new Date().toISOString()
-      };
+  //     // Add to activity log
+  //     const newActivity: Activity = {
+  //       id: Date.now().toString(),
+  //       user_id: String(user?.id || ''),
+  //       type: 'nova_reward',
+  //       amount: 10000,
+  //       status: 'completed',
+  //       created_at: new Date().toISOString()
+  //     };
       
-      setActivities(prev => [newActivity, ...prev]);
+  //     setActivities(prev => [newActivity, ...prev]);
       
-      // Show success message
-      showSnackbar({
-        message: 'Staking Task Completed!',
-        description: 'You have received 10,000 Rhiza.'
-      });
-    }
-  }, [user?.balance, isStakingCompleted, user]);
+  //     // Show success message
+  //     showSnackbar({
+  //       message: 'Staking Task Completed!',
+  //       description: 'You have received 10,000 Rhiza.'
+  //     });
+  //   }
+  // }, [user?.balance, isStakingCompleted, user]);
 
   // Update the main return statement to handle loading, new user, and no stake states
   if (isLoading || isInitializing) {
@@ -2811,13 +2853,13 @@ const handleDeposit = async (amount: number) => {
             </div>
           </div>
           {/* Status Message */}
-          <div className="bg-gray-800/50 border border-green-500/30 rounded-lg p-4 mb-6">
+          {/* <div className="bg-gray-800/50 border border-green-500/30 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-center gap-2 mb-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
               <span className="text-sm font-semibold text-green-400">System Status</span>
             </div>
             <p className="text-green-300 font-medium">{miningStatus}</p>
-          </div>
+          </div> */}
           {/* Simple Loading Animation */}
           <div className="flex justify-center">
             <div className="flex space-x-1">
@@ -2858,17 +2900,51 @@ const handleDeposit = async (amount: number) => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-green-400 font-mono antialiased mb-[3.7rem]">
-      {/* Animated background layers */}
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-black text-green-400 font-mono antialiased mb-[3.7rem] relative overflow-hidden">
+      {/* Enhanced Animated Background Layers */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-       
-        <div className="absolute -bottom-20 -right-10 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl animate-ping [animation-pulse]" />
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-green-500/20 blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-emerald-500/15 blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-green-500/5 blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        
+        {/* Secondary accent orbs */}
+        <div className="absolute top-1/4 right-1/4 w-64 h-64 rounded-full bg-cyan-500/10 blur-2xl animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 rounded-full bg-teal-500/10 blur-2xl animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+        
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-grid-green-500/5 bg-grid-18 [mask-image:linear-gradient(180deg,transparent,rgba(34,197,94,0.1),transparent)]"></div>
+        
+        {/* Scanline effect */}
+        <div className="absolute inset-0 scanline opacity-30"></div>
+         
+        {/* Subtle radial gradient overlay */}
+        <div className="absolute inset-0" style={{
+          background: 'radial-gradient(circle at center, rgba(34, 197, 94, 0.05) 0%, transparent 70%)'
+        }}></div>
+        
+        {/* Animated particles effect */}
+        <div className="absolute inset-0">
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-green-400/20 rounded-full animate-float"
+              style={{
+                left: `${(i * 5) % 100}%`,
+                top: `${(i * 7) % 100}%`,
+                animationDuration: `${3 + (i % 3)}s`,
+                animationDelay: `${(i * 0.2) % 3}s`
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* Additional depth layers */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-green-500/2 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-green-500/1 to-transparent"></div>
       </div>
-      <div className="absolute inset-0 bg-grid-green-500/10 bg-grid-18 [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
-      <div className="absolute inset-0 scanline"></div>
       {!isLoading && user && showOnboarding && <OnboardingScreen />}
       {/* Header */}
-      <div className="px-6 py-4 border-b border-green-700/50 z-10">
+      <div className="px-6 py-4 border-b border-green-500/20 backdrop-blur-sm bg-black/20 z-10 relative">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {user?.photoUrl ? (
@@ -2907,35 +2983,37 @@ const handleDeposit = async (amount: number) => {
       {/* Ultra Modern Main Content Area */}
       <div className="flex-1 relative">
         
-        {/* Keep ArcadeMiningUI mounted; hide when not on Mining tab */}
-        <div className={`relative space-y-6 p-custom px-6 pb-6 overflow-y-auto ${currentTab === 'home' ? '' : 'hidden'}`}>
-          <ArcadeMiningUI
-            ref={arcadeRef}
-            balanceTon={user?.balance || 0}
-            tonPrice={tonPrice || 0}
-            currentEarningsTon={earningState?.currentEarnings || 0}
-            isClaiming={false}
-            claimCooldown={0}
-            cooldownText={''}
-            onClaim={() => {}}
-            onOpenDeposit={() => setShowDepositModal(true)}
-            potentialEarningsTon={0}
-            airdropBalanceNova={0}
-            totalWithdrawnTon={user?.total_withdrawn || 0}
-            activities={activities}
-            withdrawals={[]}
-            isLoadingActivities={isLoadingActivities}
-            userId={user?.id}
-            userUsername={user?.username}
-            referralCode={userReferralCode}
-            estimatedDailyTapps={0}
-            showSnackbar={showSnackbar}
-          />
-        </div>
+        {/* Conditionally render ArcadeMiningUI only when on Mining tab for better performance */}
+        {currentTab === 'home' && (
+          <div className="relative space-y-6 p-custom px-6 pb-6 overflow-y-auto">
+            <ArcadeMiningUI
+              ref={arcadeRef}
+              balanceTon={user?.balance || 0}
+              tonPrice={tonPrice || 0}
+              currentEarningsTon={earningState?.currentEarnings || 0}
+              isClaiming={false}
+              claimCooldown={0}
+              cooldownText={''}
+              onClaim={() => {}}
+              onOpenDeposit={() => setShowDepositModal(true)}
+              potentialEarningsTon={0}
+              airdropBalanceNova={0}
+              totalWithdrawnTon={user?.total_withdrawn || 0}
+              activities={activities}
+              withdrawals={[]}
+              isLoadingActivities={isLoadingActivities}
+              userId={user?.id}
+              userUsername={user?.username}
+              referralCode={userReferralCode}
+              estimatedDailyTapps={0}
+              showSnackbar={showSnackbar}
+            />
+          </div>
+        )}
 
         {currentTab === 'network' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
-            <DappExplorer/>
+            <ReferralSystem />
           </div>
         )}
 
@@ -2947,17 +3025,38 @@ const handleDeposit = async (amount: number) => {
 
         {currentTab === 'task' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
+            {showReferralContest ? (
+              <div className="space-y-4">
+                {/* Back Button */}
+                <button
+                  onClick={() => setShowReferralContest(false)}
+                  className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors mb-4"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  <span className="font-semibold">Back to Tasks</span>
+                </button>
+                <ReferralContest
+                  showSnackbar={showSnackbar}
+                  onClose={() => setShowReferralContest(false)}
+                />
+              </div>
+            ) : (
               <SocialTasks 
                 showSnackbar={showSnackbar}
                 userId={user?.id}
                 onRewardClaimed={handleRewardClaimed}
+                onNavigateToReferralContest={() => setShowReferralContest(true)}
               />
-            </div>
+            )}
+          </div>
         )}
 
         {currentTab === 'wallet' && (
           <div className="relative flex-1 p-6 p-custom sm:p-8 overflow-y-auto">
-            <TonWallet/>
+            {/* <WalletComingSoon/> */}
+            <RhizaCoreAIComingSoon/>
             </div>
         )}
 
@@ -3008,7 +3107,7 @@ const handleDeposit = async (amount: number) => {
                         <div className="text-sm text-slate-500">{new Date(activity.created_at).toLocaleString()}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-base font-bold text-slate-800">{activity.amount?.toFixed ? activity.amount.toFixed(6) : activity.amount} {activity.type === 'nova_reward' ? 'NOVA' : 'TON'}</div>
+                        <div className="text-base font-bold text-slate-800">{activity.amount?.toFixed ? activity.amount.toFixed(6) : activity.amount} {activity.type === 'nova_reward' ? 'RZC' : 'TON'}</div>
                         <div className="text-sm text-slate-500 capitalize">{activity.status}</div>
                       </div>
                     </div>
@@ -3397,16 +3496,17 @@ const handleDeposit = async (amount: number) => {
         </div>
       )} */}
 
+
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/50 border-t-2 border-green-700/50 backdrop-blur-sm safe-area-pb">
-        <div className="max-w-lg mx-auto px-6 relative z-10">
-          <div className="grid grid-cols-4 items-center py-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-black border-t-2 border-green-700/50 backdrop-blur-sm safe-area-pb z-10">
+        <div className="max-w-lg mx-auto px-6 relative">
+          <div className="grid grid-cols-5 items-center py-3">
             {[
               { id: 'home', text: 'Mining', Icon: FaMagento, gradient: 'from-green-500 to-teal-500' },
-              { id: 'wallet', text: 'Wallet', Icon: FaWallet, gradient: 'from-orange-500 to-red-500' },
               { id: 'task', text: 'Task', Icon: FaTasks, gradient: 'from-orange-500 to-red-500' },
-              // { id: 'network', text: 'Dapp', Icon: FaNetworkWired, gradient: 'from-indigo-500 to-purple-500' },
-              { id: 'whale', text: 'Settings', Icon: FaCogs, gradient: 'from-purple-500 to-pink-500' },
+              { id: 'wallet', text: 'Core', Icon: FaCube, gradient: 'from-orange-500 to-red-500' },
+              { id: 'network', text: 'Referral', Icon: FaNetworkWired, gradient: 'from-indigo-500 to-purple-500' },
+              { id: 'whale', text: 'More', Icon: FaTh, gradient: 'from-purple-500 to-pink-500' },
             ].map(({ id, text, Icon, gradient }) => (
               <button
                 key={id}

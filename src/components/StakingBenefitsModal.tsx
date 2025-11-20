@@ -28,7 +28,7 @@
 //     {
 //       icon: <FaCoins className="w-8 h-8 text-yellow-500" />,
 //       title: "Daily Rewards",
-//       description: "Earn 1-5% daily returns on your staked TAPPS tokens",
+//       description: "Earn 1-5% daily returns on your staked RZC tokens",
 //       rate: "1-5% daily",
 //       color: "from-yellow-400 to-orange-500"
 //     },
@@ -154,7 +154,7 @@
 //             </div>
 //             <div>
 //               <h3 className="text-2xl font-bold text-gray-800">Staking Benefits</h3>
-//               <p className="text-gray-600">Discover the advantages of staking your TAPPS tokens</p>
+//               <p className="text-gray-600">Discover the advantages of staking your RZC tokens</p>
 //             </div>
 //           </div>
 //           <button
@@ -169,7 +169,7 @@
 //           {/* Left Column - Benefits */}
 //           <div className="space-y-6">
 //             <div>
-//               <h4 className="text-lg font-bold text-gray-800 mb-4">Why Stake TAPPS?</h4>
+//               <h4 className="text-lg font-bold text-gray-800 mb-4">Why Stake RZC?</h4>
 //               <div className="grid grid-cols-1 gap-4">
 //                 {stakingBenefits.map((benefit, index) => (
 //                   <div
@@ -208,7 +208,7 @@
 //                         <div className="font-bold text-gray-800">{tier.name}</div>
 //                       </div>
 //                       <div className="text-sm font-semibold text-gray-600">
-//                         {tier.minAmount.toLocaleString()}+ TAPPS
+//                         {tier.minAmount.toLocaleString()}+ RZC
 //                       </div>
 //                     </div>
 //                     <div className="text-sm text-gray-600 mb-2">
@@ -238,7 +238,7 @@
 //               {/* Amount Input */}
 //               <div className="mb-4">
 //                 <label className="text-sm font-semibold text-gray-700 mb-2 block">
-//                   Staking Amount (TAPPS)
+//                   Staking Amount (RZC)
 //                 </label>
 //                 <div className="flex gap-2">
 //                   <input
@@ -258,7 +258,7 @@
 //                   </button>
 //                 </div>
 //                 <div className="text-xs text-gray-500 mt-1">
-//                   Available: {userBalance.toFixed(6)} TAPPS
+//                   Available: {userBalance.toFixed(6)} RZC
 //                 </div>
 //               </div>
 
@@ -342,14 +342,14 @@
 //                 ) : (
 //                   <div className="flex items-center justify-center gap-2">
 //                     <FaGift className="w-5 h-5" />
-//                     Complete Tasks to Earn TAPPS
+//                     Complete Tasks to Earn RZC
 //                   </div>
 //                 )}
 //               </button>
 
 //               {userBalance < 1 && (
 //                 <div className="text-center text-sm text-gray-600">
-//                   Complete daily tasks and social engagement to earn TAPPS tokens
+//                   Complete daily tasks and social engagement to earn RZC tokens
 //                 </div>
 //               )}
 //             </div>

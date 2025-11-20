@@ -1,6 +1,9 @@
--- Complete Daily Reward System Fix
--- This script fixes all issues with the daily reward system
--- Run this in your Supabase SQL editor to resolve the errors
+-- ============================================================================
+-- COMPLETE DAILY REWARD SYSTEM SETUP
+-- ============================================================================
+-- This script creates all necessary tables, indexes, and functions for the
+-- daily reward system. Run this in your Supabase SQL editor.
+-- ============================================================================
 
 -- ============================================================================
 -- STEP 1: Create all necessary tables
@@ -9,7 +12,7 @@
 -- Daily Rewards table to track user daily reward claims
 CREATE TABLE IF NOT EXISTS daily_rewards (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id),
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     claim_date DATE NOT NULL,
     reward_amount NUMERIC(18,8) NOT NULL DEFAULT 1000, -- Base daily reward in RZC
     streak_count INTEGER DEFAULT 1,
@@ -23,7 +26,7 @@ CREATE TABLE IF NOT EXISTS daily_rewards (
 -- Daily Reward Streaks table to track consecutive daily claims
 CREATE TABLE IF NOT EXISTS daily_reward_streaks (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id),
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     current_streak INTEGER DEFAULT 0,
     longest_streak INTEGER DEFAULT 0,
     last_claim_date DATE,
@@ -34,10 +37,10 @@ CREATE TABLE IF NOT EXISTS daily_reward_streaks (
     UNIQUE(user_id)
 );
 
--- Twitter Engagement Tasks table
+-- Twitter Engagement Tasks table (optional, for future use)
 CREATE TABLE IF NOT EXISTS twitter_engagement_tasks (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id),
+    user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     tweet_url TEXT NOT NULL,
     engagement_type VARCHAR(20) NOT NULL CHECK (engagement_type IN ('like', 'retweet', 'reply', 'follow')),
     reward_amount NUMERIC(18,8) NOT NULL DEFAULT 10, -- 10 RZC per engagement
@@ -46,10 +49,10 @@ CREATE TABLE IF NOT EXISTS twitter_engagement_tasks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Ensure earning_logs table exists (this was causing the second error)
+-- Ensure earning_logs table exists
 CREATE TABLE IF NOT EXISTS earning_logs (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id),
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     type VARCHAR NOT NULL,
     amount NUMERIC(18,8) NOT NULL,
     metadata JSONB,
@@ -65,17 +68,19 @@ CREATE INDEX IF NOT EXISTS idx_daily_rewards_user_id ON daily_rewards(user_id);
 CREATE INDEX IF NOT EXISTS idx_daily_rewards_claim_date ON daily_rewards(claim_date);
 CREATE INDEX IF NOT EXISTS idx_daily_rewards_user_date ON daily_rewards(user_id, claim_date);
 
+-- Daily reward streaks indexes
+CREATE INDEX IF NOT EXISTS idx_daily_reward_streaks_user_id ON daily_reward_streaks(user_id);
+CREATE INDEX IF NOT EXISTS idx_daily_reward_streaks_last_claim_date ON daily_reward_streaks(last_claim_date);
+
 -- Twitter engagement indexes
 CREATE INDEX IF NOT EXISTS idx_twitter_engagement_user_id ON twitter_engagement_tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_twitter_engagement_completed_at ON twitter_engagement_tasks(completed_at);
 CREATE INDEX IF NOT EXISTS idx_twitter_engagement_url_type ON twitter_engagement_tasks(tweet_url, engagement_type);
 
--- Daily reward streaks indexes
-CREATE INDEX IF NOT EXISTS idx_daily_reward_streaks_user_id ON daily_reward_streaks(user_id);
-
 -- Earning logs indexes
 CREATE INDEX IF NOT EXISTS idx_earning_logs_user_id ON earning_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_earning_logs_type ON earning_logs(type);
+CREATE INDEX IF NOT EXISTS idx_earning_logs_timestamp ON earning_logs(timestamp);
 
 -- ============================================================================
 -- STEP 3: Create all necessary functions
@@ -107,7 +112,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get daily reward status (THIS WAS MISSING - causing the first error)
+-- Function to get daily reward status
 CREATE OR REPLACE FUNCTION get_daily_reward_status(
     p_user_id BIGINT
 ) RETURNS JSON AS $$
@@ -120,6 +125,8 @@ DECLARE
     current_streak INTEGER := 0;
     longest_streak INTEGER := 0;
     total_days INTEGER := 0;
+    next_streak INTEGER := 1; -- Default to 1 for new users
+    next_reward NUMERIC(18,8);
     result JSON;
 BEGIN
     -- Get streak record
@@ -132,6 +139,14 @@ BEGIN
         longest_streak := streak_record.longest_streak;
         total_days := streak_record.total_days_claimed;
         last_claim_date := streak_record.last_claim_date;
+        
+        -- Calculate what the streak will be after claiming
+        -- If last claim was yesterday, continue streak; otherwise reset to 1
+        IF last_claim_date IS NULL OR last_claim_date = today_date - INTERVAL '1 day' THEN
+            next_streak := current_streak + 1;
+        ELSE
+            next_streak := 1; -- Streak broken, will reset to 1
+        END IF;
     END IF;
     
     -- Check if user can claim today
@@ -142,8 +157,16 @@ BEGIN
         can_claim := true;
         next_claim_time := (today_date + INTERVAL '1 day')::timestamp;
     ELSE
+        -- Already claimed today, next claim is tomorrow
         next_claim_time := (today_date + INTERVAL '1 day')::timestamp;
+        -- If already claimed, next reward will be based on continuing streak
+        IF FOUND AND last_claim_date = today_date THEN
+            next_streak := current_streak + 1;
+        END IF;
     END IF;
+    
+    -- Calculate the reward amount for the next claim
+    next_reward := calculate_daily_reward(p_user_id, next_streak);
     
     RETURN json_build_object(
         'can_claim', can_claim,
@@ -152,12 +175,12 @@ BEGIN
         'total_days_claimed', total_days,
         'next_claim_time', next_claim_time,
         'last_claim_date', last_claim_date,
-        'next_reward_amount', calculate_daily_reward(p_user_id, current_streak + 1)
+        'next_reward_amount', next_reward
     );
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to claim daily reward (updated to use earning_logs)
+-- Function to claim daily reward
 CREATE OR REPLACE FUNCTION claim_daily_reward(
     p_user_id BIGINT
 ) RETURNS JSON AS $$
@@ -166,12 +189,13 @@ DECLARE
     last_claim_date DATE;
     current_streak INTEGER := 0;
     streak_record RECORD;
-    reward_amount NUMERIC(18,8);
+    reward_amount NUMERIC(18,8) := 1000; -- Base reward
     total_reward NUMERIC(18,8);
     multiplier NUMERIC(3,2);
+    next_claim_time TIMESTAMP;
     result JSON;
 BEGIN
-    -- Check if user already claimed today
+    -- Step 1: Check if user already claimed today (prevent double claims)
     IF EXISTS (
         SELECT 1 FROM daily_rewards 
         WHERE user_id = p_user_id AND claim_date = today_date
@@ -183,24 +207,34 @@ BEGIN
         );
     END IF;
     
-    -- Get or create streak record
+    -- Step 2: Get or create streak record
     SELECT * INTO streak_record 
     FROM daily_reward_streaks 
     WHERE user_id = p_user_id;
     
     IF NOT FOUND THEN
-        -- Create new streak record
-        INSERT INTO daily_reward_streaks (user_id, current_streak, longest_streak, last_claim_date, streak_start_date, total_days_claimed)
+        -- New user - create streak record with day 1
+        INSERT INTO daily_reward_streaks (
+            user_id, 
+            current_streak, 
+            longest_streak, 
+            last_claim_date, 
+            streak_start_date, 
+            total_days_claimed
+        )
         VALUES (p_user_id, 1, 1, today_date, today_date, 1);
         current_streak := 1;
         last_claim_date := NULL;
     ELSE
+        -- Existing user - check if streak continues or resets
         last_claim_date := streak_record.last_claim_date;
         
         -- Check if streak should continue or reset
         IF last_claim_date IS NULL OR last_claim_date = today_date - INTERVAL '1 day' THEN
-            -- Continue streak
+            -- Continue streak (claimed yesterday or never claimed before)
             current_streak := streak_record.current_streak + 1;
+            
+            -- Update streak record
             UPDATE daily_reward_streaks 
             SET 
                 current_streak = current_streak,
@@ -210,11 +244,13 @@ BEGIN
                 updated_at = CURRENT_TIMESTAMP
             WHERE user_id = p_user_id;
         ELSE
-            -- Reset streak (missed a day)
+            -- Reset streak (missed a day or more)
             current_streak := 1;
+            
             UPDATE daily_reward_streaks 
             SET 
                 current_streak = 1,
+                longest_streak = GREATEST(longest_streak, 1), -- Don't decrease longest_streak
                 last_claim_date = today_date,
                 streak_start_date = today_date,
                 total_days_claimed = total_days_claimed + 1,
@@ -223,10 +259,10 @@ BEGIN
         END IF;
     END IF;
     
-    -- Calculate reward amount
+    -- Step 3: Calculate reward amount based on current streak
     total_reward := calculate_daily_reward(p_user_id, current_streak);
     
-    -- Calculate multiplier for display
+    -- Step 4: Calculate multiplier for display
     IF current_streak <= 7 THEN
         multiplier := 1.0;
     ELSIF current_streak <= 14 THEN
@@ -236,99 +272,72 @@ BEGIN
     ELSIF current_streak <= 28 THEN
         multiplier := 2.5;
     ELSE
-        multiplier := 3.0;
+        multiplier := 3.0; -- 30+ days
     END IF;
     
-    -- Record the claim
-    INSERT INTO daily_rewards (user_id, claim_date, reward_amount, streak_count, bonus_multiplier, total_reward)
-    VALUES (p_user_id, today_date, 1000, current_streak, multiplier, total_reward);
+    -- Step 5: Record the claim in daily_rewards table
+    INSERT INTO daily_rewards (
+        user_id, 
+        claim_date, 
+        reward_amount, 
+        streak_count, 
+        bonus_multiplier, 
+        total_reward
+    )
+    VALUES (
+        p_user_id, 
+        today_date, 
+        reward_amount, 
+        current_streak, 
+        multiplier, 
+        total_reward
+    );
     
-    -- Add reward to user's airdrop balance (SBT)
+    -- Step 6: Add reward to user's airdrop balance (total_sbt)
     UPDATE users 
-    SET total_sbt = total_sbt + total_reward,
+    SET 
+        total_sbt = COALESCE(total_sbt, 0) + total_reward,
         last_active = CURRENT_TIMESTAMP
     WHERE id = p_user_id;
     
-    -- Record in earning logs (THIS WAS CAUSING THE SECOND ERROR)
+    -- Step 7: Record in earning logs for tracking
     INSERT INTO earning_logs (user_id, type, amount, metadata)
-    VALUES (p_user_id, 'daily_reward', total_reward, json_build_object(
-        'streak_count', current_streak,
-        'multiplier', multiplier,
-        'base_reward', 1000
-    ));
+    VALUES (
+        p_user_id, 
+        'daily_reward', 
+        total_reward, 
+        json_build_object(
+            'streak_count', current_streak,
+            'multiplier', multiplier,
+            'base_reward', reward_amount,
+            'claim_date', today_date
+        )
+    );
     
+    -- Step 8: Calculate next claim time (24 hours from now)
+    next_claim_time := (today_date + INTERVAL '1 day')::timestamp;
+    
+    -- Step 9: Return success response with all relevant data
     RETURN json_build_object(
         'success', true,
         'message', 'Daily reward claimed successfully!',
         'reward_amount', total_reward,
         'streak_count', current_streak,
         'multiplier', multiplier,
-        'next_claim_time', (today_date + INTERVAL '1 day')::timestamp
+        'next_claim_time', next_claim_time,
+        'base_reward', reward_amount
     );
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to complete Twitter engagement task
-CREATE OR REPLACE FUNCTION complete_twitter_engagement(
-    p_user_id BIGINT,
-    p_tweet_url TEXT,
-    p_engagement_type VARCHAR
-) RETURNS JSON AS $$
-DECLARE
-    reward_amount NUMERIC(18,8) := 10; -- 10 RZC per engagement
-    result JSON;
-BEGIN
-    -- Check if user already completed this specific engagement
-    IF EXISTS (
-        SELECT 1 FROM twitter_engagement_tasks 
-        WHERE user_id = p_user_id 
-        AND tweet_url = p_tweet_url 
-        AND engagement_type = p_engagement_type
-    ) THEN
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Handle any unexpected errors
         RETURN json_build_object(
             'success', false,
-            'message', 'This engagement has already been completed!'
+            'message', 'An error occurred while claiming the daily reward. Please try again.',
+            'error', SQLERRM
         );
-    END IF;
-    
-    -- Record the engagement
-    INSERT INTO twitter_engagement_tasks (user_id, tweet_url, engagement_type, reward_amount, verified)
-    VALUES (p_user_id, p_tweet_url, p_engagement_type, reward_amount, true);
-    
-    -- Add reward to user's airdrop balance (SBT)
-    UPDATE users 
-    SET total_sbt = total_sbt + reward_amount,
-        last_active = CURRENT_TIMESTAMP
-    WHERE id = p_user_id;
-    
-    -- Record in earning logs
-    INSERT INTO earning_logs (user_id, type, amount, metadata)
-    VALUES (p_user_id, 'twitter_engagement', reward_amount, json_build_object(
-        'tweet_url', p_tweet_url,
-        'engagement_type', p_engagement_type
-    ));
-    
-    RETURN json_build_object(
-        'success', true,
-        'message', 'Twitter engagement completed!',
-        'reward_amount', reward_amount,
-        'engagement_type', p_engagement_type
-    );
 END;
 $$ LANGUAGE plpgsql;
-
--- ============================================================================
--- STEP 4: Add sample tasks for daily rewards
--- ============================================================================
-
--- Insert some sample Twitter engagement tasks
-INSERT INTO tasks (id, title, description, reward, reward_type, difficulty, status, requirements) VALUES
-(100, 'Daily Reward Bonus', 'Claim your daily RZC bonus! Come back every 24 hours to maintain your streak and earn bonus multipliers.', 1000, 'RZC', 'EASY', 'ACTIVE', '{"type": "daily_claim", "cooldown_hours": 24}'),
-(101, 'Twitter Like Engagement', 'Like our latest tweet to earn 10 RZC! Help us grow our community.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "like", "reward": 10}'),
-(102, 'Twitter Retweet Engagement', 'Retweet our latest tweet to earn 10 RZC! Spread the word about RZC.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "retweet", "reward": 10}'),
-(103, 'Twitter Reply Engagement', 'Reply to our latest tweet to earn 10 RZC! Share your thoughts with the community.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "reply", "reward": 10}'),
-(104, 'Twitter Follow Engagement', 'Follow our Twitter account to earn 10 RZC! Stay updated with the latest news.', 10, 'RZC', 'EASY', 'ACTIVE', '{"platform": "twitter", "action": "follow", "reward": 10}')
-ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- SUCCESS MESSAGE
@@ -336,27 +345,22 @@ ON CONFLICT (id) DO NOTHING;
 
 DO $$
 BEGIN
-    RAISE NOTICE '🎉 Daily reward system has been completely fixed!';
+    RAISE NOTICE '🎉 Daily reward system has been completely set up!';
     RAISE NOTICE '';
-    RAISE NOTICE '✅ Fixed Issues:';
-    RAISE NOTICE '   - Added missing get_daily_reward_status function';
-    RAISE NOTICE '   - Ensured earning_logs table exists';
-    RAISE NOTICE '   - Created all daily reward system tables';
-    RAISE NOTICE '   - Added all necessary indexes for performance';
-    RAISE NOTICE '   - Created all required functions';
-    RAISE NOTICE '';
-    RAISE NOTICE '📊 Tables Created/Verified:';
+    RAISE NOTICE '✅ Tables Created/Verified:';
     RAISE NOTICE '   - daily_rewards';
     RAISE NOTICE '   - daily_reward_streaks';
     RAISE NOTICE '   - twitter_engagement_tasks';
     RAISE NOTICE '   - earning_logs';
     RAISE NOTICE '';
-    RAISE NOTICE '🔧 Functions Created:';
+    RAISE NOTICE '✅ Functions Created:';
     RAISE NOTICE '   - get_daily_reward_status()';
     RAISE NOTICE '   - claim_daily_reward()';
     RAISE NOTICE '   - calculate_daily_reward()';
-    RAISE NOTICE '   - complete_twitter_engagement()';
+    RAISE NOTICE '';
+    RAISE NOTICE '✅ Indexes Created for Performance';
     RAISE NOTICE '';
     RAISE NOTICE '🚀 Your daily reward system is now ready to use!';
 END
 $$;
+

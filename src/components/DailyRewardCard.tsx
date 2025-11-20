@@ -36,12 +36,36 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
         
         if (error) {
           console.error('Error loading daily reward status:', error);
+          showSnackbar?.({
+            message: '⚠️ Error',
+            description: 'Failed to load daily reward status. Please refresh.'
+          });
           return;
         }
         
-        setRewardStatus(data);
+        // Handle JSON response - Supabase RPC may return JSON as string or object
+        let statusData = data;
+        if (typeof data === 'string') {
+          try {
+            statusData = JSON.parse(data);
+          } catch (parseError) {
+            console.error('Error parsing daily reward status:', parseError);
+            return;
+          }
+        }
+        
+        // Validate the response structure
+        if (statusData && typeof statusData === 'object') {
+          setRewardStatus(statusData as DailyRewardStatus);
+        } else {
+          console.error('Invalid daily reward status format:', statusData);
+        }
       } catch (error) {
         console.error('Error loading daily reward status:', error);
+        showSnackbar?.({
+          message: '⚠️ Error',
+          description: 'Failed to load daily reward status. Please try again.'
+        });
       }
     };
 
@@ -54,29 +78,72 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
 
   // Update countdown timer
   useEffect(() => {
-    if (!rewardStatus?.next_claim_time) return;
+    if (!rewardStatus?.next_claim_time) {
+      setTimeUntilNext('');
+      return;
+    }
 
     const updateCountdown = () => {
-      const now = new Date();
-      const nextClaim = new Date(rewardStatus.next_claim_time);
-      const diff = nextClaim.getTime() - now.getTime();
+      try {
+        const now = new Date();
+        // Handle both string and Date object formats
+        const nextClaimStr = rewardStatus.next_claim_time;
+        const nextClaim = typeof nextClaimStr === 'string' 
+          ? new Date(nextClaimStr)
+          : new Date(nextClaimStr);
+        
+        // Check if date is valid
+        if (isNaN(nextClaim.getTime())) {
+          console.error('Invalid next_claim_time:', nextClaimStr);
+          setTimeUntilNext('Invalid time');
+          return;
+        }
 
-      if (diff <= 0) {
-        setTimeUntilNext('Ready to claim!');
-        return;
+        const diff = nextClaim.getTime() - now.getTime();
+
+        if (diff <= 0) {
+          setTimeUntilNext('Ready to claim!');
+          // If ready to claim, refresh the status
+          if (rewardStatus && !rewardStatus.can_claim) {
+            // Trigger a refresh by calling the load function
+            const loadRewardStatus = async () => {
+              try {
+                const { data, error } = await supabase.rpc('get_daily_reward_status', {
+                  p_user_id: userId
+                });
+                if (!error && data) {
+                  let statusData = data;
+                  if (typeof data === 'string') {
+                    statusData = JSON.parse(data);
+                  }
+                  if (statusData && typeof statusData === 'object') {
+                    setRewardStatus(statusData as DailyRewardStatus);
+                  }
+                }
+              } catch (e) {
+                console.error('Error refreshing reward status:', e);
+              }
+            };
+            loadRewardStatus();
+          }
+          return;
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        setTimeUntilNext(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      } catch (error) {
+        console.error('Error updating countdown:', error);
+        setTimeUntilNext('Error');
       }
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setTimeUntilNext(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     };
 
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [rewardStatus?.next_claim_time]);
+  }, [rewardStatus?.next_claim_time, rewardStatus?.can_claim, userId]);
 
   const handleClaimReward = async () => {
     if (!userId || isClaiming || !rewardStatus?.can_claim) return;
@@ -91,60 +158,114 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
         console.error('Error claiming daily reward:', error);
         showSnackbar?.({
           message: '❌ Error',
-          description: 'Failed to claim daily reward. Please try again.'
+          description: error.message || 'Failed to claim daily reward. Please try again.'
         });
+        setIsClaiming(false);
         return;
       }
 
-      if (data.success) {
+      // Handle JSON response - Supabase RPC may return JSON as string or object
+      let claimData = data;
+      if (typeof data === 'string') {
+        try {
+          claimData = JSON.parse(data);
+        } catch (parseError) {
+          console.error('Error parsing claim response:', parseError);
+          showSnackbar?.({
+            message: '❌ Error',
+            description: 'Invalid response from server. Please try again.'
+          });
+          setIsClaiming(false);
+          return;
+        }
+      }
+
+      if (claimData && claimData.success) {
+        // Step 1: Show celebration immediately
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
 
-        // Optimistically update, then refetch authoritative status
-        setRewardStatus(prev => prev ? {
-          ...prev,
-          can_claim: false,
-          current_streak: data.streak_count,
-          longest_streak: Math.max(prev.longest_streak, data.streak_count),
-          total_days_claimed: prev.total_days_claimed + 1,
-          last_claim_date: new Date().toISOString().split('T')[0]
-        } : null);
-
-        // Trigger reward callback
-        if (onRewardClaimed) {
-          onRewardClaimed(data.reward_amount);
+        // Step 2: Trigger reward callback first (for balance updates)
+        if (onRewardClaimed && claimData.reward_amount) {
+          onRewardClaimed(claimData.reward_amount);
         }
 
-        // Update user's last_update timestamp (Option A)
-        try {
-          await supabase
-            .from('users')
-            .update({ last_update: new Date().toISOString() })
-            .eq('id', userId);
-        } catch (e) {
-          console.error('Failed to update users.last_update:', e);
-        }
+        // Step 3: Optimistically update UI with server response data
+        const todayDate = new Date().toISOString().split('T')[0];
+        setRewardStatus(prev => {
+          if (!prev) return null;
+          
+          const newStreak = claimData.streak_count || 1;
+          const newLongestStreak = Math.max(prev.longest_streak, newStreak);
+          
+          return {
+            ...prev,
+            can_claim: false,
+            current_streak: newStreak,
+            longest_streak: newLongestStreak,
+            total_days_claimed: prev.total_days_claimed + 1,
+            last_claim_date: todayDate,
+            next_claim_time: claimData.next_claim_time || prev.next_claim_time,
+            next_reward_amount: prev.next_reward_amount // Will be updated by refresh
+          };
+        });
 
-        // Refetch latest reward status to ensure cooldown/streak are correct
+        // Step 4: Show success message
+        showSnackbar?.({
+          message: '🎉 Daily Reward Claimed!',
+          description: `You earned ${(claimData.reward_amount || 0).toLocaleString()} RZC! Streak: ${claimData.streak_count || 1} days`
+        });
+
+        // Step 5: Refresh status from server to get accurate next_claim_time and next_reward_amount
+        // This ensures the UI matches the database state exactly
         try {
           const { data: statusData, error: statusError } = await supabase.rpc('get_daily_reward_status', {
             p_user_id: userId
           });
+          
           if (!statusError && statusData) {
-            setRewardStatus(statusData);
+            // Handle JSON response
+            let refreshedStatus = statusData;
+            if (typeof statusData === 'string') {
+              try {
+                refreshedStatus = JSON.parse(statusData);
+              } catch (parseError) {
+                console.error('Error parsing refreshed status:', parseError);
+                // Continue with optimistic update if parse fails
+              }
+            }
+            
+            if (refreshedStatus && typeof refreshedStatus === 'object') {
+              setRewardStatus(refreshedStatus as DailyRewardStatus);
+            }
+          } else if (statusError) {
+            console.error('Error refreshing status after claim:', statusError);
+            // Don't show error to user - claim was successful, just refresh failed
           }
         } catch (e) {
           console.error('Failed to refresh daily reward status after claim:', e);
+          // Don't show error to user - claim was successful, just refresh failed
         }
 
-        showSnackbar?.({
-          message: '🎉 Daily Reward Claimed!',
-          description: `You earned ${data.reward_amount.toLocaleString()} TAPPS! Streak: ${data.streak_count} days`
-        });
+        // Step 6: Update user's last_update timestamp (non-critical, don't block on this)
+        (async () => {
+          try {
+            const { error } = await supabase
+              .from('users')
+              .update({ last_update: new Date().toISOString() })
+              .eq('id', userId);
+            if (error) {
+              console.error('Failed to update users.last_update:', error);
+            }
+          } catch (e) {
+            console.error('Failed to update users.last_update:', e);
+          }
+        })();
       } else {
+        // Claim failed or already claimed
         showSnackbar?.({
           message: '⚠️ Already Claimed',
-          description: data.message
+          description: claimData?.message || 'Daily reward already claimed today!'
         });
       }
     } catch (error) {
@@ -223,7 +344,7 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
             <div className="text-sm font-bold text-slate-900">
               {rewardStatus.can_claim ? rewardStatus.next_reward_amount.toLocaleString() : '1,000'}
             </div>
-            <div className="text-xs text-blue-600">TAPPS</div>
+            <div className="text-xs text-blue-600">RZC</div>
           </div>
         </div>
 
@@ -280,7 +401,7 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
             </div>
             <div>
               <div className="text-xs text-slate-500 font-semibold uppercase">Daily Bonus</div>
-              <div className="text-sm font-bold text-slate-900">Free TAPPS</div>
+              <div className="text-sm font-bold text-slate-900">Free RZC</div>
             </div>
           </div>
           <div className="text-right">
@@ -310,7 +431,7 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
               <div className="text-lg font-black text-slate-900">
                 {rewardStatus.can_claim ? rewardStatus.next_reward_amount.toLocaleString() : '1,000'}
               </div>
-              <div className="text-xs font-bold text-blue-600">TAPPS</div>
+              <div className="text-xs font-bold text-blue-600">RZC</div>
             </div>
             <div className="text-right">
               <div className={`text-xs font-semibold ${rewardStatus.current_streak >= 7 ? 'text-green-600' : 'text-slate-600'}`}>
@@ -321,7 +442,7 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
         </div>
 
         {/* Compact Claim Button or Countdown */}
-        <div className="mb-3">
+        {/* <div className="mb-3">
           {rewardStatus.can_claim ? (
             <button
               onClick={handleClaimReward}
@@ -350,7 +471,7 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
               </div>
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Compact Stats Grid */}
         <div className="grid grid-cols-3 gap-2 mb-3">
@@ -393,3 +514,4 @@ export default function DailyRewardCard({ userId, onRewardClaimed, showSnackbar,
     </div>
   );
 }
+

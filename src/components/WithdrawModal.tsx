@@ -184,7 +184,7 @@ export const WithdrawModal: FC<WithdrawModalProps> = ({ isOpen, onClose, totalWi
       }
 
       if (withdrawAmount < 1) {
-        throw new Error('Minimum withdrawal amount is 1 TAPPS');
+        throw new Error('Minimum withdrawal amount is 1 RZC');
       }
 
       if (withdrawAmount > totalWithdrawnTon) {
@@ -247,7 +247,7 @@ export const WithdrawModal: FC<WithdrawModalProps> = ({ isOpen, onClose, totalWi
       setWithdrawalAddress(userWalletAddress || user?.wallet_address || '');
       
       // Show success message
-      console.log(`Withdrawal request submitted: ${withdrawAmount} TAPPS to ${withdrawalAddress.trim()}`);
+      console.log(`Withdrawal request submitted: ${withdrawAmount} RZC to ${withdrawalAddress.trim()}`);
       
       // Show success and close modal
       if (onSuccess) {
@@ -309,7 +309,7 @@ export const WithdrawModal: FC<WithdrawModalProps> = ({ isOpen, onClose, totalWi
             </div>
             {canWithdraw ? (
               <div className="text-xs text-green-600">
-                You can withdraw your TAPPS now! Next withdrawal will be available in 7 days.
+                You can withdraw your RZC now! Next withdrawal will be available in 7 days.
               </div>
             ) : hasPendingWithdrawal ? (
               <div className="space-y-1">
@@ -337,8 +337,8 @@ export const WithdrawModal: FC<WithdrawModalProps> = ({ isOpen, onClose, totalWi
           {/* Balance Display */}
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
             <div className="text-sm text-gray-600 mb-1">Claimable Balance</div>
-            <div className="text-2xl font-bold text-black">{totalWithdrawnTon.toFixed(6)} TAPPS</div>
-            <div className="text-xs text-gray-500 mt-1">Minimum withdrawal: 1 TAPPS</div>
+            <div className="text-2xl font-bold text-black">{totalWithdrawnTon.toFixed(6)} RZC</div>
+            <div className="text-xs text-gray-500 mt-1">Minimum withdrawal: 1 RZC</div>
           </div>
 
           {/* Amount Input */}

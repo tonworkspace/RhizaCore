@@ -2,10 +2,10 @@
 
 ## 🎁 Overview
 
-This system adds two powerful engagement features to your TAPPS application:
+This system adds two powerful engagement features to your RZC application:
 
-1. **Daily Reward Card** - Users can claim free TAPPS every 24 hours with streak bonuses
-2. **Twitter Engagement Tasks** - Users earn 10 TAPPS for each Twitter interaction (like, retweet, reply, follow)
+1. **Daily Reward Card** - Users can claim free RZC every 24 hours with streak bonuses
+2. **Twitter Engagement Tasks** - Users earn 10 RZC for each Twitter interaction (like, retweet, reply, follow)
 
 ## 🚀 Features
 
@@ -15,7 +15,7 @@ This system adds two powerful engagement features to your TAPPS application:
 
 ### Twitter Engagement System
 - **4 engagement types**: Like, Retweet, Reply, Follow
-- **10 TAPPS per engagement** (configurable)
+- **10 RZC per engagement** (configurable)
 - **One-time completion** per engagement type
 - **Direct Twitter integration** with external links
 - **Real-time reward claiming**
@@ -68,7 +68,7 @@ daily_rewards_system.sql              # Database schema and functions
 
 1. **User visits Tasks tab** → Sees Daily Reward Card
 2. **Checks claim status** → Can claim if 24+ hours passed
-3. **Clicks "CLAIM DAILY REWARD"** → Earns TAPPS based on streak
+3. **Clicks "CLAIM DAILY REWARD"** → Earns RZC based on streak
 4. **Streak continues** → Multiplier increases up to 3.0x
 5. **Misses a day** → Streak resets to 0
 
@@ -78,23 +78,23 @@ daily_rewards_system.sql              # Database schema and functions
 2. **Clicks "Open Twitter"** → Opens Twitter in new tab
 3. **Completes engagement** → Likes/retweets/replies/follows
 4. **Returns to app** → Clicks "Claim Reward"
-5. **Earns 10 TAPPS** → Task marked as completed
+5. **Earns 10 RZC** → Task marked as completed
 
 ## 💰 Reward Structure
 
-### Daily Rewards (Base: 1000 TAPPS)
-- **Days 1-7**: 1.0x = 1,000 TAPPS
-- **Days 8-14**: 1.5x = 1,500 TAPPS  
-- **Days 15-21**: 2.0x = 2,000 TAPPS
-- **Days 22-28**: 2.5x = 2,500 TAPPS
-- **Days 29+**: 3.0x = 3,000 TAPPS
+### Daily Rewards (Base: 1000 RZC)
+- **Days 1-7**: 1.0x = 1,000 RZC
+- **Days 8-14**: 1.5x = 1,500 RZC
+- **Days 15-21**: 2.0x = 2,000 RZC
+- **Days 22-28**: 2.5x = 2,500 RZC
+- **Days 29+**: 3.0x = 3,000 RZC
 
 ### Twitter Engagement
-- **Like Tweet**: 10 TAPPS
-- **Retweet**: 10 TAPPS
-- **Reply to Tweet**: 10 TAPPS
-- **Follow Account**: 10 TAPPS
-- **Total Possible**: 40 TAPPS per user
+- **Like Tweet**: 10 RZC
+- **Retweet**: 10 RZC
+- **Reply to Tweet**: 10 RZC
+- **Follow Account**: 10 RZC
+- **Total Possible**: 40 RZC per user
 
 ## 🎨 UI Features
 
@@ -122,10 +122,10 @@ Edit the reward amounts in the database functions:
 
 ```sql
 -- In daily_rewards_system.sql
--- Change base daily reward (currently 1000 TAPPS)
+-- Change base daily reward (currently 1000 RZC)
 base_reward NUMERIC(18,8) := 1000;
 
--- Change Twitter engagement reward (currently 10 TAPPS)
+-- Change Twitter engagement reward (currently 10 RZC)
 reward_amount NUMERIC(18,8) := 10;
 ```
 
@@ -159,7 +159,7 @@ ELSIF p_streak_count <= 14 THEN
    - Processes daily reward claim
    - Updates streak counter
    - Calculates bonus multiplier
-   - Adds TAPPS to user balance
+   - Adds RZC to user balance
 
 2. **`get_daily_reward_status(p_user_id)`**
    - Returns current streak info
@@ -168,7 +168,7 @@ ELSIF p_streak_count <= 14 THEN
 
 3. **`complete_twitter_engagement(p_user_id, p_tweet_url, p_engagement_type)`**
    - Records Twitter interaction
-   - Awards TAPPS tokens
+   - Awards RZC tokens
    - Prevents duplicate claims
 
 ## 🚨 Important Notes

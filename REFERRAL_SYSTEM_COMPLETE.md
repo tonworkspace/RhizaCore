@@ -27,7 +27,7 @@ The referral system has been fully implemented and tested. Here's everything tha
 
 ### 4. **Referral Rewards System**
 - ✅ Rewards triggered when referred user stakes
-- ✅ Reward amount: 1000 TAPPS or 10% of staked amount (whichever is higher)
+- ✅ Reward amount: 1000 RZC or 10% of staked amount (whichever is higher)
 - ✅ Rewards logged in `activities` table
 - ✅ Sponsor balance and earnings updated
 - ✅ Referral status marked as 'active'

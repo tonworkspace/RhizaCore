@@ -21,25 +21,25 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
     {
       icon: <FaRocket className="w-5 h-5 text-blue-500" />,
       title: "Stake to Mine",
-      description: "Deposit TON to activate real-time TAPPs mining and start earning rewards.",
+      description: "Deposit TON to activate real-time RZC mining and start earning rewards.",
       benefit: "1-5% daily returns"
     },
     {
       icon: <FaGem className="w-5 h-5 text-purple-500" />,
       title: "Compound Growth",
-      description: "Your staked TON generates TAPPs that can be reinvested for exponential growth.",
+      description: "Your staked TON generates RZC that can be reinvested for exponential growth.",
       benefit: "Up to 500% returns"
     },
     {
       icon: <FaUsers className="w-5 h-5 text-green-500" />,
       title: "Referral Rewards",
-      description: "Earn additional TAPPs by referring friends to join the mining ecosystem.",
+      description: "Earn additional RZC by referring friends to join the mining ecosystem.",
       benefit: "5% referral bonus"
     },
     {
       icon: <FaChartLine className="w-5 h-5 text-orange-500" />,
       title: "Real-time Mining",
-      description: "Watch your TAPPs balance grow in real-time with our advanced mining algorithm.",
+      description: "Watch your RZC balance grow in real-time with our advanced mining algorithm.",
       benefit: "Live earnings tracking"
     }
   ];
@@ -48,14 +48,14 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
     {
       icon: <FaCoins className="w-6 h-6 text-yellow-500" />,
       title: "Daily Mining",
-      description: "Earn 1-5% daily TAPPs on your staked TON",
+      description: "Earn 1-5% daily RZC on your staked TON",
       amount: "1-5% daily",
       color: "from-yellow-400 to-orange-500"
     },
     {
       icon: <MdTrendingUp className="w-6 h-6 text-green-500" />,
       title: "Compound Growth",
-      description: "Reinvest TAPPs to accelerate your mining power",
+      description: "Reinvest RZC to accelerate your mining power",
       amount: "Up to 500% returns",
       color: "from-green-400 to-emerald-500"
     },
@@ -115,7 +115,7 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
     if (airdropBalance < 1) {
       showSnackbar?.({
         message: "Insufficient Balance",
-        description: "You need at least 1 TAPPS to start staking. Complete tasks to earn more!"
+        description: "You need at least 1 RZC to start staking. Complete tasks to earn more!"
       });
       return;
     }
@@ -157,7 +157,7 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               <span className="text-sm font-semibold">
-                {airdropBalance >= 1 ? 'START MINING' : 'EARN TAPPS'}
+                {airdropBalance >= 1 ? 'START MINING' : 'EARN RZC'}
               </span>
             </button>
         </div>
@@ -195,7 +195,7 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
                 0.000000
                 </div>
                 <div className="text-blue-600 text-sm font-bold mb-1 tracking-wider">
-                  TAPPs
+                  RZC
                 </div>
                 <div className="text-slate-500 text-sm font-semibold">
                   Start Mining
@@ -248,7 +248,7 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
                 <div className="text-slate-900 font-bold text-lg leading-tight">
                   {airdropBalance.toFixed(6)}
                 </div>
-                <div className="text-blue-500 text-xs font-medium">TAPPs</div>
+                <div className="text-blue-500 text-xs font-medium">RZC</div>
               </div>
             </div>
             
@@ -306,7 +306,7 @@ export const NonStakedEngagement: FC<NonStakedEngagementProps> = ({
                 
                 {/* Text */}
                 <span className="font-bold tracking-wide">
-                  {airdropBalance >= 1 ? 'Start Mining TAPPs' : 'Earn TAPPs to Start Mining'}
+                  {airdropBalance >= 1 ? 'Start Mining RZC' : 'Earn RZC to Start Mining'}
                 </span>
                 
                 {/* Status Indicator */}

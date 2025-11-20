@@ -1,7 +1,7 @@
 # Weekly Withdrawal System Implementation Guide
 
 ## Overview
-The weekly withdrawal system allows users to withdraw their earned TAPPS tokens into TON only once every 7 days. This creates a sustainable withdrawal schedule that prevents excessive withdrawals while maintaining user engagement.
+The weekly withdrawal system allows users to withdraw their earned RZC tokens into TON only once every 7 days. This creates a sustainable withdrawal schedule that prevents excessive withdrawals while maintaining user engagement.
 
 ## Key Features
 
@@ -91,7 +91,7 @@ const [timeUntilWithdrawal, setTimeUntilWithdrawal] = useState('');
 
 ### Validation Logic
 1. Check if 7 days have passed since last withdrawal
-2. Validate minimum withdrawal amount (1 TAPPS)
+2. Validate minimum withdrawal amount (1 RZC)
 3. Verify sufficient available balance
 4. Validate TON wallet address format
 
