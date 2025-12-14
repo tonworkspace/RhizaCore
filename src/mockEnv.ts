@@ -58,7 +58,6 @@ if (import.meta.env.DEV) {
       //   ['signature', 'a2b4c6d8t5f2g4hghj6yhjj0k2m4n6p8q0'],
       // ]).toString();
 
-      // Generate a fresh randomized mock profile each run (development only)
       // const rand = Math.floor(Math.random() * 1_000_000);
       // const now = Date.now();
       // const mockId = Number(`${now}${rand}`).toString().slice(0, 13); // up to 13 digits

@@ -58,7 +58,7 @@ const dict: Dict = {
   copy: { en: 'Copy', es: 'Copiar', fr: 'Copier', de: 'Kopieren', pt: 'Copiar', ru: 'Копировать', tr: 'Kopyala', ar: 'نسخ' },
   copy_success: { en: 'Referral Link copied!', es: '¡Enlace copiado!', fr: 'Lien copié !', de: 'Link kopiert!', pt: 'Link copiado!', ru: 'Ссылка скопирована!', tr: 'Bağlantı kopyalandı!', ar: 'تم نسخ الرابط!' },
   copy_failed: { en: 'Failed to copy Link!', es: '¡Error al copiar el enlace!', fr: "Échec de la copie du lien !", de: 'Link konnte nicht kopiert werden!', pt: 'Falha ao copiar o link!', ru: 'Не удалось скопировать ссылку!', tr: 'Bağlantı kopyalanamadı!', ar: 'فشل نسخ الرابط!' },
-  total_rzc_balance: { en: 'Total RZC Balance', es: 'Saldo total de RZC', fr: 'Solde total RZC', de: 'Gesamtsaldo RZC', pt: 'Saldo total de RZC', ru: 'Общий баланс RZC', tr: 'Toplam RZC Bakiyesi', ar: 'إجمالي رصيد RZC' },
+  total_rzc_balance: { en: 'Rhizacore Balance', es: 'Saldo de Rhizacore', fr: 'Solde Rhizacore', de: 'Rhizacore-Guthaben', pt: 'Saldo Rhizacore', ru: 'Баланс Rhizacore', tr: 'Rhizacore Bakiyesi', ar: 'رصيد Rhizacore' },
   mining_label: { en: 'Mining:', es: 'Minería:', fr: 'Minage :', de: 'Mining:', pt: 'Mineração:', ru: 'Майнинг:', tr: 'Madencilik:', ar: 'التعدين:' },
   validated_label: { en: 'Validated:', es: 'Validado:', fr: 'Validé :', de: 'Bestätigt:', pt: 'Validado:', ru: 'Подтверждено:', tr: 'Doğrulandı:', ar: 'تم التحقق:' },
   mining_in_progress: { en: 'MINING IN PROGRESS', es: 'MINERÍA EN CURSO', fr: 'MINAGE EN COURS', de: 'MINING LÄUFT', pt: 'MINERAÇÃO EM ANDAMENTO', ru: 'МАЙНИНГ ИДЁТ', tr: 'MADENCİLİK DEVAM EDİYOR', ar: 'التعدين جارٍ' },

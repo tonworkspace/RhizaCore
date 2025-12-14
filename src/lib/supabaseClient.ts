@@ -1,23 +1,30 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Supabase initialization
-const supabaseUrl = "https://qaviehvidwbntwrecyky.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhdmllaHZpZHdibnR3cmVjeWt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyMzE2MzYsImV4cCI6MjA3NTgwNzYzNn0.wnX-xdpD_P-Pxt-prIkpiX3DX8glSLwXZhbQWeUmc0g";
+// ⚠️ SECURITY NOTE: Ideally, remove the hardcoded fallback strings and rely strictly on .env
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://qaviehvidwbntwrecyky.supabase.co";
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhdmllaHZpZHdibnR3cmVjeWt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyMzE2MzYsImV4cCI6MjA3NTgwNzYzNn0.wnX-xdpD_P-Pxt-prIkpiX3DX8glSLwXZhbQWeUmc0g";
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+// Debug logging
+if (!supabaseUrl || supabaseUrl === 'your_supabase_url_here') {
+  console.error('⚠️ Supabase URL is not set! Please add VITE_SUPABASE_URL to your .env file');
+}
+// FIXED: Variable name changed from supabaseKey to supabaseAnonKey
+if (!supabaseAnonKey || supabaseAnonKey === 'your_supabase_anon_key_here') {
+  console.error('⚠️ Supabase Anon Key is not set! Please add VITE_SUPABASE_ANON_KEY to your .env file');
+}
 
-// // Supabase initialization
-// const supabaseUrl = "https://qaviehvidwbntwrecyky.supabase.co";
-// const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhdmllaHZpZHdibnR3cmVjeWt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyMzE2MzYsImV4cCI6MjA3NTgwNzYzNn0.wnX-xdpD_P-Pxt-prIkpiX3DX8glSLwXZhbQWeUmc0g";
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
-// export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+// ==========================================
+// TYPES & INTERFACES
+// ==========================================
 
-// const supabaseUrl = "https://hxkmknvxicjqkbkfrguc.supabase.co";
-// const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4a21rbnZ4aWNqcWtia2ZyZ3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYyODAyNDEsImV4cCI6MjA1MTg1NjI0MX0.hW77UDF-v8Q04latr7TktoUC1b-6Qeo64ZSXBvtEFmg";
-// export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
-
-// Database Types
 export interface User {
   id: number;
   telegram_id: number;
@@ -43,6 +50,34 @@ export interface User {
   last_rank_bonus?: string;
   stake: number;
   is_premium: boolean;
+  email?: string;
+  display_name?: string;
+  avatar_url?: string;
+  updated_at?: string;
+  sponsor_code?: string;
+  sponsor_id?: number;
+  current_deposit?: number;
+  speed_boost_active?: boolean;
+  last_weekly_withdrawal?: string;
+  available_earnings?: number;
+  rank_updated_at?: string;
+  login_streak?: number;
+  last_login_date?: string;
+  direct_referrals?: number;
+  last_deposit_time: string | null;
+  has_nft?: boolean;
+  referrer_username?: string;
+  referrer_rank?: string;
+  claimed_milestones?: number[];
+  expected_rank_bonus?: number;
+  stake_date?: string;
+  current_stake_date?: string;
+  whitelisted_wallet?: string;
+  payout_wallet?: string;
+  pending_withdrawal?: boolean;
+  pending_withdrawal_id?: number;
+  payout_balance?: number;
+  total_payout?: number;
 }
 
 export interface Stake {
@@ -56,6 +91,9 @@ export interface Stake {
   is_active: boolean;
   last_payout: string;
   speed_boost_active: boolean;
+  cycle_progress?: number;
+  cycle_completed?: boolean;
+  cycle_completed_at?: string;
 }
 
 export interface Deposit {
@@ -81,7 +119,115 @@ export interface Withdrawal {
   transaction_hash?: string;
 }
 
-// Utility function to format amounts in USD
+export interface Transaction {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  from_address: string;
+  to_address: string;
+  amount: string;
+  token_contract: string;
+  token_symbol: string;
+  chain_id: number;
+  thirdweb_transaction_id?: string;
+  transaction_hash?: string;
+  message?: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  created_at: string;
+  confirmed_at?: string;
+  from_user?: User;
+  to_user?: User;
+}
+
+export interface MiningSession {
+  id: number;
+  user_id: number;
+  start_time: string;
+  end_time: string;
+  status: 'active' | 'completed' | 'expired';
+  rzc_earned: number;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface RZCBalance {
+  user_id: number;
+  claimable_rzc: number;
+  total_rzc_earned: number;
+  last_claim_time?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FreeMiningPeriod {
+  user_id: number;
+  start_date: string;
+  end_date: string;
+  grace_period_end: string;
+  is_active: boolean;
+  sessions_used: number;
+  max_sessions: number;
+  is_in_grace_period: boolean;
+  days_remaining: number;
+  sessions_remaining: number;
+  can_mine: boolean;
+  reason: string;
+}
+
+// ==========================================
+// CONSTANTS & CONFIG
+// ==========================================
+
+export const SPEED_BOOST_MULTIPLIER = 2;
+export const FAST_START_BONUS_AMOUNT = 1; // 1 TON
+export const FAST_START_REQUIRED_REFERRALS = 2;
+export const FAST_START_TIME_WINDOW = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+export const STAKING_CONFIG = {
+  DAILY_RATES: {
+    WEEK1: 0.01, // 1% (days 1-7)
+    WEEK2: 0.02, // 2% (days 8-14)
+    WEEK3: 0.03, // 3% (days 15-21)
+    WEEK4: 0.04  // 4% (days 22+)
+  },
+  MAX_CYCLE_PERCENTAGE: 300,
+  MIN_DEPOSIT: 1, // 1 TON
+  FEES: {
+    DEPOSIT_STK: 0.05, // 5% to STK
+    WITHDRAWAL_STK: 0.10, // 10% to STK
+    WITHDRAWAL_GLP: 0.10, // 10% to GLP
+    WITHDRAWAL_REINVEST: 0.20 // 20% to reinvestment wallet
+  }
+};
+
+export const RANK_REQUIREMENTS = {
+  NOVICE: { title: 'Novice', minStake: 0, minEarnings: 0, color: 'gray', weeklyBonus: 0, icon: 'sparkle' },
+  EXPLORER: { title: 'Explorer', minStake: 20, minEarnings: 100, color: 'green', weeklyBonus: 5, icon: 'compass' },
+  VOYAGER: { title: 'Voyager', minStake: 50, minEarnings: 500, color: 'blue', weeklyBonus: 10, icon: 'rocket' },
+  GUARDIAN: { title: 'Guardian', minStake: 100, minEarnings: 2000, color: 'purple', weeklyBonus: 20, icon: 'shield' },
+  SOVEREIGN: { title: 'Sovereign', minStake: 500, minEarnings: 10000, color: 'yellow', weeklyBonus: 50, icon: 'crown' },
+  CELESTIAL: { title: 'Celestial', minStake: 1000, minEarnings: 25000, color: 'cyan', weeklyBonus: 100, icon: 'star' },
+  LEGENDARY: { title: 'Legendary', minStake: 20000, minEarnings: 500000, color: 'red', weeklyBonus: 200, icon: 'star' },
+  SUPERNOVA: { title: 'Supernova', minStake: 50000, minEarnings: 1000000, color: 'red', weeklyBonus: 200, icon: 'star' }
+};
+
+export const EARNING_LIMITS = {
+  daily_roi_max: 1000,
+  referral_commission_max: 500,
+  speed_boost_duration: 24 * 60 * 60 * 1000, // 24 hours
+  minimum_withdrawal: 1
+};
+
+const WITHDRAWAL_FEES = {
+  GLP: 0.10,  // 10% to Global Leadership Pool
+  STK: 0.10,  // 10% to Reputation Points ($STK)
+  REINVEST: 0.20  // 20% to re-investment wallet
+};
+
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+
 export const formatUSD = (amount: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -91,83 +237,52 @@ export const formatUSD = (amount: number): string => {
   }).format(amount);
 };
 
-// Define rank requirements and rewards
-export const RANK_REQUIREMENTS = {
-  NOVICE: {
-    title: 'Novice',
-    minStake: 0,
-    minEarnings: 0,
-    color: 'gray',
-    weeklyBonus: 0,
-    icon: 'sparkle'
-  },
-  EXPLORER: {
-    title: 'Explorer',
-    minStake: 20,
-    minEarnings: 100,
-    color: 'green',
-    weeklyBonus: 5,
-    icon: 'compass'
-  },
-  VOYAGER: {
-    title: 'Voyager',
-    minStake: 50,
-    minEarnings: 500,
-    color: 'blue',
-    weeklyBonus: 10,
-    icon: 'rocket'
-  },
-  GUARDIAN: {
-    title: 'Guardian',
-    minStake: 100,
-    minEarnings: 2000,
-    color: 'purple',
-    weeklyBonus: 20,
-    icon: 'shield'
-  },
-  SOVEREIGN: {
-    title: 'Sovereign',
-    minStake: 500,
-    minEarnings: 10000,
-    color: 'yellow',
-    weeklyBonus: 50,
-    icon: 'crown'
-  },
-  CELESTIAL: {
-    title: 'Celestial',
-    minStake: 1000,
-    minEarnings: 25000,
-    color: 'cyan',
-    weeklyBonus: 100,
-    icon: 'star'
-  },
-  LEGENDARY: {
-    title: 'Legendary',
-    minStake: 20000,
-    minEarnings: 500000,
-    color: 'red',
-    weeklyBonus: 200,
-    icon: 'star'
-  },
-  SUPERNOVA: {
-    title: 'Supernova',
-    minStake: 50000,
-    minEarnings: 1000000,
-    color: 'red',
-    weeklyBonus: 200,
-    icon: 'star'
+const getRankBonus = (rank: string): number => {
+  switch (rank) {
+    case 'GUARDIAN': return 0.1; // +10%
+    case 'SOVEREIGN': return 0.15; // +15%
+    case 'CELESTIAL': return 0.2; // +20%
+    default: return 0;
   }
 };
+
+export const calculateDailyROI = (startDate: string): number => {
+  const start = new Date(startDate);
+  const now = new Date();
+  const daysDiff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff <= 7) return STAKING_CONFIG.DAILY_RATES.WEEK1;
+  else if (daysDiff <= 14) return STAKING_CONFIG.DAILY_RATES.WEEK2;
+  else if (daysDiff <= 21) return STAKING_CONFIG.DAILY_RATES.WEEK3;
+  else return STAKING_CONFIG.DAILY_RATES.WEEK4;
+};
+
+// Helper function to calculate GLP points
+const calculateGLPPoints = (teamVolume: number, withdrawalVolume: number): number => {
+  // Points from team volume (1 point per 1000 TON)
+  const volumePoints = Math.floor(teamVolume / 1000);
+  // Points from withdrawal volume (2% consideration)
+  const withdrawalPoints = Math.floor((withdrawalVolume * 0.02) / 100);
+  
+  // Bonus points for high team volume
+  let bonusPoints = 0;
+  if (teamVolume >= 10000) bonusPoints += 20;
+  if (teamVolume >= 50000) bonusPoints += 50;
+  if (teamVolume >= 100000) bonusPoints += 100;
+  
+  return volumePoints + withdrawalPoints + bonusPoints;
+};
+
+// ==========================================
+// CORE LOGIC FUNCTIONS
+// ==========================================
 
 // Function to calculate user's rank
 export const calculateUserRank = async (userId: number) => {
   try {
     const { data: user } = await supabase
       .from('users')
-      .select(`
-        total_earned,
-        balance
-      `)
+      .select(`total_earned, balance`)
       .eq('id', userId)
       .single();
 
@@ -181,7 +296,6 @@ export const calculateUserRank = async (userId: number) => {
         return rank;
       }
     }
-
     return 'NOVICE';
   } catch (error) {
     console.error('Error calculating rank:', error);
@@ -189,38 +303,9 @@ export const calculateUserRank = async (userId: number) => {
   }
 };
 
-// Function to update user's rank
-export const updateUserRank = async (userId: number) => {
-  try {
-    const newRank = await calculateUserRank(userId);
-    
-    const { error } = await supabase
-      .from('users')
-      .update({ 
-        rank: newRank,
-        rank_updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-
-    if (error) throw error;
-
-    // Process weekly rank bonus if eligible
-    const rankReq = RANK_REQUIREMENTS[newRank as keyof typeof RANK_REQUIREMENTS];
-    if (rankReq.weeklyBonus > 0) {
-      await processWeeklyRankBonus(userId, rankReq.weeklyBonus);
-    }
-
-    return newRank;
-  } catch (error) {
-    console.error('Error updating rank:', error);
-    return null;
-  }
-};
-
 // Function to process weekly rank bonus
 const processWeeklyRankBonus = async (userId: number, bonusAmount: number) => {
   try {
-    // Check if user already received bonus this week
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
@@ -231,9 +316,8 @@ const processWeeklyRankBonus = async (userId: number, bonusAmount: number) => {
       .gte('created_at', oneWeekAgo.toISOString())
       .single();
 
-    if (lastBonus) return false; // Already received bonus this week
+    if (lastBonus) return false;
 
-    // Process bonus
     const { error } = await supabase
       .from('rank_bonuses')
       .insert({
@@ -244,7 +328,6 @@ const processWeeklyRankBonus = async (userId: number, bonusAmount: number) => {
 
     if (error) throw error;
 
-    // Update user's earnings
     await supabase
       .from('users')
       .update({
@@ -260,7 +343,35 @@ const processWeeklyRankBonus = async (userId: number, bonusAmount: number) => {
   }
 };
 
-// Database helper functions
+export const updateUserRank = async (userId: number) => {
+  try {
+    const newRank = await calculateUserRank(userId);
+    
+    const { error } = await supabase
+      .from('users')
+      .update({ 
+        rank: newRank,
+        rank_updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    const rankReq = RANK_REQUIREMENTS[newRank as keyof typeof RANK_REQUIREMENTS];
+    if (rankReq.weeklyBonus > 0) {
+      await processWeeklyRankBonus(userId, rankReq.weeklyBonus);
+    }
+    return newRank;
+  } catch (error) {
+    console.error('Error updating rank:', error);
+    return null;
+  }
+};
+
+// ==========================================
+// DATABASE HELPER FUNCTIONS
+// ==========================================
+
 export const getUserByTelegramId = async (telegramId: number): Promise<User | null> => {
   const { data, error } = await supabase
     .from('users')
@@ -280,7 +391,7 @@ export const createUser = async (userData: Partial<User>): Promise<User | null> 
     .from('users')
     .insert([{
       ...userData,
-      rank: 'NOVICE', // Updated default rank
+      rank: 'NOVICE',
       balance: 0,
       total_deposit: 0,
       total_withdrawn: 0,
@@ -352,7 +463,6 @@ export const createWithdrawal = async (withdrawalData: Partial<Withdrawal>): Pro
   return data;
 };
 
-// Update the updateUserBalance function to consider total earnings
 export const updateUserBalance = async (userId: number, amount: number, earnedAmount: number): Promise<boolean> => {
   const { error } = await supabase
     .from('users')
@@ -369,15 +479,12 @@ export const updateUserBalance = async (userId: number, amount: number, earnedAm
   return true;
 };
 
-// First, execute the stored procedure creation once in your database
 export const setupStoredProcedures = async (userId: number) => {
-  // First create referral procedure
   const { error: referralError } = await supabase.rpc('process_referral_v2', {
     p_sponsor_id: userId,
     p_referred_id: userId
   });
 
-  // Then create team volume procedures
   const { error: volumeError } = await supabase.rpc('update_team_volumes', {
     p_sponsor_ids: [userId],
     p_amount: 0
@@ -386,49 +493,10 @@ export const setupStoredProcedures = async (userId: number) => {
   return !referralError && !volumeError;
 };
 
-// Add constants to match bot backend
-export const SPEED_BOOST_MULTIPLIER = 2;
-export const FAST_START_BONUS_AMOUNT = 1; // 1 TON
-export const FAST_START_REQUIRED_REFERRALS = 2;
-export const FAST_START_TIME_WINDOW = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+// ==========================================
+// EARNINGS & REWARDS
+// ==========================================
 
-
-// Update STAKING_CONFIG to include weekly rates
-export const STAKING_CONFIG = {
-  DAILY_RATES: {
-    WEEK1: 0.01, // 1% (days 1-7)
-    WEEK2: 0.02, // 2% (days 8-14)
-    WEEK3: 0.03, // 3% (days 15-21)
-    WEEK4: 0.04  // 4% (days 22+)
-  },
-  MAX_CYCLE_PERCENTAGE: 300,
-  MIN_DEPOSIT: 1, // 1 TON
-  FEES: {
-    DEPOSIT_STK: 0.05, // 5% to STK
-    WITHDRAWAL_STK: 0.10, // 10% to STK
-    WITHDRAWAL_GLP: 0.10, // 10% to GLP
-    WITHDRAWAL_REINVEST: 0.20 // 20% to reinvestment wallet
-  }
-};
-
-// Add function to calculate current ROI based on stake duration
-export const calculateDailyROI = (startDate: string): number => {
-  const start = new Date(startDate);
-  const now = new Date();
-  const daysDiff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (daysDiff <= 7) {
-    return STAKING_CONFIG.DAILY_RATES.WEEK1;
-  } else if (daysDiff <= 14) {
-    return STAKING_CONFIG.DAILY_RATES.WEEK2;
-  } else if (daysDiff <= 21) {
-    return STAKING_CONFIG.DAILY_RATES.WEEK3;
-  } else {
-    return STAKING_CONFIG.DAILY_RATES.WEEK4;
-  }
-};
-
-// Update calculateDailyRewards function for more realistic earnings
 export const calculateDailyRewards = async (stakeId: number): Promise<number> => {
   const { data: stake, error: stakeError } = await supabase
     .from('stakes')
@@ -446,7 +514,6 @@ export const calculateDailyRewards = async (stakeId: number): Promise<number> =>
     return 0;
   }
 
-  // Check for duplicate payout within last 24 hours
   const lastPayout = new Date(stake.last_payout);
   const now = new Date();
   const hoursSinceLastPayout = (now.getTime() - lastPayout.getTime()) / (1000 * 60 * 60);
@@ -456,43 +523,33 @@ export const calculateDailyRewards = async (stakeId: number): Promise<number> =>
     return 0;
   }
 
-  // Dynamic ROI based on stake amount and duration
-  let baseRate = 0.01; // 1% base daily rate
+  let baseRate = 0.01;
+  if (stake.amount >= 10000) baseRate *= 0.8;
+  else if (stake.amount >= 5000) baseRate *= 0.85;
+  else if (stake.amount >= 1000) baseRate *= 0.9;
   
-  // Adjust rate based on stake amount (higher stakes get slightly lower rates)
-  if (stake.amount >= 10000) baseRate *= 0.8;  // 0.8% for 10k+
-  else if (stake.amount >= 5000) baseRate *= 0.85; // 0.85% for 5k+
-  else if (stake.amount >= 1000) baseRate *= 0.9;  // 0.9% for 1k+
-  
-  // Calculate days since stake start
   const startDate = new Date(stake.start_date);
   const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Gradually decrease rate over time
-  const durationMultiplier = Math.max(0.7, 1 - (daysSinceStart / 200)); // Minimum 70% of base rate
+  const durationMultiplier = Math.max(0.7, 1 - (daysSinceStart / 200));
   let dailyRate = baseRate * durationMultiplier;
 
-  // Apply rank bonus if applicable
   const rankBonus = getRankBonus(stake.users.rank);
   dailyRate *= (1 + rankBonus);
 
-  // Calculate daily earning with all multipliers
   let dailyEarning = stake.amount * dailyRate;
   
-  // Apply speed boost if active
   if (stake.speed_boost_active) {
-    dailyEarning *= 1.5; // 50% boost
+    dailyEarning *= 1.5;
   }
 
-  // Apply maximum daily earning cap based on stake size
   const maxDailyEarning = Math.min(
-    stake.amount * 0.03, // Max 3% per day
+    stake.amount * 0.03,
     EARNING_LIMITS.daily_roi_max
   );
   
   const cappedEarning = Math.min(dailyEarning, maxDailyEarning);
 
-  // Update stake record
   const { error } = await supabase
     .from('stakes')
     .update({
@@ -508,7 +565,6 @@ export const calculateDailyRewards = async (stakeId: number): Promise<number> =>
     return 0;
   }
 
-  // Log the earning event
   await supabase.from('earning_history').insert({
     stake_id: stakeId,
     user_id: stake.user_id,
@@ -524,17 +580,6 @@ export const calculateDailyRewards = async (stakeId: number): Promise<number> =>
   return cappedEarning;
 };
 
-// Add helper function for rank bonuses
-const getRankBonus = (rank: string): number => {
-  switch (rank) {
-    case 'GUARDIAN': return 0.1; // +10%
-    case 'SOVEREIGN': return 0.15; // +15%
-    case 'CELESTIAL': return 0.2; // +20%
-    default: return 0;
-  }
-};
-
-// Add Speed Boost functions
 export const checkAndApplySpeedBoost = async (userId: number) => {
   try {
     const { data: user } = await supabase
@@ -581,7 +626,6 @@ export const getRewardHistory = async (userId: number) => {
     console.error('Failed to load reward history:', error);
     throw error;
   }
-
   return data;
 };
 
@@ -603,7 +647,6 @@ export const getGlobalPoolRankings = async (period: string = 'daily') => {
     console.error('Error fetching pool data:', error);
     throw error;
   }
-
   return data;
 };
 
@@ -630,7 +673,6 @@ export const getReferralsByPlayer = async (userId: number) => {
   }
 };
 
-// Add error tracking and recovery system
 export const errorRecovery = {
   async retryTransaction(fn: () => Promise<any>, maxRetries = 3) {
     let attempts = 0;
@@ -644,7 +686,6 @@ export const errorRecovery = {
       }
     }
   },
-
   async monitorUserActivity(userId: string) {
     return supabase
       .from('user_activity_logs')
@@ -670,7 +711,6 @@ export const updateUserSBT = async (userId: number, amount: number, type: 'depos
 
     if (error) throw error;
 
-    // Log SBT earning
     await supabase.from('sbt_history').insert({
       user_id: userId,
       amount: amount,
@@ -685,22 +725,15 @@ export const updateUserSBT = async (userId: number, amount: number, type: 'depos
   }
 };
 
-// Function to generate unique sponsor codes
 export const generateSponsorCode = (userId: number, username?: string): string => {
-  // Create a base code from user ID and username
   const baseId = userId.toString().padStart(4, '0');
   const usernamePart = username ? username.substring(0, 3).toUpperCase() : 'USR';
-  
-  // Generate a short unique identifier
   const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
-  
   return `${usernamePart}-${baseId}${randomPart}`.substring(0, 8);
 };
 
-// Function to ensure user has a sponsor code
 export const ensureUserHasSponsorCode = async (userId: number, username?: string): Promise<string> => {
   try {
-    // Check if user already has a sponsor code
     const { data: user, error: fetchError } = await supabase
       .from('users')
       .select('sponsor_code, username')
@@ -712,12 +745,8 @@ export const ensureUserHasSponsorCode = async (userId: number, username?: string
       return '';
     }
 
-    // If user already has a sponsor code, return it
-    if (user?.sponsor_code) {
-      return user.sponsor_code;
-    }
+    if (user?.sponsor_code) return user.sponsor_code;
 
-    // Check if this is the first user in the system
     const { data: totalUsers } = await supabase
       .from('users')
       .select('id', { count: 'exact', head: true });
@@ -729,17 +758,13 @@ export const ensureUserHasSponsorCode = async (userId: number, username?: string
       .limit(1)
       .single();
 
-    // Generate appropriate sponsor code
     let sponsorCode: string;
     if (totalUsers?.length === 1 || firstUser?.id === userId) {
-      // First user gets a special admin code
       sponsorCode = `ADMIN-${userId.toString().padStart(4, '0')}`;
     } else {
-      // Regular users get normal sponsor codes
       sponsorCode = generateSponsorCode(userId, username || user?.username);
     }
     
-    // Update user with sponsor code
     const { error: updateError } = await supabase
       .from('users')
       .update({ sponsor_code: sponsorCode })
@@ -757,12 +782,9 @@ export const ensureUserHasSponsorCode = async (userId: number, username?: string
   }
 };
 
-// Function to generate default sponsor code for first user
 export const generateDefaultSponsorCode = async (userId: number): Promise<string> => {
   try {
     const defaultCode = `ADMIN-${userId.toString().padStart(4, '0')}`;
-    
-    // Update user with default sponsor code
     const { error: updateError } = await supabase
       .from('users')
       .update({ sponsor_code: defaultCode })
@@ -772,7 +794,6 @@ export const generateDefaultSponsorCode = async (userId: number): Promise<string
       console.error('Error setting default sponsor code:', updateError);
       return '';
     }
-
     return defaultCode;
   } catch (error) {
     console.error('Error generating default sponsor code:', error);
@@ -780,10 +801,8 @@ export const generateDefaultSponsorCode = async (userId: number): Promise<string
   }
 };
 
-// Add function to process referral rewards for staking
 export const processReferralStakingRewards = async (userId: number, stakedAmount: number): Promise<void> => {
   try {
-    // Get user's sponsor information
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('sponsor_id, username')
@@ -795,10 +814,8 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
       return;
     }
 
-    // Calculate reward amount (1000 RZC or 10% of staked amount, whichever is higher)
     const rewardAmount = Math.max(1000, stakedAmount * 0.1);
 
-    // Update sponsor's balance with TAPPS reward
     const { error: balanceError } = await supabase.rpc('increment_balance', {
       user_id: user.sponsor_id,
       amount: rewardAmount
@@ -809,7 +826,6 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
       return;
     }
 
-    // Update sponsor's total earnings
     const { error: earningsError } = await supabase.rpc('update_user_earnings', {
       user_id: user.sponsor_id,
       referral_amount: rewardAmount
@@ -819,7 +835,6 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
       console.error('Error updating sponsor earnings:', earningsError);
     }
 
-    // Log the referral reward
     await supabase.from('activities').insert({
       user_id: user.sponsor_id,
       type: 'referral_staking_reward',
@@ -828,7 +843,6 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
       created_at: new Date().toISOString()
     });
 
-    // Update referral status to active if not already
     await supabase
       .from('referrals')
       .update({ status: 'active' })
@@ -842,12 +856,7 @@ export const processReferralStakingRewards = async (userId: number, stakedAmount
   }
 };
 
-export const logEarningEvent = async (
-  userId: number,
-  type: 'roi' | 'referral' | 'bonus',
-  amount: number,
-  metadata: any
-) => {
+export const logEarningEvent = async (userId: number, type: 'roi' | 'referral' | 'bonus', amount: number, metadata: any) => {
   await supabase.from('earning_logs').insert({
     user_id: userId,
     type,
@@ -855,13 +864,6 @@ export const logEarningEvent = async (
     metadata,
     timestamp: new Date().toISOString()
   });
-};
-
-export const EARNING_LIMITS = {
-  daily_roi_max: 1000,
-  referral_commission_max: 500,
-  speed_boost_duration: 24 * 60 * 60 * 1000, // 24 hours
-  minimum_withdrawal: 1
 };
 
 export const reconcileEarnings = async (userId: number) => {
@@ -879,7 +881,6 @@ export const reconcileEarnings = async (userId: number) => {
     .single();
 
   if (user && Math.abs(calculatedTotal - user.total_earned) > 0.000001) {
-    // Log discrepancy and correct
     await supabase.from('earning_discrepancies').insert({
       user_id: userId,
       calculated: calculatedTotal,
@@ -889,73 +890,9 @@ export const reconcileEarnings = async (userId: number) => {
   }
 };
 
-export const processEarnings = async (
-  userId: number, 
-  stakeId: number, 
-  amount: number,
-  type: 'roi' | 'referral' | 'bonus' = 'roi'
-) => {
-  try {
-    const timestamp = new Date().toISOString();
-    
-    // Get current stake info
-    const { data: stake } = await supabase
-      .from('stakes')
-      .select('amount, total_earned')
-      .eq('id', stakeId)
-      .maybeSingle();
-
-    if (!stake) return false;
-
-    // Calculate new cycle progress
-    const newTotalEarned = stake.total_earned + amount;
-    const cycleProgress = (newTotalEarned / stake.amount) * 100;
-
-    // Check if cycle completion (300%) is reached
-    if (cycleProgress >= 300) {
-      // Handle cycle completion
-      await handleCycleCompletion(userId, stakeId, stake.amount);
-      return true;
-    }
-
-    // Process normal earnings
-    const { error } = await supabase.rpc('process_earnings', {
-      p_amount: amount,
-      p_stake_id: stakeId,
-      p_timestamp: timestamp,
-      p_user_id: userId,
-      p_type: type
-    });
-
-    if (error) throw error;
-
-    // Update cycle progress
-    await supabase
-      .from('stakes')
-      .update({ 
-        cycle_progress: cycleProgress,
-        total_earned: newTotalEarned
-      })
-      .eq('id', stakeId);
-
-    // Log the earning event
-    await logEarningEvent(userId, type, amount, {
-      stakeId,
-      timestamp,
-      cycleProgress
-    });
-
-    return true;
-  } catch (error) {
-    console.error('Error processing earnings:', error);
-    return false;
-  }
-};
-
-// Add new function to handle cycle completion
+// Cycle completion handling
 const handleCycleCompletion = async (userId: number, stakeId: number, stakeAmount: number) => {
   try {
-    // Deactivate current stake
     await supabase
       .from('stakes')
       .update({ 
@@ -965,30 +902,16 @@ const handleCycleCompletion = async (userId: number, stakeId: number, stakeAmoun
       })
       .eq('id', stakeId);
 
-    // Calculate distribution
-    const reinvestAmount = stakeAmount * 0.2; // 20% to reinvestment
-    const glpAmount = stakeAmount * 0.1; // 10% to GLP
-    const stkAmount = stakeAmount * 0.1; // 10% to STK
+    const reinvestAmount = stakeAmount * 0.2;
+    const glpAmount = stakeAmount * 0.1;
+    const stkAmount = stakeAmount * 0.1;
 
-    // Process distributions
     await Promise.all([
-      // Add to reinvestment balance
-      supabase.rpc('increment_reinvestment_balance', {
-        user_id: userId,
-        amount: reinvestAmount
-      }),
-      // Add to GLP pool
-      supabase.rpc('increment_glp_pool', {
-        p_amount: glpAmount
-      }),
-      // Add STK tokens
-      supabase.rpc('increment_sbt', {
-        user_id: userId,
-        amount: stkAmount
-      })
+      supabase.rpc('increment_reinvestment_balance', { user_id: userId, amount: reinvestAmount }),
+      supabase.rpc('increment_glp_pool', { p_amount: glpAmount }),
+      supabase.rpc('increment_sbt', { user_id: userId, amount: stkAmount })
     ]);
 
-    // Log cycle completion
     await supabase.from('cycle_completions').insert({
       user_id: userId,
       stake_id: stakeId,
@@ -1002,6 +925,57 @@ const handleCycleCompletion = async (userId: number, stakeId: number, stakeAmoun
   } catch (error) {
     console.error('Error handling cycle completion:', error);
     throw error;
+  }
+};
+
+export const processEarnings = async (userId: number, stakeId: number, amount: number, type: 'roi' | 'referral' | 'bonus' = 'roi') => {
+  try {
+    const timestamp = new Date().toISOString();
+    
+    const { data: stake } = await supabase
+      .from('stakes')
+      .select('amount, total_earned')
+      .eq('id', stakeId)
+      .maybeSingle();
+
+    if (!stake) return false;
+
+    const newTotalEarned = stake.total_earned + amount;
+    const cycleProgress = (newTotalEarned / stake.amount) * 100;
+
+    if (cycleProgress >= 300) {
+      await handleCycleCompletion(userId, stakeId, stake.amount);
+      return true;
+    }
+
+    const { error } = await supabase.rpc('process_earnings', {
+      p_amount: amount,
+      p_stake_id: stakeId,
+      p_timestamp: timestamp,
+      p_user_id: userId,
+      p_type: type
+    });
+
+    if (error) throw error;
+
+    await supabase
+      .from('stakes')
+      .update({ 
+        cycle_progress: cycleProgress,
+        total_earned: newTotalEarned
+      })
+      .eq('id', stakeId);
+
+    await logEarningEvent(userId, type, amount, {
+      stakeId,
+      timestamp,
+      cycleProgress
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error processing earnings:', error);
+    return false;
   }
 };
 
@@ -1019,8 +993,8 @@ export const gmpSystem = {
   getUserPoolShare: async (userId: number) => {
     const { data, error } = await supabase.rpc('calculate_user_glp_share', {
       p_user_id: userId,
-      p_team_volume_percent: 2, // Only 2% of team withdrawal volume counts
-      p_reset_interval_days: 7  // Reset every 7 days
+      p_team_volume_percent: 2,
+      p_reset_interval_days: 7
     });
 
     if (error) throw error;
@@ -1028,7 +1002,6 @@ export const gmpSystem = {
   }
 };
 
-// Add cycle tracking
 export const checkAndHandleCycle = async (userId: number) => {
   const { data: stakes } = await supabase
     .from('stakes')
@@ -1039,7 +1012,6 @@ export const checkAndHandleCycle = async (userId: number) => {
   for (const stake of stakes || []) {
     const totalReturn = stake.total_earned / stake.amount * 100;
     if (totalReturn >= 300) {
-      // Handle cycle completion
       await supabase.rpc('complete_stake_cycle', { 
         p_stake_id: stake.id,
         p_user_id: userId 
@@ -1048,14 +1020,10 @@ export const checkAndHandleCycle = async (userId: number) => {
   }
 };
 
-// Add these constants for withdrawal fees
-const WITHDRAWAL_FEES = {
-  GLP: 0.10,  // 10% to Global Leadership Pool
-  STK: 0.10,  // 10% to Reputation Points ($STK)
-  REINVEST: 0.20  // 20% to re-investment wallet
-};
+// ==========================================
+// WITHDRAWALS
+// ==========================================
 
-// Add this function to handle withdrawal fee distribution
 export const processWithdrawalFees = async (userId: number, amount: number) => {
   try {
     const glpAmount = amount * WITHDRAWAL_FEES.GLP;
@@ -1063,22 +1031,9 @@ export const processWithdrawalFees = async (userId: number, amount: number) => {
     const reinvestAmount = amount * WITHDRAWAL_FEES.REINVEST;
     const userAmount = amount - glpAmount - stkAmount - reinvestAmount;
 
-    // Update GLP pool
-    await supabase.rpc('increment_glp_pool', {
-      p_amount: glpAmount
-    });
-
-    // Add STK (Reputation Points) to user
-    await supabase.rpc('increment_sbt', {
-      user_id: userId,
-      amount: stkAmount
-    });
-
-    // Add to user's reinvestment wallet
-    await supabase.rpc('increment_reinvestment_balance', {
-      user_id: userId,
-      amount: reinvestAmount
-    });
+    await supabase.rpc('increment_glp_pool', { p_amount: glpAmount });
+    await supabase.rpc('increment_sbt', { user_id: userId, amount: stkAmount });
+    await supabase.rpc('increment_reinvestment_balance', { user_id: userId, amount: reinvestAmount });
 
     return {
       success: true,
@@ -1095,16 +1050,13 @@ export const processWithdrawalFees = async (userId: number, amount: number) => {
   }
 };
 
-// Update the existing withdrawal function
 export const processWithdrawal = async (userId: number, amount: number): Promise<boolean> => {
   try {
-    // Validate minimum withdrawal
     if (amount < EARNING_LIMITS.minimum_withdrawal) {
       console.error('Withdrawal amount below minimum');
       return false;
     }
 
-    // Get user's current earnings
     const { data: user } = await supabase
       .from('users')
       .select('available_earnings')
@@ -1116,11 +1068,9 @@ export const processWithdrawal = async (userId: number, amount: number): Promise
       return false;
     }
 
-    // Process fees and get final user amount
     const feeResult = await processWithdrawalFees(userId, amount);
     if (!feeResult.success) return false;
 
-    // Begin transaction
     const { error } = await supabase.rpc('process_withdrawal', {
       p_user_id: userId,
       p_amount: amount,
@@ -1132,7 +1082,6 @@ export const processWithdrawal = async (userId: number, amount: number): Promise
 
     if (error) throw error;
 
-    // Log the withdrawal
     await supabase.from('withdrawals').insert({
       user_id: userId,
       amount: amount,
@@ -1151,7 +1100,6 @@ export const processWithdrawal = async (userId: number, amount: number): Promise
   }
 };
 
-// Add this function to handle 300% cycle completion
 export const checkCycleCompletion = async (userId: number) => {
   const { data: stakes } = await supabase
     .from('stakes')
@@ -1162,22 +1110,19 @@ export const checkCycleCompletion = async (userId: number) => {
   for (const stake of stakes || []) {
     const totalReturn = (stake.total_earned / stake.amount) * 100;
     if (totalReturn >= 300) {
-      // Deactivate stake and notify user
       await supabase
         .from('stakes')
         .update({ is_active: false, cycle_completed: true })
         .eq('id', stake.id);
         
-      // Add to reinvestment balance
       await supabase.rpc('increment_reinvestment_balance', {
         user_id: userId,
-        amount: stake.amount * 0.2 // 20% to reinvestment
+        amount: stake.amount * 0.2
       });
     }
   }
 };
 
-// Weekly Withdrawal System Functions
 export const checkWeeklyWithdrawalEligibility = async (userId: number): Promise<{
   canWithdraw: boolean;
   nextWithdrawalDate: Date | null;
@@ -1186,7 +1131,6 @@ export const checkWeeklyWithdrawalEligibility = async (userId: number): Promise<
   pendingWithdrawalId?: number;
 }> => {
   try {
-    // Check for pending withdrawals first
     const { data: pendingWithdrawals, error: pendingError } = await supabase
       .from('withdrawals')
       .select('id, created_at')
@@ -1197,7 +1141,6 @@ export const checkWeeklyWithdrawalEligibility = async (userId: number): Promise<
 
     if (pendingError) throw pendingError;
 
-    // If there's a pending withdrawal, user cannot withdraw
     if (pendingWithdrawals && pendingWithdrawals.length > 0) {
       return {
         canWithdraw: false,
@@ -1208,7 +1151,6 @@ export const checkWeeklyWithdrawalEligibility = async (userId: number): Promise<
       };
     }
 
-    // Check weekly withdrawal eligibility
     const { data, error } = await supabase
       .from('users')
       .select('last_weekly_withdrawal')
@@ -1265,7 +1207,6 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
   error?: string;
 }> => {
   try {
-    // Check eligibility first
     const eligibility = await checkWeeklyWithdrawalEligibility(userId);
     if (!eligibility.canWithdraw) {
       if (eligibility.hasPendingWithdrawal) {
@@ -1281,15 +1222,10 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
       }
     }
 
-    // Validate minimum withdrawal
     if (amount < 1) {
-      return {
-        success: false,
-        error: 'Minimum withdrawal amount is 1 RZC'
-      };
+      return { success: false, error: 'Minimum withdrawal amount is 1 RZC' };
     }
 
-    // Get user's current claimable balance (total_withdrawn)
     const { data: user } = await supabase
       .from('users')
       .select('total_withdrawn')
@@ -1297,13 +1233,9 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
       .single();
 
     if (!user || user.total_withdrawn < amount) {
-      return {
-        success: false,
-        error: 'Insufficient claimable balance'
-      };
+      return { success: false, error: 'Insufficient claimable balance' };
     }
 
-    // Create withdrawal request
     const { error: withdrawError } = await supabase
       .from('withdrawals')
       .insert({
@@ -1316,7 +1248,6 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
 
     if (withdrawError) throw withdrawError;
 
-    // Update weekly withdrawal tracking
     const { error: updateError } = await supabase.rpc('update_weekly_withdrawal_tracking', {
       user_id_param: userId,
       withdrawal_amount: amount
@@ -1324,7 +1255,6 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
 
     if (updateError) {
       console.error('Error updating weekly withdrawal tracking:', updateError);
-      // Don't fail the withdrawal if tracking update fails
     }
 
     return { success: true };
@@ -1337,13 +1267,11 @@ export const processWeeklyWithdrawal = async (userId: number, amount: number, _w
   }
 };
 
-// Function to approve a withdrawal and subtract from claimable balance
 export const approveWithdrawal = async (withdrawalId: number): Promise<{
   success: boolean;
   error?: string;
 }> => {
   try {
-    // Get withdrawal details
     const { data: withdrawal, error: fetchError } = await supabase
       .from('withdrawals')
       .select('*')
@@ -1351,15 +1279,9 @@ export const approveWithdrawal = async (withdrawalId: number): Promise<{
       .single();
 
     if (fetchError) throw fetchError;
-    if (!withdrawal) {
-      return { success: false, error: 'Withdrawal not found' };
-    }
+    if (!withdrawal) return { success: false, error: 'Withdrawal not found' };
+    if (withdrawal.status !== 'PENDING') return { success: false, error: 'Withdrawal is not pending' };
 
-    if (withdrawal.status !== 'PENDING') {
-      return { success: false, error: 'Withdrawal is not pending' };
-    }
-
-    // Update withdrawal status to COMPLETED
     const { error: updateError } = await supabase
       .from('withdrawals')
       .update({
@@ -1370,7 +1292,6 @@ export const approveWithdrawal = async (withdrawalId: number): Promise<{
 
     if (updateError) throw updateError;
 
-    // Subtract from user's available earnings (claimable balance) and add to total_payout
     const { error: balanceError } = await supabase.rpc('update_user_balance_after_withdrawal', {
       user_id: withdrawal.user_id,
       withdrawal_amount: withdrawal.amount
@@ -1378,7 +1299,6 @@ export const approveWithdrawal = async (withdrawalId: number): Promise<{
 
     if (balanceError) {
       console.error('Error updating user balance:', balanceError);
-      // Revert withdrawal status if balance update fails
       await supabase
         .from('withdrawals')
         .update({ status: 'PENDING' })
@@ -1387,7 +1307,6 @@ export const approveWithdrawal = async (withdrawalId: number): Promise<{
       return { success: false, error: 'Failed to update user balance' };
     }
 
-    // Create activity record for the withdrawal
     await supabase
       .from('activities')
       .insert({
@@ -1408,7 +1327,6 @@ export const approveWithdrawal = async (withdrawalId: number): Promise<{
   }
 };
 
-// Function to reject a withdrawal
 export const rejectWithdrawal = async (withdrawalId: number, _reason?: string): Promise<{
   success: boolean;
   error?: string;
@@ -1434,7 +1352,6 @@ export const rejectWithdrawal = async (withdrawalId: number, _reason?: string): 
   }
 };
 
-// Get user payout statistics
 export const getUserPayoutStats = async (userId: number): Promise<{
   totalPayout: number;
   totalWithdrawn: number;
@@ -1472,7 +1389,6 @@ export const getUserPayoutStats = async (userId: number): Promise<{
   }
 };
 
-// Get platform payout statistics
 export const getPlatformPayoutStats = async (): Promise<{
   totalPlatformPayouts: number;
   totalPendingWithdrawals: number;
@@ -1516,7 +1432,6 @@ export const distributeGLPRewards = async () => {
       return;
     }
 
-    // Get qualified participants based on stake and earnings
     const { data: participants } = await supabase
       .from('users')
       .select(`
@@ -1524,14 +1439,13 @@ export const distributeGLPRewards = async () => {
         team_volume,
         withdrawal_volume:withdrawals(sum)
       `)
-      .gte('balance', 100); // Minimum 100 TON staked
+      .gte('balance', 100);
 
     if (!participants?.length) {
       console.log('No qualified participants');
       return;
     }
 
-    // Calculate points for each participant
     const participantPoints = participants.map(p => ({
       user_id: p.id,
       team_volume: p.team_volume,
@@ -1541,10 +1455,8 @@ export const distributeGLPRewards = async () => {
       )
     }));
 
-    // Calculate total points
     const totalPoints = participantPoints.reduce((sum, p) => sum + p.points, 0);
     
-    // Distribute rewards
     const distributions = participantPoints.map(p => ({
       user_id: p.user_id,
       amount: (p.points / totalPoints) * poolData.amount,
@@ -1552,7 +1464,6 @@ export const distributeGLPRewards = async () => {
       distribution_date: new Date().toISOString()
     }));
 
-    // Process distributions in a transaction
     const { error } = await supabase.rpc('process_glp_distribution', {
       p_distributions: distributions,
       p_pool_amount: poolData.amount
@@ -1560,7 +1471,6 @@ export const distributeGLPRewards = async () => {
 
     if (error) throw error;
 
-    // Log distribution
     await supabase.from('glp_distribution_history').insert(
       distributions.map(d => ({
         ...d,
@@ -1584,30 +1494,8 @@ export const distributeGLPRewards = async () => {
   }
 };
 
-// Helper function to calculate GLP points
-const calculateGLPPoints = (
-  teamVolume: number,
-  withdrawalVolume: number
-): number => {
-  // Points from team volume (1 point per 1000 TON)
-  const volumePoints = Math.floor(teamVolume / 1000);
-  
-  // Points from withdrawal volume (2% consideration)
-  const withdrawalPoints = Math.floor((withdrawalVolume * 0.02) / 100);
-  
-  // Bonus points for high team volume
-  let bonusPoints = 0;
-  if (teamVolume >= 10000) bonusPoints += 20;
-  if (teamVolume >= 50000) bonusPoints += 50;
-  if (teamVolume >= 100000) bonusPoints += 100;
-  
-  return volumePoints + withdrawalPoints + bonusPoints;
-};
-
-// Add deposit validation and processing
 export const processDeposit = async (userId: number, amount: number, txHash: string): Promise<boolean> => {
   try {
-    // 1. Validate the transaction first
     const { data: existingDeposit } = await supabase
       .from('deposits')
       .select('id')
@@ -1619,7 +1507,6 @@ export const processDeposit = async (userId: number, amount: number, txHash: str
       return false;
     }
 
-    // 2. Start a transaction to ensure data consistency
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('balance, total_deposit')
@@ -1631,7 +1518,6 @@ export const processDeposit = async (userId: number, amount: number, txHash: str
       return false;
     }
 
-    // 3. Create deposit record with pending status
     const { data: deposit, error: depositError } = await supabase
       .from('deposits')
       .insert({
@@ -1649,7 +1535,6 @@ export const processDeposit = async (userId: number, amount: number, txHash: str
       return false;
     }
 
-    // 4. Update user balance atomically
     const { error: updateError } = await supabase.rpc('update_user_deposit', {
       p_user_id: userId,
       p_amount: amount,
@@ -1658,7 +1543,6 @@ export const processDeposit = async (userId: number, amount: number, txHash: str
 
     if (updateError) {
       console.error('Error updating user balance:', updateError);
-      // Rollback deposit status
       await supabase
         .from('deposits')
         .update({ status: 'failed' })
@@ -1666,10 +1550,8 @@ export const processDeposit = async (userId: number, amount: number, txHash: str
       return false;
     }
 
-    // 5. Process referral rewards for staking
     await processReferralStakingRewards(userId, amount);
 
-    // 6. Log the activity
     await supabase.from('activities').insert({
       user_id: userId,
       type: 'deposit',
@@ -1686,29 +1568,24 @@ export const processDeposit = async (userId: number, amount: number, txHash: str
   }
 };
 
-// Add balance reconciliation function
 export const reconcileUserBalance = async (userId: number): Promise<boolean> => {
   try {
-    // Get all confirmed deposits
     const { data: deposits } = await supabase
       .from('deposits')
       .select('amount')
       .eq('user_id', userId)
       .eq('status', 'completed');
 
-    // Get all confirmed withdrawals
     const { data: withdrawals } = await supabase
       .from('withdrawals')
       .select('amount')
       .eq('user_id', userId)
       .eq('status', 'completed');
 
-    // Calculate correct balance
     const totalDeposits = deposits?.reduce((sum, d) => sum + d.amount, 0) || 0;
     const totalWithdrawals = withdrawals?.reduce((sum, w) => sum + w.amount, 0) || 0;
     const correctBalance = totalDeposits - totalWithdrawals;
 
-    // Get current user balance
     const { data: user } = await supabase
       .from('users')
       .select('balance')
@@ -1717,9 +1594,7 @@ export const reconcileUserBalance = async (userId: number): Promise<boolean> => 
 
     if (!user) return false;
 
-    // If there's a discrepancy, log it and correct the balance
     if (Math.abs(user.balance - correctBalance) > 0.000001) {
-      // Log the discrepancy
       await supabase.from('balance_discrepancies').insert({
         user_id: userId,
         recorded_balance: user.balance,
@@ -1728,7 +1603,6 @@ export const reconcileUserBalance = async (userId: number): Promise<boolean> => 
         timestamp: new Date().toISOString()
       });
 
-      // Update to correct balance
       await supabase
         .from('users')
         .update({ 
@@ -1737,9 +1611,7 @@ export const reconcileUserBalance = async (userId: number): Promise<boolean> => 
         })
         .eq('id', userId);
     }
-
     return true;
-
   } catch (error) {
     console.error('Error reconciling balance:', error);
     return false;
@@ -1748,7 +1620,6 @@ export const reconcileUserBalance = async (userId: number): Promise<boolean> => 
 
 export const deleteUserProfile = async (userId: number): Promise<boolean> => {
   try {
-    // Delete user from database
     const { error } = await supabase
       .from('users')
       .delete()
@@ -1756,7 +1627,6 @@ export const deleteUserProfile = async (userId: number): Promise<boolean> => {
 
     if (error) throw error;
 
-    // Clear local storage data
     localStorage.removeItem('userData');
     localStorage.removeItem('authToken');
     localStorage.removeItem('lastLogin');
@@ -1770,40 +1640,284 @@ export const deleteUserProfile = async (userId: number): Promise<boolean> => {
   }
 };
 
-// ============================================================================
+// ==========================================
+// USER & TRANSACTION FUNCTIONS
+// ==========================================
+
+export const createOrUpdateUser = async (
+  email: string,
+  walletAddress: string,
+  username?: string,
+  displayName?: string
+): Promise<User> => {
+  const userData: {
+    email: string;
+    wallet_address: string;
+    updated_at: string;
+    username?: string;
+    display_name?: string;
+  } = {
+    email,
+    wallet_address: walletAddress,
+    updated_at: new Date().toISOString()
+  };
+
+  if (username) userData.username = username;
+  if (displayName) userData.display_name = displayName;
+
+  const { data, error } = await supabase
+    .from('users')
+    .upsert(userData, { 
+      onConflict: 'wallet_address',
+      ignoreDuplicates: false 
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create/update user: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const getUserByWalletAddress = async (walletAddress: string): Promise<User | null> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('wallet_address', walletAddress)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to get user: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const getUserByUsername = async (username: string): Promise<User | null> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('username', username)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to get user by username: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const searchUsers = async (query: string): Promise<User[]> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+    .limit(10);
+
+  if (error) {
+    throw new Error(`Failed to search users: ${error.message}`);
+  }
+
+  return data || [];
+};
+
+export const updateUserProfile = async (
+  walletAddress: string,
+  updates: Partial<Pick<User, 'username' | 'display_name' | 'avatar_url'>>
+): Promise<User> => {
+  const { data, error } = await supabase
+    .from('users')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('wallet_address', walletAddress)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update user profile: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const createTransaction = async (
+  fromUserId: string,
+  toUserId: string,
+  fromAddress: string,
+  toAddress: string,
+  amount: string,
+  tokenContract: string,
+  tokenSymbol: string,
+  chainId: number,
+  message?: string,
+  thirdwebTransactionId?: string
+): Promise<Transaction> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({
+      from_user_id: fromUserId,
+      to_user_id: toUserId,
+      from_address: fromAddress,
+      to_address: toAddress,
+      amount,
+      token_contract: tokenContract,
+      token_symbol: tokenSymbol,
+      chain_id: chainId,
+      message,
+      thirdweb_transaction_id: thirdwebTransactionId,
+      status: 'pending'
+    })
+    .select(`
+      *,
+      from_user:users!from_user_id(*),
+      to_user:users!to_user_id(*)
+    `)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create transaction: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const updateTransactionStatus = async (
+  transactionId: string,
+  status: 'pending' | 'confirmed' | 'failed',
+  transactionHash?: string
+): Promise<Transaction> => {
+  const updates: {
+    status: 'pending' | 'confirmed' | 'failed';
+    updated_at: string;
+    confirmed_at?: string;
+    transaction_hash?: string;
+  } = {
+    status,
+    updated_at: new Date().toISOString()
+  };
+
+  if (status === 'confirmed') {
+    updates.confirmed_at = new Date().toISOString();
+  }
+
+  if (transactionHash) {
+    updates.transaction_hash = transactionHash;
+  }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update(updates)
+    .eq('id', transactionId)
+    .select(`
+      *,
+      from_user:users!from_user_id(*),
+      to_user:users!to_user_id(*)
+    `)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update transaction status: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const updateThirdwebTransactionId = async (
+  transactionId: string,
+  thirdwebTransactionId: string
+): Promise<Transaction> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({
+      thirdweb_transaction_id: thirdwebTransactionId,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', transactionId)
+    .select(`
+      *,
+      from_user:users!from_user_id(*),
+      to_user:users!to_user_id(*)
+    `)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update thirdweb transaction ID: ${error.message}`);
+  }
+
+  return data;
+};
+
+export const getUserTransactions = async (userId: string): Promise<Transaction[]> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      from_user:users!from_user_id(*),
+      to_user:users!to_user_id(*)
+    `)
+    .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to get user transactions: ${error.message}`);
+  }
+
+  return data || [];
+};
+
+export const getRecentTransactions = async (limit = 20): Promise<Transaction[]> => {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      from_user:users!from_user_id(*),
+      to_user:users!to_user_id(*)
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to get recent transactions: ${error.message}`);
+  }
+
+  return data || [];
+};
+
+export const subscribeToUserTransactions = (
+  userId: string,
+  callback: (transaction: Transaction) => void
+) => {
+  return supabase
+    .channel('user-transactions')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'transactions',
+        filter: `or(from_user_id.eq.${userId},to_user_id.eq.${userId})`
+      },
+      (payload) => {
+        callback(payload.new as Transaction);
+      }
+    )
+    .subscribe();
+};
+
+// ==========================================
 // MINING SYSTEM FUNCTIONS
-// ============================================================================
+// ==========================================
 
-// Mining session interface
-export interface MiningSession {
-  id: number;
-  user_id: number;
-  start_time: string;
-  end_time: string;
-  status: 'active' | 'completed' | 'expired';
-  rzc_earned: number;
-  created_at: string;
-  completed_at?: string;
-}
-
-// RZC balance interface
-export interface RZCBalance {
-  user_id: number;
-  claimable_rzc: number;
-  total_rzc_earned: number;
-  last_claim_time?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Start a new mining session (simplified version using activities)
 export const startMiningSession = async (userId: number): Promise<{
   success: boolean;
   sessionId?: number;
   error?: string;
 }> => {
   try {
-    // Check if user can start mining (free period + no active session)
     const miningCheck = await canUserStartMining(userId);
     if (!miningCheck.canMine) {
       return {
@@ -1812,7 +1926,6 @@ export const startMiningSession = async (userId: number): Promise<{
       };
     }
 
-    // Record mining start activity
     const { data: activity, error } = await supabase
       .from('activities')
       .insert({
@@ -1829,7 +1942,7 @@ export const startMiningSession = async (userId: number): Promise<{
 
     return {
       success: true,
-      sessionId: activity.id // Use activity ID as session ID
+      sessionId: activity.id
     };
   } catch (error: any) {
     console.error('Error starting mining session:', error);
@@ -1840,20 +1953,17 @@ export const startMiningSession = async (userId: number): Promise<{
   }
 };
 
-// Start a new mining session without free-period checks (unrestricted/auto mode)
 export const startMiningSessionUnrestricted = async (userId: number): Promise<{
   success: boolean;
   sessionId?: number;
   error?: string;
 }> => {
   try {
-    // Avoid duplicate active sessions: if an active session exists, return success with that id
     const existing = await getActiveMiningSession(userId);
     if (existing) {
       return { success: true, sessionId: existing.id };
     }
 
-    // Directly record mining start activity
     const { data: activity, error } = await supabase
       .from('activities')
       .insert({
@@ -1881,10 +1991,8 @@ export const startMiningSessionUnrestricted = async (userId: number): Promise<{
   }
 };
 
-// Get active mining session (simplified version using activities)
 export const getActiveMiningSession = async (userId: number): Promise<MiningSession | null> => {
   try {
-    // Get the most recent mining_start activity that doesn't have a corresponding mining_complete
     const { data: miningStarts, error } = await supabase
       .from('activities')
       .select('id, created_at')
@@ -1901,7 +2009,6 @@ export const getActiveMiningSession = async (userId: number): Promise<MiningSess
     const startTime = new Date(startActivity.created_at);
     const endTime = new Date(startTime.getTime() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Check if there's a mining_complete activity after this mining_start
     const { data: miningComplete } = await supabase
       .from('activities')
       .select('id')
@@ -1911,14 +2018,11 @@ export const getActiveMiningSession = async (userId: number): Promise<MiningSess
       .gt('created_at', startActivity.created_at)
       .limit(1);
 
-    // If there's a mining_complete after this mining_start, session is not active
     if (miningComplete && miningComplete.length > 0) return null;
 
-    // Check if session has expired (24 hours)
     const now = new Date();
     if (now >= endTime) return null;
 
-    // Return a mock MiningSession object
     return {
       id: startActivity.id,
       user_id: userId,
@@ -1934,7 +2038,105 @@ export const getActiveMiningSession = async (userId: number): Promise<MiningSess
   }
 };
 
-// Update mining session progress
+export const manualCompleteMiningSession = async (sessionId: number): Promise<{
+  success: boolean;
+  rzcEarned?: number;
+  error?: string;
+}> => {
+  try {
+    const { data: session, error: fetchError } = await supabase
+      .from('mining_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!session) return { success: false, error: 'Mining session not found' };
+
+    const startTime = new Date(session.start_time);
+    const endTime = new Date();
+    const elapsedHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const rzcEarned = Math.min(elapsedHours * (50 / 24), 50);
+
+    const { error: updateError } = await supabase
+      .from('mining_sessions')
+      .update({
+        status: 'completed',
+        rzc_earned: rzcEarned,
+        completed_at: endTime.toISOString()
+      })
+      .eq('id', sessionId);
+
+    if (updateError) throw updateError;
+
+    const { error: activityError } = await supabase.from('activities').insert({
+      user_id: session.user_id,
+      type: 'mining_complete',
+      amount: rzcEarned,
+      status: 'completed',
+      created_at: new Date().toISOString()
+    });
+
+    if (activityError) throw activityError;
+
+    return { success: true, rzcEarned };
+  } catch (error: any) {
+    console.error('Error manually completing mining session:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to complete mining session'
+    };
+  }
+};
+
+export const completeMiningSession = async (sessionId: number): Promise<{
+  success: boolean;
+  rzcEarned?: number;
+  error?: string;
+}> => {
+  try {
+    const { data: session, error: fetchError } = await supabase
+      .from('mining_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!session) return { success: false, error: 'Mining session not found' };
+
+    const rzcEarned = 50.0; // Hardcoded reward for auto-completion?
+
+    const { error: updateError } = await supabase
+      .from('mining_sessions')
+      .update({
+        status: 'completed',
+        rzc_earned: rzcEarned,
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', sessionId);
+
+    if (updateError) throw updateError;
+
+    const { error: activityError } = await supabase.from('activities').insert({
+      user_id: session.user_id,
+      type: 'mining_complete',
+      amount: rzcEarned,
+      status: 'completed',
+      created_at: new Date().toISOString()
+    });
+
+    if (activityError) throw activityError;
+
+    return { success: true, rzcEarned };
+  } catch (error: any) {
+    console.error('Error completing mining session:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to complete mining session'
+    };
+  }
+};
+
 export const updateMiningProgress = async (sessionId: number, rzcEarned: number): Promise<boolean> => {
   try {
     const { error } = await supabase
@@ -1950,126 +2152,6 @@ export const updateMiningProgress = async (sessionId: number, rzcEarned: number)
   }
 };
 
-// Manually complete mining session (user-initiated)
-export const manualCompleteMiningSession = async (sessionId: number): Promise<{
-  success: boolean;
-  rzcEarned?: number;
-  error?: string;
-}> => {
-  try {
-    // Get session details
-    const { data: session, error: fetchError } = await supabase
-      .from('mining_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-
-    if (fetchError) throw fetchError;
-    if (!session) {
-      return { success: false, error: 'Mining session not found' };
-    }
-
-    // Calculate RZC earned based on actual time elapsed
-    const startTime = new Date(session.start_time);
-    const endTime = new Date();
-    const elapsedHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-    const rzcEarned = Math.min(elapsedHours * (50 / 24), 50); // 50 RZC per day, capped at 50
-
-    // Update session as completed
-    const { error: updateError } = await supabase
-      .from('mining_sessions')
-      .update({
-        status: 'completed',
-        rzc_earned: rzcEarned,
-        completed_at: endTime.toISOString()
-      })
-      .eq('id', sessionId);
-
-    if (updateError) throw updateError;
-
-    // Add RZC to user's claimable balance by recording mining completion activity
-    const { error: activityError } = await supabase.from('activities').insert({
-      user_id: session.user_id,
-      type: 'mining_complete',
-      amount: rzcEarned,
-      status: 'completed',
-      created_at: new Date().toISOString()
-    });
-
-    if (activityError) throw activityError;
-
-    return {
-      success: true,
-      rzcEarned
-    };
-  } catch (error: any) {
-    console.error('Error manually completing mining session:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to complete mining session'
-    };
-  }
-};
-
-// Complete mining session
-export const completeMiningSession = async (sessionId: number): Promise<{
-  success: boolean;
-  rzcEarned?: number;
-  error?: string;
-}> => {
-  try {
-    // Get session details
-    const { data: session, error: fetchError } = await supabase
-      .from('mining_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .single();
-
-    if (fetchError) throw fetchError;
-    if (!session) {
-      return { success: false, error: 'Mining session not found' };
-    }
-
-    // Calculate final RZC earned (50 RZC per day - consistent with frontend)
-    const rzcEarned = 50.0;
-
-    // Update session as completed
-    const { error: updateError } = await supabase
-      .from('mining_sessions')
-      .update({
-        status: 'completed',
-        rzc_earned: rzcEarned,
-        completed_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
-
-    if (updateError) throw updateError;
-
-    // Add RZC to user's claimable balance by recording mining completion activity
-    const { error: activityError } = await supabase.from('activities').insert({
-      user_id: session.user_id,
-      type: 'mining_complete',
-      amount: rzcEarned,
-      status: 'completed',
-      created_at: new Date().toISOString()
-    });
-
-    if (activityError) throw activityError;
-
-    return {
-      success: true,
-      rzcEarned
-    };
-  } catch (error: any) {
-    console.error('Error completing mining session:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to complete mining session'
-    };
-  }
-};
-
-// Get user's RZC balance (simplified version using activities table)
 export const getUserRZCBalance = async (userId: number): Promise<{
   claimableRZC: number;
   totalEarned: number;
@@ -2077,7 +2159,6 @@ export const getUserRZCBalance = async (userId: number): Promise<{
   lastClaimTime?: string;
 }> => {
   try {
-    // Get all RZC-related activities
     const { data: activities, error } = await supabase
       .from('activities')
       .select('type, amount, created_at')
@@ -2093,16 +2174,10 @@ export const getUserRZCBalance = async (userId: number): Promise<{
     let claimedRZC = 0;
     let lastClaimTime: string | undefined;
 
-    // Process activities to calculate balances
     activities?.forEach(activity => {
       if (activity.type === 'rzc_claim') {
-        if (activity.amount > 0) {
-          claimedRZC += activity.amount;
-          if (!lastClaimTime) lastClaimTime = activity.created_at;
-        } else {
-          // Negative claim (upgrade purchase) - deduct from claimed RZC balance
-          claimedRZC += activity.amount; // This will subtract since amount is negative
-        }
+        claimedRZC += activity.amount; // Note: upgrades might have negative amounts
+        if (!lastClaimTime && activity.amount > 0) lastClaimTime = activity.created_at;
       } else if (activity.type === 'mining_complete') {
         claimableRZC += activity.amount;
         totalEarned += activity.amount;
@@ -2118,20 +2193,13 @@ export const getUserRZCBalance = async (userId: number): Promise<{
       lastClaimTime
     });
 
-    // Update the available_balance column in users table
     try {
       const { error: updateError } = await supabase
         .from('users')
-        .update({
-          available_balance: claimedRZC
-        })
+        .update({ available_balance: claimedRZC })
         .eq('id', userId);
 
-      if (updateError) {
-        console.error('Error updating available_balance:', updateError);
-      } else {
-        console.log(`Updated available_balance for user ${userId} to ${claimedRZC}`);
-      }
+      if (updateError) console.error('Error updating available_balance:', updateError);
     } catch (updateErr) {
       console.error('Error updating user available_balance:', updateErr);
     }
@@ -2152,24 +2220,18 @@ export const getUserRZCBalance = async (userId: number): Promise<{
   }
 };
 
-// Claim RZC rewards (simplified version using activities table)
 export const claimRZCRewards = async (userId: number, amount: number): Promise<{
   success: boolean;
   error?: string;
   transactionId?: string;
 }> => {
   try {
-    // Get current balance to check if user has enough
     const balance = await getUserRZCBalance(userId);
     
     if (balance.claimableRZC < amount) {
-      return {
-        success: false,
-        error: 'Insufficient RZC balance'
-      };
+      return { success: false, error: 'Insufficient RZC balance' };
     }
 
-    // Record the claim activity
     const { error: claimError } = await supabase.from('activities').insert({
       user_id: userId,
       type: 'rzc_claim',
@@ -2180,12 +2242,11 @@ export const claimRZCRewards = async (userId: number, amount: number): Promise<{
 
     if (claimError) throw claimError;
 
-    // Update user's total_earned and available_balance in users table
     const { error: updateError } = await supabase
       .from('users')
       .update({
         total_earned: balance.totalEarned + amount,
-        available_balance: balance.claimedRZC + amount, // Update available_balance immediately
+        available_balance: balance.claimedRZC + amount,
         last_claim_time: new Date().toISOString()
       })
       .eq('id', userId);
@@ -2205,7 +2266,6 @@ export const claimRZCRewards = async (userId: number, amount: number): Promise<{
   }
 };
 
-// Get mining history
 export const getMiningHistory = async (userId: number, limit: number = 10): Promise<MiningSession[]> => {
   try {
     const { data, error } = await supabase
@@ -2223,12 +2283,10 @@ export const getMiningHistory = async (userId: number, limit: number = 10): Prom
   }
 };
 
-// Check and process expired mining sessions
 export const processExpiredMiningSessions = async (): Promise<void> => {
   try {
     const now = new Date().toISOString();
     
-    // Get all active sessions that have expired
     const { data: expiredSessions, error: fetchError } = await supabase
       .from('mining_sessions')
       .select('*')
@@ -2237,7 +2295,6 @@ export const processExpiredMiningSessions = async (): Promise<void> => {
 
     if (fetchError) throw fetchError;
 
-    // Process each expired session
     for (const session of expiredSessions || []) {
       await completeMiningSession(session.id);
     }
@@ -2246,34 +2303,12 @@ export const processExpiredMiningSessions = async (): Promise<void> => {
   }
 };
 
-// ============================================================================
-// IMPROVED FREE MINING PERIOD FUNCTIONS
-// ============================================================================
-
-// Free mining period interface
-export interface FreeMiningPeriod {
-  user_id: number;
-  start_date: string;
-  end_date: string;
-  grace_period_end: string;
-  is_active: boolean;
-  sessions_used: number;
-  max_sessions: number;
-  is_in_grace_period: boolean;
-  days_remaining: number;
-  sessions_remaining: number;
-  can_mine: boolean;
-  reason: string;
-}
-
-// Initialize free mining period for users (improved version)
 export const initializeFreeMiningPeriod = async (userId: number): Promise<{
   success: boolean;
   error?: string;
   freeMiningData?: FreeMiningPeriod;
 }> => {
   try {
-    // Call the database function to initialize or update the free mining period
     const { error: dbError } = await supabase.rpc('initialize_or_update_free_mining_period', {
       p_user_id: userId
     });
@@ -2286,7 +2321,6 @@ export const initializeFreeMiningPeriod = async (userId: number): Promise<{
       };
     }
 
-    // Get the updated status
     const status = await getFreeMiningStatus(userId);
     
     return {
@@ -2315,7 +2349,6 @@ export const initializeFreeMiningPeriod = async (userId: number): Promise<{
   }
 };
 
-// Get comprehensive free mining status (improved version)
 export const getFreeMiningStatus = async (userId: number): Promise<{
   isActive: boolean;
   daysRemaining: number;
@@ -2329,7 +2362,6 @@ export const getFreeMiningStatus = async (userId: number): Promise<{
   reason: string;
 }> => {
   try {
-    // Call the database function to get comprehensive status
     const { data, error } = await supabase.rpc('get_free_mining_status', {
       p_user_id: userId
     });
@@ -2337,25 +2369,16 @@ export const getFreeMiningStatus = async (userId: number): Promise<{
     if (error) {
       console.error('Database error fetching free mining status:', error);
       return {
-        isActive: false,
-        daysRemaining: 0,
-        sessionsUsed: 0,
-        maxSessions: 0,
-        sessionsRemaining: 0,
-        canMine: false,
-        isInGracePeriod: false,
+        isActive: false, daysRemaining: 0, sessionsUsed: 0, maxSessions: 0,
+        sessionsRemaining: 0, canMine: false, isInGracePeriod: false,
         reason: 'Error fetching mining status'
       };
     }
 
     const result = data?.[0];
     if (!result) {
-      // If no data returned, initialize the period
       await initializeFreeMiningPeriod(userId);
-      // Try again
-      const { data: retryData } = await supabase.rpc('get_free_mining_status', {
-        p_user_id: userId
-      });
+      const { data: retryData } = await supabase.rpc('get_free_mining_status', { p_user_id: userId });
       const retryResult = retryData?.[0];
       
       return {
@@ -2387,22 +2410,15 @@ export const getFreeMiningStatus = async (userId: number): Promise<{
   } catch (error) {
     console.error('Error fetching free mining status:', error);
     return {
-      isActive: false,
-      daysRemaining: 0,
-      sessionsUsed: 0,
-      maxSessions: 0,
-      sessionsRemaining: 0,
-      canMine: false,
-      isInGracePeriod: false,
+      isActive: false, daysRemaining: 0, sessionsUsed: 0, maxSessions: 0,
+      sessionsRemaining: 0, canMine: false, isInGracePeriod: false,
       reason: 'Error fetching mining status'
     };
   }
 };
 
-// Update free mining session count when mining starts (improved version)
 export const updateFreeMiningSessionCount = async (userId: number): Promise<boolean> => {
   try {
-    // Call the database function to increment session count
     const { error } = await supabase.rpc('increment_mining_session_count', {
       p_user_id: userId
     });
@@ -2411,7 +2427,6 @@ export const updateFreeMiningSessionCount = async (userId: number): Promise<bool
       console.error('Error updating free mining session count:', error);
       return false;
     }
-
     return true;
   } catch (error) {
     console.error('Error updating free mining session count:', error);
@@ -2419,14 +2434,12 @@ export const updateFreeMiningSessionCount = async (userId: number): Promise<bool
   }
 };
 
-// Check if user can start mining (improved version with grace period)
 export const canUserStartMining = async (userId: number): Promise<{
   canMine: boolean;
   reason?: string;
   freeMiningStatus?: any;
 }> => {
   try {
-    // Get comprehensive free mining status
     const freeMiningStatus = await getFreeMiningStatus(userId);
     
     if (!freeMiningStatus.canMine) {
@@ -2437,7 +2450,6 @@ export const canUserStartMining = async (userId: number): Promise<{
       };
     }
 
-    // Check for active mining session
     const activeSession = await getActiveMiningSession(userId);
     if (activeSession) {
       return {
@@ -2460,11 +2472,6 @@ export const canUserStartMining = async (userId: number): Promise<{
   }
 };
 
-// ============================================================================
-// ACTIVITY RECORDING FUNCTIONS
-// ============================================================================
-
-// Record mining activity
 export const recordMiningActivity = async (
   userId: number,
   activityType: 'mining_start' | 'mining_complete' | 'mining_claim',
@@ -2487,11 +2494,7 @@ export const recordMiningActivity = async (
   }
 };
 
-// Record upgrade activity
-export const recordUpgradeActivity = async (
-  userId: number,
-  cost: number
-): Promise<boolean> => {
+export const recordUpgradeActivity = async (userId: number, cost: number): Promise<boolean> => {
   try {
     const { error } = await supabase.from('activities').insert({
       user_id: userId,
@@ -2508,15 +2511,12 @@ export const recordUpgradeActivity = async (
     return false;
   }
 };
-// Purchase an upgrade
-// Calculate cost for passive income boost based on level (exponential growth)
+
 export const getPassiveIncomeBoostCost = (level: number): number => {
-  // Level 1: 100 RZC, Level 2: 200, Level 3: 400, Level 4: 800, etc.
   // Formula: 100 * 2^(level - 1)
   return 100 * Math.pow(2, level - 1);
 };
 
-// Get current passive income boost level for a user
 export const getPassiveIncomeBoostLevel = async (userId: number): Promise<number> => {
   try {
     const { data: activities, error } = await supabase
@@ -2531,7 +2531,6 @@ export const getPassiveIncomeBoostLevel = async (userId: number): Promise<number
     if (error) throw error;
     if (!activities || activities.length === 0) return 0;
 
-    // Get the latest activity and check metadata for level
     const latestActivity = activities[0];
     const level = latestActivity.metadata?.level || 1;
     return typeof level === 'number' ? level : 1;
@@ -2548,31 +2547,25 @@ export const purchaseUpgrade = async (
   level?: number,
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // For passive_income_boost, handle level-based upgrades
     if (upgradeType === 'passive_income_boost') {
       if (level === undefined || level < 1 || level > 10) {
         return { success: false, error: 'Invalid level. Must be between 1 and 10.' };
       }
 
-      // Get current level
       const currentLevel = await getPassiveIncomeBoostLevel(userId);
       
-      // Check if trying to upgrade to same or lower level
       if (level <= currentLevel) {
         return { success: false, error: `You already have level ${currentLevel}. Upgrade to level ${currentLevel + 1} or higher.` };
       }
 
-      // Calculate cost for the target level
       const calculatedCost = getPassiveIncomeBoostCost(level);
       const finalCost = cost || calculatedCost;
 
-      // Check if user has enough *claimed* RZC (validated balance)
       const { claimedRZC } = await getUserRZCBalance(userId);
       if (claimedRZC < finalCost) {
         return { success: false, error: 'Insufficient validated RZC balance.' };
       }
 
-      // Deduct the cost and update available_balance
       const { error: deductError } = await supabase.from('activities').insert({
         user_id: userId,
         type: 'rzc_claim',
@@ -2581,7 +2574,6 @@ export const purchaseUpgrade = async (
       });
       if (deductError) throw deductError;
 
-      // Update available_balance immediately
       const { error: balanceUpdateError } = await supabase
         .from('users')
         .update({
@@ -2593,7 +2585,6 @@ export const purchaseUpgrade = async (
         console.error('Error updating available_balance after passive income boost:', balanceUpdateError);
       }
 
-      // Record the upgrade with level in metadata
       const { error: recordError } = await supabase.from('activities').insert({
         user_id: userId,
         type: 'passive_income_boost',
@@ -2603,7 +2594,6 @@ export const purchaseUpgrade = async (
       });
 
       if (recordError) {
-        // Rollback deduction
         await supabase.from('activities').insert({
           user_id: userId,
           type: 'rzc_claim',
@@ -2616,12 +2606,10 @@ export const purchaseUpgrade = async (
       return { success: true };
     }
 
-    // For other upgrades (mining_rig_mk2, extended_session), use existing logic
     if (!cost) {
       return { success: false, error: 'Cost is required for this upgrade type.' };
     }
 
-    // 1. Check if user has already purchased this upgrade
     const { data: existingUpgrade, error: checkError } = await supabase
       .from('activities')
       .select('id')
@@ -2634,23 +2622,19 @@ export const purchaseUpgrade = async (
       return { success: false, error: 'Upgrade already purchased.' };
     }
 
-    // 2. Check if user has enough *claimed* RZC (validated balance)
     const { claimedRZC } = await getUserRZCBalance(userId);
     if (claimedRZC < cost) {
       return { success: false, error: 'Insufficient validated RZC balance.' };
     }
 
-    // 3. Deduct the cost from the user's *claimed* RZC balance by creating a negative claim.
-    // This is an atomic way to ensure the balance is updated correctly.
     const { error: deductError } = await supabase.from('activities').insert({
       user_id: userId,
-      type: 'rzc_claim', // A negative claim is a deduction
-      amount: -cost, // Use a negative value to represent a deduction
+      type: 'rzc_claim', 
+      amount: -cost,
       status: 'completed',
     });
     if (deductError) throw deductError;
 
-    // Update available_balance immediately
     const { error: balanceUpdateError } = await supabase
       .from('users')
       .update({
@@ -2662,22 +2646,19 @@ export const purchaseUpgrade = async (
       console.error('Error updating available_balance after upgrade purchase:', balanceUpdateError);
     }
     
-    // 4. Record the specific upgrade activity itself
     const { error: recordError } = await supabase.from('activities').insert({
       user_id: userId,
-      type: upgradeType, // 'mining_rig_mk2' or 'extended_session'
-      amount: cost, // Record the positive cost of the upgrade
+      type: upgradeType,
+      amount: cost,
       status: 'completed',
     });
 
     if (recordError) {
-      // If logging the upgrade fails, we should try to revert the deduction.
-      // This is a simplistic rollback attempt. A true transaction would be better.
       console.error(`CRITICAL: Failed to record upgrade activity for ${upgradeType}. Attempting to refund deduction.`);
       await supabase.from('activities').insert({
         user_id: userId,
         type: 'rzc_claim',
-        amount: cost, // Refund the cost
+        amount: cost,
         status: 'completed',
       });
       throw recordError;
@@ -2689,7 +2670,7 @@ export const purchaseUpgrade = async (
     return { success: false, error: error.message };
   }
 };
-// Generate passive income for a user (10 RZC per minute per level)
+
 export const generatePassiveIncome = async (userId: number): Promise<{ success: boolean; amount?: number; error?: string }> => {
   try {
     const level = await getPassiveIncomeBoostLevel(userId);
@@ -2698,10 +2679,8 @@ export const generatePassiveIncome = async (userId: number): Promise<{ success: 
       return { success: false, error: 'No passive income boost active.' };
     }
 
-    // Calculate amount: 10 RZC per minute per level
     const amount = 10 * level;
 
-    // Record as mining_complete activity to add to claimable balance
     const { error } = await supabase.from('activities').insert({
       user_id: userId,
       type: 'mining_complete',
@@ -2719,11 +2698,7 @@ export const generatePassiveIncome = async (userId: number): Promise<{ success: 
   }
 };
 
-// Record RZC claim activity
-export const recordRZCClaimActivity = async (
-  userId: number,
-  amount: number
-): Promise<boolean> => {
+export const recordRZCClaimActivity = async (userId: number, amount: number): Promise<boolean> => {
   try {
     const { error } = await supabase.from('activities').insert({
       user_id: userId,
@@ -2741,7 +2716,6 @@ export const recordRZCClaimActivity = async (
   }
 };
 
-// Get user activities with filtering
 export const getUserActivities = async (
   userId: number,
   activityTypes?: string[],

@@ -2,30 +2,19 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import useAuth from '@/hooks/useAuth';
 import { Loader2, Copy, Share2, RefreshCw, Shield, Gift, Check } from 'lucide-react';
+import {
+  REWARD_TIERS,
+  RewardTier,
+  getRewardTierForActiveReferrals,
+} from '@/utils/referralRewards';
 
 interface ReferralContestProps {
   showSnackbar?: (config: { message: string; description?: string }) => void;
   onClose?: () => void;
 }
 
-interface RewardTier {
-  id: number;
-  minUsers: number;
-  maxUsers: number;
-  reward: number; // USDT amount
-  claimed: boolean;
-}
-
 const CONTEST_START_DATE = new Date('2025-11-20'); // Update with actual contest start date
 const CONTEST_END_DATE = new Date('2025-12-31'); // Update with actual contest end date
-
-const REWARD_TIERS: RewardTier[] = [
-  { id: 1, minUsers: 50, maxUsers: 99, reward: 50, claimed: false },
-  { id: 2, minUsers: 100, maxUsers: 199, reward: 100, claimed: false },
-  { id: 3, minUsers: 200, maxUsers: 299, reward: 200, claimed: false },
-  { id: 4, minUsers: 300, maxUsers: 399, reward: 300, claimed: false },
-  { id: 5, minUsers: 400, maxUsers: 400, reward: 450, claimed: false },
-];
 
 const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
   const { user } = useAuth();
@@ -33,13 +22,21 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
   const [referralLink, setReferralLink] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [rewardTiers, setRewardTiers] = useState<RewardTier[]>(REWARD_TIERS);
+  const [rewardTiers, setRewardTiers] = useState<RewardTier[]>(
+    REWARD_TIERS.map((tier) => ({ ...tier, claimed: false }))
+  );
   const [claimingReward, setClaimingReward] = useState<number | null>(null);
   const [usdtBalance, setUsdtBalance] = useState<number>(0);
   const [balanceUpdated, setBalanceUpdated] = useState<boolean>(false);
   const [hasJoinedContest, setHasJoinedContest] = useState<boolean>(false);
   const [contestJoinDate, setContestJoinDate] = useState<string | null>(null);
   const [totalReferrals, setTotalReferrals] = useState<number>(0);
+  const [qualifiedTier, setQualifiedTier] = useState<RewardTier | null>(null);
+  const [projectedReward, setProjectedReward] = useState<number>(0);
+  const [isCopyingLink, setIsCopyingLink] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [isSharingLink, setIsSharingLink] = useState(false);
+  const [canUseNativeShare, setCanUseNativeShare] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -48,6 +45,10 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
       generateReferralLink();
     }
   }, [user?.id, user?.telegram_id]);
+
+  useEffect(() => {
+    setCanUseNativeShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+  }, []);
 
   const generateReferralLink = () => {
     if (user?.telegram_id) {
@@ -147,6 +148,9 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
       // Total active referrals (this is what we use for qualification)
       const totalActive = allActiveRefs?.length || 0;
       setTotalReferrals(totalActive);
+      const tier = getRewardTierForActiveReferrals(totalActive) || null;
+      setQualifiedTier(tier);
+      setProjectedReward(tier?.reward ?? 0);
       
       // Also calculate contest referrals (referrals created during contest period)
       const now = new Date();
@@ -194,10 +198,10 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
         data?.map(activity => activity.metadata?.tier_id).filter(Boolean) || []
       );
 
-      setRewardTiers(prev =>
-        prev.map(tier => ({
+      setRewardTiers((prev) =>
+        prev.map((tier) => ({
           ...tier,
-          claimed: claimedTierIds.has(tier.id)
+          claimed: claimedTierIds.has(tier.id),
         }))
       );
     } catch (error) {
@@ -249,9 +253,44 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
     }
   };
 
+  const copyTextToClipboard = async (text: string) => {
+    if (!text) throw new Error('No referral link available');
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    if (typeof document !== 'undefined') {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return;
+    }
+
+    throw new Error('Clipboard API not available');
+  };
+
   const handleCopyLink = async () => {
+    if (!referralLink) {
+      showSnackbar?.({
+        message: '❌ Error',
+        description: 'Referral link is not ready yet. Please try again in a moment.'
+      });
+      return;
+    }
+
+    setIsCopyingLink(true);
     try {
-      await navigator.clipboard.writeText(referralLink);
+      await copyTextToClipboard(referralLink);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
       showSnackbar?.({
         message: '✅ Copied!',
         description: 'Referral link copied to clipboard'
@@ -262,19 +301,34 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
         message: '❌ Error',
         description: 'Failed to copy link'
       });
+    } finally {
+      setIsCopyingLink(false);
     }
   };
 
   const handleShareLink = async () => {
+    if (!referralLink) {
+      showSnackbar?.({
+        message: '❌ Error',
+        description: 'Referral link is not ready yet. Please try again in a moment.'
+      });
+      return;
+    }
+
+    setIsSharingLink(true);
     try {
-      if (navigator.share) {
+      if (canUseNativeShare) {
         await navigator.share({
           title: 'Join RhizaCore',
           text: 'Join RhizaCore with my referral link!',
           url: referralLink
         });
+        showSnackbar?.({
+          message: '📤 Shared',
+          description: 'Referral link shared successfully'
+        });
       } else {
-        await navigator.clipboard.writeText(referralLink);
+        await copyTextToClipboard(referralLink);
         showSnackbar?.({
           message: '✅ Copied!',
           description: 'Referral link copied to clipboard'
@@ -282,6 +336,12 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
       }
     } catch (error) {
       console.error('Error sharing link:', error);
+      showSnackbar?.({
+        message: '❌ Error',
+        description: 'Failed to share link'
+      });
+    } finally {
+      setIsSharingLink(false);
     }
   };
 
@@ -419,6 +479,12 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
             ${usdtBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="text-sm text-green-300/70 font-medium">USDT</div>
+          <div className="mt-1 text-xs text-green-200/80">
+            Auto-estimated reward from active referrals:{' '}
+            <span className="font-semibold text-green-300">
+              ${projectedReward.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+            </span>
+          </div>
           {usdtBalance > 0 && (
             <div className="mt-2 text-xs text-green-400/80 flex items-center gap-1">
               <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
@@ -534,13 +600,10 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
               <p className="text-xs text-blue-300/80 leading-relaxed">
                 You have <strong className="text-green-400">{totalReferrals} active referrals</strong>.
                 {(() => {
-                  const qualifiedTier = rewardTiers.find(
-                    tier => totalReferrals >= tier.minUsers && totalReferrals <= tier.maxUsers
-                  );
                   if (qualifiedTier) {
                     return ` You qualify for Tier ${qualifiedTier.id}: $${qualifiedTier.reward} USDT reward!`;
                   } else if (totalReferrals > 0) {
-                    const nextTier = rewardTiers.find(tier => totalReferrals < tier.minUsers);
+                    const nextTier = rewardTiers.find((tier) => totalReferrals < tier.minUsers);
                     if (nextTier) {
                       const needed = nextTier.minUsers - totalReferrals;
                       return ` You need ${needed} more active referral${needed > 1 ? 's' : ''} to qualify for the next tier (${nextTier.minUsers}-${nextTier.maxUsers} users = $${nextTier.reward} USDT).`;
@@ -592,17 +655,25 @@ const ReferralContest = ({ showSnackbar }: ReferralContestProps) => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={handleCopyLink}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500/90 hover:bg-orange-500 text-white font-semibold transition-colors"
+              disabled={isCopyingLink || !referralLink}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500/90 hover:bg-orange-500 text-white font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title={referralLink ? 'Copy referral link' : 'Referral link not ready'}
             >
-              <Copy className="w-4 h-4" />
-              <span>Copy</span>
+              {copySuccess ? (
+                <Check className="w-4 h-4" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+              <span>{copySuccess ? 'Copied' : isCopyingLink ? 'Copying...' : 'Copy'}</span>
             </button>
             <button
               onClick={handleShareLink}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500/90 hover:bg-orange-500 text-white font-semibold transition-colors"
+              disabled={isSharingLink || !referralLink}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500/90 hover:bg-orange-500 text-white font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title={canUseNativeShare ? 'Share referral link' : 'Copy referral link'}
             >
               <Share2 className="w-4 h-4" />
-              <span>Share Link</span>
+              <span>{isSharingLink ? 'Sharing...' : canUseNativeShare ? 'Share Link' : 'Copy Link'}</span>
             </button>
           </div>
           <div className="p-3 bg-green-900/20 border border-green-500/30 rounded-xl">

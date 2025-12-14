@@ -19,7 +19,11 @@ import {
   PlusCircle,
   Wallet,
   X,
-  AlertTriangle // Import AlertTriangle for error
+  AlertTriangle,
+  Search,
+  Filter,
+  SortAsc,
+  SortDesc
 } from 'lucide-react';
 import { JettonBalance } from "@ton-api/client";
 import { SendJettonModal } from "./SendJettonModal";
@@ -88,11 +92,22 @@ const TonWallet = () => {
   const [isSendJettonModalOpen, setIsSendJettonModalOpen] = useState(false);
   const [isLoadingTON, setIsLoadingTON] = useState(true);
   const [isLoadingJettons, setIsLoadingJettons] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
   const [hideBalances, setHideBalances] = useState(false);
   const [portfolioValue, setPortfolioValue] = useState<number>(0);
   const [tonUsdPrice, setTonUsdPrice] = useState<number>(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Filter and Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterVerified, setFilterVerified] = useState<'all' | 'verified' | 'unverified'>('all');
+  const [sortBy, setSortBy] = useState<'value' | 'name' | 'amount'>('value');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [showFilters, setShowFilters] = useState(false);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [showUnverifiedSection, setShowUnverifiedSection] = useState(false);
+
+  // Notification states
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
 
   const connectedAddressString = useTonAddress();
   const [tonConnectUI] = useTonConnectUI();
@@ -158,6 +173,14 @@ const TonWallet = () => {
     setPortfolioValue(totalValue);
   }, [tonBalance, tonUsdPrice, jettons]);
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Handle Refresh (logic remains the same)
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -174,18 +197,124 @@ const TonWallet = () => {
     finally { setIsRefreshing(false); }
   };
 
+  // Filtered and sorted assets
+  const filteredAssets = useMemo(() => {
+    let assets: Array<{
+      type: 'ton' | 'jetton';
+      id: string;
+      name: string;
+      symbol: string;
+      amount: number;
+      usdValue: number;
+      verified: boolean;
+      image?: string;
+      jetton?: any;
+    }> = [];
+
+    // Add TON
+    const tonAmount = parseFloat(tonBalance || '0');
+    const tonUsd = tonAmount * tonUsdPrice;
+    assets.push({
+      type: 'ton',
+      id: 'ton',
+      name: 'TON',
+      symbol: 'TON',
+      amount: tonAmount,
+      usdValue: tonUsd,
+      verified: true,
+    });
+
+    // Add jettons
+    jettons.forEach((jetton) => {
+      const registryData = getJettonRegistryData(jetton.jetton.address.toString());
+      const enhancedJetton = enhanceJettonData(jetton, registryData || undefined);
+      const jettonAmount = parseFloat(toDecimals(jetton.balance, jetton.jetton.decimals));
+      const usdValue = registryData?.verified && registryData.rateUsd > 0 ? jettonAmount * registryData.rateUsd : 0;
+
+      assets.push({
+        type: 'jetton',
+        id: jetton.jetton.address.toString(),
+        name: enhancedJetton.jetton.name || 'Unknown',
+        symbol: enhancedJetton.jetton.symbol || '?',
+        amount: jettonAmount,
+        usdValue,
+        verified: enhancedJetton.jetton.verified || false,
+        image: enhancedJetton.jetton.image,
+        jetton: jetton,
+      });
+    });
+
+    // Filter by search query
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
+      assets = assets.filter(asset =>
+        asset.name.toLowerCase().includes(query) ||
+        asset.symbol.toLowerCase().includes(query) ||
+        asset.id.toLowerCase().includes(query)
+      );
+    }
+
+    // Filter by verification status
+    if (filterVerified !== 'all') {
+      assets = assets.filter(asset => asset.verified === (filterVerified === 'verified'));
+    }
+
+    // Sort assets
+    assets.sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+
+      switch (sortBy) {
+        case 'value':
+          aValue = a.usdValue;
+          bValue = b.usdValue;
+          break;
+        case 'amount':
+          aValue = a.amount;
+          bValue = b.amount;
+          break;
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      }
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      return 0;
+    });
+
+    return assets;
+  }, [jettons, tonBalance, tonUsdPrice, debouncedSearchQuery, filterVerified, sortBy, sortOrder]);
+
+  // Notification helpers
+  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
   // Handle Copy Address (logic remains the same)
   const handleCopyAddress = async () => {
     if (!connectedAddressString) return;
     try {
       await navigator.clipboard.writeText(connectedAddressString);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) { console.error('Failed to copy address:', err); }
+      showNotification('success', 'Address copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy address:', err);
+      showNotification('error', 'Failed to copy address');
+    }
   };
 
   // Helper formatting functions (logic remains the same)
-  const formatAddress = (address: string) => address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
+  const formatAddress = (address: string) => address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '';
   const formatBalance = (balance: string, hide: boolean = false) => {
     if (hide) return '••••••';
     if (balance.startsWith('$')) return balance; // Keep USD values as is
@@ -248,157 +377,521 @@ const TonWallet = () => {
     );
   }
 
-  // Main Wallet View - Themed
+  // Main Wallet View - Updated Design
   return (
-    <div className="w-full max-w-md mx-auto p-2 font-mono"> {/* Added font-mono */}
-       {/* Use themed container */}
-      <div className="bg-gray-900/80 border-2 border-green-700/50 rounded-2xl shadow-neon-green-light overflow-hidden backdrop-blur-md">
-         {/* Top Section: Balance & Address */}
-        <div className="p-6 border-b border-green-700/50">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-base font-medium text-green-400/80">{t('rhiza_mini_wallet')}</h2>
-               {/* Themed Balance Display */}
-              <div className="mt-2 text-5xl font-bold text-green-300 tracking-tight">
+    <div className="w-full max-w-md mx-auto min-h-screen flex flex-col relative overflow-hidden">
+
+      {/* Background Ambience */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-green-900/20 via-transparent to-transparent"></div>
+
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg border backdrop-blur-xl shadow-lg transition-all duration-300 ${
+          notification.type === 'success'
+            ? 'bg-green-900/90 border-green-600/70 text-green-300'
+            : notification.type === 'error'
+              ? 'bg-red-900/90 border-red-600/70 text-red-300'
+              : 'bg-blue-900/90 border-blue-600/70 text-blue-300'
+        }`}>
+          <div className="flex items-center gap-2">
+            {notification.type === 'success' && <Check className="w-4 h-4" />}
+            {notification.type === 'error' && <AlertTriangle className="w-4 h-4" />}
+            {notification.type === 'info' && <Shield className="w-4 h-4" />}
+            <span className="text-sm font-medium">{notification.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex-1 z-10 pb-24">
+
+        {/* Main Card */}
+        <div className="border border-green-700/30 rounded-3xl shadow-neon-green-light overflow-hidden backdrop-blur-xl bg-slate-900/60 mb-6 mx-4 mt-6">
+          <div className="p-6 border-b border-green-700/20 space-y-4">
+            <div className="text-center">
+              <h2 className="text-sm font-semibold text-green-400/90 tracking-widest uppercase mb-1">RhizaCore Wallet</h2>
+              <p className="text-green-500/50 text-[10px]">TON Blockchain</p>
+            </div>
+
+            {/* Portfolio Value Display */}
+            <div className="text-center space-y-2">
+              <div className="text-4xl font-bold text-green-300 tracking-tight">
                 {formatBalance(`$${portfolioValue.toFixed(2)}`, hideBalances)}
               </div>
-               {/* Themed Address Display */}
-              <p className="mt-1 text-sm text-green-500/80">{formatAddress(connectedAddressString)}</p>
-            </div>
-            {/* Control Buttons - Themed */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setHideBalances(!hideBalances)}
-                className="p-2.5 bg-gray-800/50 hover:bg-gray-700/60 rounded-xl transition-colors border border-green-800/40 text-green-400"
-                title={hideBalances ? 'Show balances' : 'Hide balances'}
-              >
-                {hideBalances ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="p-2.5 bg-gray-800/50 hover:bg-gray-700/60 rounded-xl transition-colors border border-green-800/40 text-green-400 disabled:opacity-50"
-                title="Refresh"
-              >
-                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons Row - Themed */}
-        <div className="px-4 py-4 border-b border-green-700/50">
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { label: 'Buy', icon: PlusCircle, action: () => window.open('#', '_blank'), color: 'blue' },
-              { label: 'Send', icon: ArrowUpRight, action: () => setIsSendModalOpen(true), color: 'yellow' },
-              { label: 'Receive', icon: ArrowDownLeft, action: () => setIsReceiveModalOpen(true), color: 'green' },
-              { label: 'Swap', icon: ArrowLeftRight, action: () => window.open('https://dedust.io', '_blank'), color: 'purple' },
-            ].map(({ label, icon: Icon, action, color }) => (
-              <button
-                key={label}
-                onClick={action}
-                 // Themed Action Buttons
-                 className={`flex flex-col items-center gap-1.5 py-3 rounded-xl bg-${color}-900/50 border border-${color}-700/60 text-${color}-300 hover:bg-${color}-800/70 hover:border-${color}-500/80 transition-all duration-200 hover:shadow-neon-${color}-sm`}
-               >
-                 <div className={`w-8 h-8 rounded-lg bg-${color}-800/40 flex items-center justify-center`}>
-                   <Icon className={`w-4 h-4 text-${color}-300`} />
-                 </div>
-                 <span className="text-[10px] font-semibold">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Assets List - Themed */}
-        <div className="px-4 py-4 max-h-[40vh] overflow-y-auto"> {/* Added max-height and overflow */}
-          <h3 className="text-sm font-bold text-green-300 mb-3 uppercase tracking-wider px-2">{t('assets')}</h3>
-          <div className="space-y-2">
-            {/* TON Balance Item - Themed */}
-            <div className="flex items-center justify-between p-3 bg-gray-800/40 rounded-xl border border-green-800/40 hover:bg-gray-700/50 transition-colors duration-200">
-              <div className="flex items-center gap-3">
-                 {/* Themed Icon Container */}
-                <div className="w-10 h-10 bg-blue-900/50 rounded-xl flex items-center justify-center border border-blue-700/60">
-                  {/* Using Wallet icon for TON */}
-                  <Wallet className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <h4 className="text-green-300 font-bold text-sm">TON</h4>
-                  <p className="text-xs text-green-500/80 font-medium">${(tonUsdPrice || 0).toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-green-300 font-bold text-sm">
-                  {isLoadingTON ? '...' : formatBalance(tonBalance, hideBalances)}
-                </div>
-                <p className="text-xs text-green-500/80 font-medium">${formatBalance((parseFloat(tonBalance || '0') * (tonUsdPrice || 0)).toFixed(2), hideBalances)}</p>
+              <div className="flex items-center justify-center gap-1 text-xs text-green-500/70">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_currentColor]"></div>
+                <span>Total Portfolio Value</span>
               </div>
             </div>
 
-            {/* Jetton List - Themed */}
-            {isLoadingJettons ? (
-              <div className="space-y-2">
-                 {/* Themed Loading Skeleton */}
-                {[1, 2].map((i) => (
-                  <div key={i} className="p-3 bg-gray-800/40 rounded-xl border border-green-800/40 animate-pulse flex items-center gap-3">
-                     <div className="w-10 h-10 bg-gray-700/50 rounded-xl"></div>
-                     <div className="flex-1 space-y-2">
-                       <div className="h-4 w-20 bg-gray-700/50 rounded"></div>
-                       <div className="h-3 w-12 bg-gray-700/50 rounded"></div>
-                     </div>
-                     <div className="space-y-2 text-right">
-                       <div className="h-4 w-16 bg-gray-700/50 rounded"></div>
-                       <div className="h-3 w-10 bg-gray-700/50 rounded"></div>
-                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              jettons.map((jetton) => {
-                const registryData = getJettonRegistryData(jetton.jetton.address.toString());
-                const enhancedJetton = enhanceJettonData(jetton, registryData || undefined);
-                const jettonAmount = parseFloat(toDecimals(jetton.balance, jetton.jetton.decimals));
-                const usdValue = registryData?.verified && registryData.rateUsd > 0 ? jettonAmount * registryData.rateUsd : 0;
-
-                return (
-                  // Themed Jetton Item
-                  <button
-                    key={jetton.jetton.address.toString()}
-                    // onClick={() => handleJettonClick(jetton)} // Uncomment if detail view is needed
-                    className="w-full flex items-center justify-between p-3 bg-gray-800/40 rounded-xl border border-green-800/40 hover:bg-gray-700/50 transition-colors duration-200 text-left group"
-                  >
-                    <div className="flex items-center gap-3">
-                       {/* Themed Icon Container */}
-                      <div className="w-10 h-10 bg-gray-700/40 rounded-xl flex items-center justify-center overflow-hidden border border-gray-600/50">
-                        {enhancedJetton.jetton.image ? (
-                          <img
-                            src={enhancedJetton.jetton.image} alt={enhancedJetton.jetton.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/40x40/1f2937/4ade80?text=${enhancedJetton.jetton.symbol?.[0] || '?'}` }} // Themed Placeholder
-                          />
-                        ) : (
-                          <span className="text-green-400 font-bold text-lg">{enhancedJetton.jetton.symbol?.[0] || '?'}</span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-green-300 font-bold text-sm">{enhancedJetton.jetton.name}</h4>
-                          {enhancedJetton.jetton.verified && <Shield className="w-3.5 h-3.5 text-blue-400" />}
-                        </div>
-                        <p className="text-xs text-green-500/80 font-medium">
-                          {enhancedJetton.jetton.verified ? `$${(registryData?.rateUsd || 0).toFixed(6)}` : 'Unverified'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-green-300 font-bold text-sm">
-                        {formatBalance(toDecimals(jetton.balance, jetton.jetton.decimals), hideBalances)}
-                      </div>
-                      <p className="text-xs text-green-500/80 font-medium">${formatBalance(usdValue.toFixed(2), hideBalances)}</p>
-                    </div>
+            {/* Address Display */}
+            {connectedAddressString && (
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-2 bg-slate-950/40 px-3 py-1.5 rounded-xl border border-white/5 hover:border-green-500/30 transition-colors group cursor-pointer" onClick={handleCopyAddress}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_currentColor]"></div>
+                  <button className="text-xs text-green-500/80 font-mono tracking-wide">
+                    {formatAddress(connectedAddressString)}
                   </button>
-                );
-              })
+                  <Copy className="w-3 h-3 text-green-700 group-hover:text-green-400 transition-colors" />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setHideBalances(!hideBalances)}
+                    className="p-2 bg-slate-800/40 hover:bg-slate-700/60 rounded-lg border border-white/5 text-slate-400 hover:text-green-400 transition-colors"
+                  >
+                    {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="p-2 bg-slate-800/40 hover:bg-slate-700/60 rounded-lg border border-white/5 text-slate-400 hover:text-green-400 transition-colors"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="px-6 py-5 bg-slate-900/30">
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: 'Buy', icon: PlusCircle, action: () => window.open('#', '_blank'), color: 'blue' },
+                { label: 'Send', icon: ArrowUpRight, action: () => setIsSendModalOpen(true), color: 'yellow' },
+                { label: 'Receive', icon: ArrowDownLeft, action: () => setIsReceiveModalOpen(true), color: 'green' },
+                { label: 'Swap', icon: ArrowLeftRight, action: () => window.open('https://dedust.io', '_blank'), color: 'purple' },
+              ].map(({ label, icon: Icon, action, color }) => (
+                <button
+                  key={label}
+                  onClick={action}
+                  className={`flex flex-col items-center gap-2 py-4 rounded-2xl bg-slate-800/40 border border-white/5 hover:border-${color}-500/30 hover:bg-slate-800/60 transition-all duration-200 cursor-pointer active:scale-[0.95] group`}
+                >
+                  <div className={`w-10 h-10 rounded-xl bg-${color}-500/10 flex items-center justify-center border border-${color}-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)] group-hover:shadow-[0_0_15px_rgba(59,130,246,0.25)] transition-all duration-300`}>
+                    <Icon className={`w-5 h-5 text-${color}-400`} />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+        {/* Assets List */}
+        <div className="mb-4 flex items-center justify-between px-6">
+          <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">Assets</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-2 rounded-lg border transition-all duration-200 ${
+                showFilters
+                  ? 'bg-green-900/50 border-green-600/70 text-green-300'
+                  : 'bg-slate-800/40 border-white/5 text-slate-400 hover:bg-slate-700/60 hover:text-green-400'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Search and Filters */}
+        {showFilters && (
+          <div className="px-6 mb-4 space-y-3">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500/60" />
+              <input
+                type="text"
+                placeholder="Search assets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-800/40 border border-white/5 rounded-lg text-green-300 placeholder-green-500/60 focus:outline-none focus:border-green-500/30 focus:ring-1 focus:ring-green-500/50 text-sm"
+              />
+            </div>
+
+            {/* Filter Controls */}
+            <div className="bg-slate-800/40 rounded-lg border border-white/5 p-3 space-y-3">
+              {/* Verification Filter */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-2 font-semibold">Filter by Status</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'all', label: 'All Assets' },
+                    { value: 'verified', label: 'Verified' },
+                    { value: 'unverified', label: 'Unverified' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setFilterVerified(option.value as any)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all duration-200 ${
+                        filterVerified === option.value
+                          ? 'bg-green-900/50 border border-green-600/70 text-green-300'
+                          : 'bg-slate-700/50 border border-slate-600/50 text-slate-400 hover:bg-slate-600/50'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sort Options */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-2 font-semibold">Sort by</label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'value', label: 'Value' },
+                    { value: 'name', label: 'Name' },
+                    { value: 'amount', label: 'Amount' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setSortBy(option.value as any)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all duration-200 ${
+                        sortBy === option.value
+                          ? 'bg-green-900/50 border border-green-600/70 text-green-300'
+                          : 'bg-slate-700/50 border border-slate-600/50 text-slate-400 hover:bg-slate-600/50'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sort Order */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-2 font-semibold">Order</label>
+                <button
+                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 border border-slate-600/50 rounded text-xs font-medium text-slate-400 hover:bg-slate-600/50 transition-all duration-200"
+                >
+                  {sortOrder === 'asc' ? <SortAsc className="w-3 h-3" /> : <SortDesc className="w-3 h-3" />}
+                  {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                </button>
+              </div>
+            </div>
+
+            {/* Results Summary */}
+            <div className="flex items-center justify-between text-xs text-green-500/80">
+              <span className="transition-all duration-300">
+                {filteredAssets.length} asset{filteredAssets.length !== 1 ? 's' : ''} found
+              </span>
+              {debouncedSearchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-green-400 hover:text-green-300 underline transition-colors duration-200"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Assets List */}
+        <div className="px-6 pb-6 max-h-[50vh] overflow-y-auto space-y-2.5">
+
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500/60" />
+              <input
+                type="text"
+                placeholder="Search assets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-800/60 border border-green-800/40 rounded-lg text-green-300 placeholder-green-500/60 focus:outline-none focus:border-green-600/70 focus:ring-1 focus:ring-green-500/50 text-sm"
+              />
+            </div>
+
+            {/* Filters Panel */}
+            {showFilters && (
+              <div className="bg-gray-800/40 rounded-lg border border-green-800/40 p-3 space-y-3">
+                {/* Verification Filter */}
+                <div>
+                  <label className="block text-xs text-green-400/80 mb-2 font-semibold">Filter by Status</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'all', label: 'All Assets' },
+                      { value: 'verified', label: 'Verified' },
+                      { value: 'unverified', label: 'Unverified' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setFilterVerified(option.value as any)}
+                        className={`px-3 py-1.5 rounded text-xs font-medium transition-all duration-200 ${
+                          filterVerified === option.value
+                            ? 'bg-green-900/50 border border-green-600/70 text-green-300'
+                            : 'bg-gray-700/50 border border-gray-600/50 text-gray-400 hover:bg-gray-600/50'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sort Options */}
+                <div>
+                  <label className="block text-xs text-green-400/80 mb-2 font-semibold">Sort by</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'value', label: 'Value' },
+                      { value: 'name', label: 'Name' },
+                      { value: 'amount', label: 'Amount' }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setSortBy(option.value as any)}
+                        className={`px-3 py-1.5 rounded text-xs font-medium transition-all duration-200 ${
+                          sortBy === option.value
+                            ? 'bg-green-900/50 border border-green-600/70 text-green-300'
+                            : 'bg-gray-700/50 border border-gray-600/50 text-gray-400 hover:bg-gray-600/50'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sort Order */}
+                <div>
+                  <label className="block text-xs text-green-400/80 mb-2 font-semibold">Order</label>
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-700/50 border border-gray-600/50 rounded text-xs font-medium text-gray-400 hover:bg-gray-600/50 transition-all duration-200"
+                  >
+                    {sortOrder === 'asc' ? <SortAsc className="w-3 h-3" /> : <SortDesc className="w-3 h-3" />}
+                    {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Results Summary */}
+            <div className="flex items-center justify-between text-xs text-green-500/80">
+              <span className="transition-all duration-300">
+                {filteredAssets.length} asset{filteredAssets.length !== 1 ? 's' : ''} found
+              </span>
+              {debouncedSearchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="text-green-400 hover:text-green-300 underline transition-colors duration-200"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filtered Asset List */}
+          <div className="space-y-2">
+            {/* Verified Assets Section */}
+            <div>
+              <h4 className="text-sm font-bold text-green-300 mb-3 uppercase tracking-wider flex items-center gap-2">
+                <Shield className="w-4 h-4 text-blue-400" />
+                Verified Assets
+              </h4>
+            </div>
+
+            {isLoadingTON || isLoadingJettons ? (
+              /* Loading Skeletons */
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-3 bg-gray-800/40 rounded-xl border border-green-800/40 animate-pulse flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-700/50 rounded-xl"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-20 bg-gray-700/50 rounded"></div>
+                    <div className="h-3 w-12 bg-gray-700/50 rounded"></div>
+                  </div>
+                  <div className="space-y-2 text-right">
+                    <div className="h-4 w-16 bg-gray-700/50 rounded"></div>
+                    <div className="h-3 w-10 bg-gray-700/50 rounded"></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              /* Asset Items - Only show verified assets in main list when filtering is 'all' or 'verified' */
+              <>
+                {(filterVerified === 'all' || filterVerified === 'verified') && (
+                  <>
+                    {/* TON Native */}
+                    {filteredAssets.filter(asset => asset.type === 'ton').map((asset) => (
+                      <div
+                        key={asset.id}
+                        className="flex items-center justify-between p-3.5 bg-slate-800/40 rounded-2xl border border-white/5 hover:border-green-500/30 hover:bg-slate-800/60 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.15)]">
+                            <Wallet className="w-6 h-6 text-blue-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-slate-200 font-bold text-sm tracking-wide">{asset.name}</h4>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">Native</span>
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                              {asset.verified && asset.usdValue > 0
+                                ? `$${(asset.usdValue / asset.amount).toFixed(2)}`
+                                : asset.verified ? 'Verified' : 'Unverified'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-slate-200 font-bold text-sm tracking-wide">
+                            {isLoadingTON ? <span className="animate-pulse">...</span> : formatBalance(asset.amount.toString(), hideBalances)}
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5">
+                            ${formatBalance(asset.usdValue.toFixed(2), hideBalances)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Jetton Assets */}
+                    {filteredAssets.filter(asset => asset.type === 'jetton' && asset.verified).map((asset) => (
+                      <div
+                        key={asset.id}
+                        className="w-full flex items-center justify-between p-3.5 bg-slate-800/40 rounded-2xl border border-white/5 hover:border-green-500/30 hover:bg-slate-800/60 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 bg-slate-700/40 rounded-xl flex items-center justify-center overflow-hidden border border-gray-600/50">
+                            {asset.image ? (
+                              <img
+                                src={asset.image}
+                                alt={asset.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  const symbol = asset.symbol?.[0] || '?';
+                                  target.src = `https://placehold.co/40x40/1f2937/4ade80?text=${symbol}`;
+                                }}
+                              />
+                            ) : (
+                              <span className="text-green-400 font-bold text-lg">{asset.symbol?.[0] || '?'}</span>
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-green-300 font-bold text-sm">{asset.name}</h4>
+                              {asset.verified && <Shield className="w-3.5 h-3.5 text-blue-400" />}
+                            </div>
+                            <p className="text-xs text-green-500/80 font-medium">
+                              {asset.verified && asset.usdValue > 0
+                                ? `$${(asset.usdValue / asset.amount).toFixed(6)}`
+                                : 'Verified'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-green-300 font-bold text-sm">
+                            {formatBalance(asset.amount.toString(), hideBalances)}
+                          </div>
+                          <p className="text-xs text-green-500/80 font-medium">
+                            ${formatBalance(asset.usdValue.toFixed(2), hideBalances)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Unverified Assets Section */}
+                {(filterVerified === 'all' || filterVerified === 'unverified') && filteredAssets.filter(asset => !asset.verified).length > 0 && (
+                  <div className="border-t border-slate-700/30 pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-orange-400" />
+                        <h4 className="text-sm font-bold text-orange-300 uppercase tracking-wider">Unverified Tokens</h4>
+                        <span className="text-xs text-orange-400/80 bg-orange-900/20 px-2 py-0.5 rounded-full border border-orange-500/20">
+                          {filteredAssets.filter(asset => !asset.verified).length}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setShowUnverifiedSection(!showUnverifiedSection)}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/40 border border-white/5 text-slate-400 hover:bg-slate-700/60 hover:text-orange-400 transition-colors text-xs"
+                      >
+                        <span>{showUnverifiedSection ? 'Hide' : 'Show'}</span>
+                        <svg className={`w-3 h-3 transition-transform ${showUnverifiedSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {showUnverifiedSection && (
+                      <div className="space-y-2">
+                        {filteredAssets.filter(asset => !asset.verified).map((asset) => (
+                          <div
+                            key={asset.id}
+                            className="w-full flex items-center justify-between p-3.5 bg-slate-800/20 rounded-2xl border border-red-500/20 hover:border-red-500/30 hover:bg-slate-800/30 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-11 h-11 bg-slate-700/40 rounded-xl flex items-center justify-center overflow-hidden border border-red-500/20">
+                                {asset.image ? (
+                                  <img
+                                    src={asset.image}
+                                    alt={asset.name}
+                                    className="w-full h-full object-cover opacity-50"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      const symbol = asset.symbol?.[0] || '?';
+                                      target.src = `https://placehold.co/40x40/1f2937/dc2626?text=${symbol}`;
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-red-400 font-bold text-lg">{asset.symbol?.[0] || '?'}</span>
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <h4 className="text-red-300 font-bold text-sm">{asset.name}</h4>
+                                  <X className="w-3.5 h-3.5 text-red-400" />
+                                </div>
+                                <p className="text-xs text-red-400/80 font-medium">Unverified • High Risk</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-red-300 font-bold text-sm">
+                                {formatBalance(asset.amount.toString(), hideBalances)}
+                              </div>
+                              <p className="text-xs text-red-400/80 font-medium">
+                                {asset.usdValue > 0 ? `$${formatBalance(asset.usdValue.toFixed(2), hideBalances)}` : 'No USD Value'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Empty State - only show if no assets at all */}
+                {filteredAssets.length === 0 && (
+                  <div className="text-center py-8 animate-fade-in">
+                    <div className="w-16 h-16 bg-gray-800/50 rounded-xl flex items-center justify-center mx-auto mb-4 border border-green-800/40 animate-pulse">
+                      <Search className="w-8 h-8 text-green-500/60" />
+                    </div>
+                    <h4 className="text-green-300 font-semibold mb-2 animate-fade-in animation-delay-100">No assets found</h4>
+                    <p className="text-green-500/80 text-sm animate-fade-in animation-delay-200">
+                      {debouncedSearchQuery ? 'Try adjusting your search or filters' : 'No assets match your current filters'}
+                    </p>
+                    {(debouncedSearchQuery || filterVerified !== 'all') && (
+                      <button
+                        onClick={() => {
+                          setSearchQuery('');
+                          setFilterVerified('all');
+                        }}
+                        className="mt-3 px-4 py-2 bg-green-900/50 border border-green-600/70 rounded-lg text-green-300 hover:bg-green-800/60 transition-all duration-200 text-sm hover:scale-105 active:scale-95"
+                      >
+                        Clear all filters
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -433,8 +926,11 @@ const TonWallet = () => {
                     const transaction = { validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: address, amount: toNano(amount).toString() }] };
                     await tonConnectUI.sendTransaction(transaction);
                     setIsSendModalOpen(false);
-                    // Optionally show success snackbar here
-                 } catch (error: any) { console.error('Failed to send TON:', error); /* Show error snackbar */ }
+                    showNotification('success', `Successfully sent ${amount} TON`);
+                 } catch (error: any) {
+                   console.error('Failed to send TON:', error);
+                   showNotification('error', error.message || 'Failed to send TON');
+                 }
              }}>
                <div className="p-4 space-y-4">
                  <div>
@@ -492,7 +988,7 @@ const TonWallet = () => {
                    <div className="flex items-center gap-2 bg-gray-800/70 p-2 rounded border border-gray-700/50">
                      <p className="text-green-300 font-mono text-xs break-all flex-1">{connectedAddressString}</p>
                      <button onClick={handleCopyAddress} className="p-2 bg-green-900/50 hover:bg-green-800/60 rounded border border-green-700/60 transition-colors">
-                       {copySuccess ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-green-400" />}
+                       <Copy className="w-4 h-4 text-green-400" />
                      </button>
                    </div>
                  </div>

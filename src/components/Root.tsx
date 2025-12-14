@@ -5,6 +5,9 @@ import '../buffer-polyfill';
 import { App } from '@/components/App.tsx';
 import { ErrorBoundary } from '@/components/ErrorBoundary.tsx';
 import { publicUrl } from '@/helpers/publicUrl.ts';
+import { ThirdwebProvider } from "thirdweb/react";
+
+
 
 
 function ErrorBoundaryError({ error }: { error: unknown }) {
@@ -31,11 +34,13 @@ function ErrorBoundaryError({ error }: { error: unknown }) {
 export function Root() {
   return (
     <ErrorBoundary fallback={ErrorBoundaryError}>
+      <ThirdwebProvider>
       <TonConnectUIProvider
-        manifestUrl={publicUrl('https://cdn4.stakenova.io/tonconnect-manifest.json')}  
+        manifestUrl={publicUrl('https://cdn4.stakenova.io/tonconnect-manifest.json')}
       >
         <App/>
       </TonConnectUIProvider>
+      </ThirdwebProvider>
     </ErrorBoundary>
   );
 }

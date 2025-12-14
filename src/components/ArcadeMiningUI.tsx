@@ -220,6 +220,9 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   // Smooth balance animation state
   const [displayBalance, setDisplayBalance] = useState(0);
 
+  // Balance last updated timestamp
+  const [balanceLastUpdated, setBalanceLastUpdated] = useState<Date | null>(null);
+
   // Calculate actual balance for animation
   const actualBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
 
@@ -761,67 +764,32 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     const loadTopBalances = async () => {
       setIsLoadingBalances(true);
       try {
-        // Get all users who have RZC claim activities (positive claims minus spending)
-        const { data: allActivities, error: activitiesError } = await supabase
-          .from('activities')
-          .select('user_id, amount, type')
-          .eq('type', 'rzc_claim')
-          .eq('status', 'completed')
-          .order('created_at', { ascending: false });
-
-        if (activitiesError) {
-          console.error('Error loading activities:', activitiesError);
-          setTopBalances([]);
-          return;
-        }
-
-        // Calculate net claimed RZC for each user (positive claims minus spending)
-        const userBalances: { [key: string]: number } = {};
-        (allActivities || []).forEach(activity => {
-          const userId = activity.user_id;
-          if (!userBalances[userId]) {
-            userBalances[userId] = 0;
-          }
-          userBalances[userId] += Number(activity.amount) || 0;
-        });
-
-        // Get top 100 users by net claimed RZC balance
-        const topUsers = Object.entries(userBalances)
-          .filter(([_, balance]) => balance > 0)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 100);
-
-        const topUserIds = topUsers.map(([id]) => parseInt(id));
-
-        // Get user details for top users
-        const { data: usersData, error: usersError } = await supabase
+        // Get top 100 users by available_balance directly from users table
+        const { data: topUsersData, error: usersError } = await supabase
           .from('users')
-          .select('id, username')
-          .in('id', topUserIds);
+          .select('id, username, available_balance')
+          .gt('available_balance', 0) // Only users with positive balance
+          .order('available_balance', { ascending: false })
+          .limit(100);
 
         if (usersError) {
-          console.error('Error loading users:', usersError);
+          console.error('Error loading top balances:', usersError);
           setTopBalances([]);
           return;
         }
 
-        // Create balances with details
-        const balancesWithDetails = topUsers.map(([userIdStr, claimedRZC]) => {
-          const userId = parseInt(userIdStr);
-          const userData = usersData?.find(u => u.id == userId);
-          return {
-            id: userId,
-            username: userData?.username || `User ${userId}`,
-            claimedRZC,
-            totalEarned: 0, // Not needed for sorting
-            claimableRZC: 0,
-            currentBalance: claimedRZC
-          };
-        });
+        // Create balances with details using available_balance
+        const balancesWithDetails = (topUsersData || []).map((user) => ({
+          id: user.id,
+          username: user.username || `User ${user.id}`,
+          claimedRZC: user.available_balance,
+          totalEarned: 0, // Not needed for sorting
+          claimableRZC: 0,
+          currentBalance: user.available_balance
+        }));
 
-        // Sort by claimed RZC (already sorted, but ensure)
+        // Sort by available balance (already sorted, but slice based on showAllPlayers)
         const sortedBalances = balancesWithDetails
-          .sort((a, b) => b.claimedRZC - a.claimedRZC)
           .slice(0, showAllPlayers ? 100 : 50);
 
         console.log('Top Balances - Processed:', sortedBalances);
@@ -832,9 +800,15 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         if (userIndex !== -1) {
           setUserRank(userIndex + 1);
         } else {
-          // User not in top 50, get their current claimed balance and count users with higher balance
-          const userClaimed = userBalances[String(userId)] || 0;
-          const higherCount = sortedBalances.filter(b => b.claimedRZC > userClaimed).length;
+          // User not in top 50, get their current available_balance and count users with higher balance
+          const { data: currentUser } = await supabase
+            .from('users')
+            .select('available_balance')
+            .eq('id', userId)
+            .single();
+
+          const userBalance = currentUser?.available_balance || 0;
+          const higherCount = sortedBalances.filter(b => b.claimedRZC > userBalance).length;
           setUserRank(higherCount + 1);
         }
       } catch (error) {
@@ -1968,15 +1942,34 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   //   );
   // };
 
-  // Core fetchBalance logic used in auto-refetch
-  const fetchBalance = async () => {
+  // Core fetchBalance logic used in auto-refetch and manual refresh
+  const fetchBalance = async (showLoading = false) => {
     if (!userId) return;
     try {
+      if (showLoading) setIsLoadingBalance(true);
       const updatedBalance = await getUserRZCBalance(userId);
       setClaimableRZC(updatedBalance.claimableRZC);
       setTotalEarnedRZC(updatedBalance.totalEarned);
       setClaimedRZC(updatedBalance.claimedRZC);
-    } catch {}
+      setBalanceLastUpdated(new Date());
+
+      if (showLoading) {
+        showSnackbar?.({
+          message: 'Balance Updated',
+          description: `Total: ${(updatedBalance.claimableRZC + updatedBalance.claimedRZC).toFixed(4)} RZC`
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      if (showLoading) {
+        showSnackbar?.({
+          message: 'Balance Update Failed',
+          description: 'Could not refresh balance from database'
+        });
+      }
+    } finally {
+      if (showLoading) setIsLoadingBalance(false);
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -2252,7 +2245,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             <span className="sm:inline">Boost</span>
           </button>
 
-          {/* <button
+          <button
             onClick={() => setActiveTab('leaderboard')}
             className={`relative px-3 py-2 text-xs sm:text-sm font-medium rounded-xl flex items-center gap-2 ${
               activeTab === 'leaderboard'
@@ -2264,7 +2257,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
             <span className="sm:inline">Rank</span>
-          </button> */}
+          </button>
 
           {/* <button
             onClick={() => setActiveTab('balances')}
@@ -2284,14 +2277,6 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
       {/* Main Container - Simplified & Well Scaled */}
       <div className="relative shadow-lg overflow-hidden">
-        {/* Simple Border Glow when Mining */}
-        {/* {isMining && (
-          <div className="absolute inset-0 rounded-xl border border-green-500/40 pointer-events-none"></div>
-        )} */}
-
-        {/* Header - Simplified */}
-
-
       {/* Wallet Content */}
     <div className="flex flex-col gap-3 sm:gap-4">
       {/* Tab Content */}
@@ -2300,7 +2285,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     {(referralCode || sponsorCode) && (
               <div className="mb-2">
                 <div className="flex items-center justify-center text-center gap-2">
-                  <h1 className="text-xl font-bold text-white">RhizaCore Nodes</h1>
+                  <h1 className="text-xl font-bold text-white">RhizaCore AI Nodes</h1>
                 </div>
 
                 
@@ -2447,7 +2432,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                     ? 'text-green-400 drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]'
                     : 'text-gray-400'
               }`}>
-                {isLoadingBalance ? 'Initializing Balance...' : t('total_rzc_balance')}
+                {isLoadingBalance ? 'Initializing Node...' : t('total_rzc_balance')}
               </p>
 
               {/* Mining Progress Hint */}
@@ -2494,7 +2479,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             )}
 
             {currentSession && (
-              <div className="relative z-10 mt-2 sm:mt-3 w-full max-w-md">
+              <div className="hidden relative z-10 mt-2 sm:mt-3 w-full max-w-md">
                 {/* Toggle Button */}
                 <button
                   onClick={() => setShowSessionDetails(!showSessionDetails)}
@@ -2656,7 +2641,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           </div>
 
             {/* Free Mining Status - Matching AirdropCards Design */}
-            <div className="relative">
+            <div className=" hidden relative">
               {freeMiningStatus.isActive && (
                 <div className={`relative flex items-center justify-between p-3 mb-3 rounded-xl border ${
                   freeMiningStatus.isInGracePeriod 
@@ -2871,7 +2856,115 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white">RhizaCore Champions</h2>
             </div>
-            <p className="text-gray-400 text-sm">Top miners by claimed RZC rewards</p>
+            <p className="text-gray-400 text-sm mb-3">Top miners by available balance</p>
+            {/* Manual Refresh Button */}
+            <button
+              onClick={() => {
+                setIsLoadingLeaderboards(true);
+                // Trigger leaderboard refresh by calling the load function
+                const loadLeaderboards = async () => {
+                  try {
+                    // Get sponsor stats with counts (same approach as ReferralSystem)
+                    const { data: sponsorStatsData, error: sponsorStatsError } = await supabase
+                      .from('referrals')
+                      .select(`
+                        sponsor_id,
+                        referrer_id,
+                        sponsor:users!sponsor_id(
+                          username,
+                          total_earned,
+                          total_deposit,
+                          rank
+                        ),
+                        status
+                      `);
+
+                    if (sponsorStatsError) {
+                      console.error('Error loading sponsor stats:', sponsorStatsError);
+                    }
+
+                    if (sponsorStatsData && sponsorStatsData.length > 0) {
+                      // Count referrals per sponsor
+                      const counts = sponsorStatsData.reduce((acc: { [key: string]: any }, curr: any) => {
+                        const id = curr.sponsor_id;
+                        if (!id) return acc;
+
+                        const sponsorData = curr.sponsor;
+                        if (!acc[id]) {
+                          acc[id] = {
+                            sponsor_id: id,
+                            username: sponsorData?.username || 'Unknown',
+                            referral_count: 0,
+                            active_referrals: 0,
+                            total_earned: sponsorData?.total_earned || 0,
+                            total_deposit: sponsorData?.total_deposit || 0,
+                            rank: sponsorData?.rank || 'NOVICE'
+                          };
+                        }
+
+                        acc[id].referral_count++;
+                        const status = (curr.status || '').toLowerCase();
+                        if (status === 'active') {
+                          acc[id].active_referrals++;
+                        }
+                        return acc;
+                      }, {});
+
+                      const sponsorStats = Object.values(counts);
+                      const topReferrersList = sponsorStats
+                        .sort((a: any, b: any) => b.active_referrals - a.active_referrals)
+                        .slice(0, 5);
+                      setTopReferrers(topReferrersList);
+
+                      // Get top claimers
+                      const claimersResult = await supabase
+                        .from('users')
+                        .select('id, username, total_earned')
+                        .gt('total_earned', 0)
+                        .order('total_earned', { ascending: false })
+                        .limit(5);
+
+                      if (claimersResult.error) {
+                        console.error('Error loading top claimers:', claimersResult.error);
+                        setTopClaimers([]);
+                      } else {
+                        setTopClaimers(claimersResult.data || []);
+                      }
+                    }
+
+                    showSnackbar?.({
+                      message: 'Leaderboard Updated',
+                      description: 'Refreshed rankings from database'
+                    });
+                  } catch (error) {
+                    console.error('Error refreshing leaderboard:', error);
+                    showSnackbar?.({
+                      message: 'Refresh Failed',
+                      description: 'Could not update leaderboard'
+                    });
+                  } finally {
+                    setIsLoadingLeaderboards(false);
+                  }
+                };
+                loadLeaderboards();
+              }}
+              disabled={isLoadingLeaderboards}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoadingLeaderboards ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh Rankings
+                </>
+              )}
+            </button>
           </div>
 
           {/* User Rank Display */}
@@ -2895,7 +2988,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                 <div className="text-green-300 font-bold text-lg">
                   {topBalances.reduce((sum, player) => sum + (player.claimedRZC || 0), 0).toLocaleString('en-US', {maximumFractionDigits: 0})}
                 </div>
-                <div className="text-green-400/80 text-xs">Total RZC Claimed</div>
+                <div className="text-green-400/80 text-xs">Total Available Balance</div>
               </div>
             </div>
           )}
@@ -3027,17 +3120,127 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                     })}
                   </div>
 
-                  {/* Load More Button */}
-                  {!showAllPlayers && topBalances.length >= 50 && (
-                    <div className="mt-6 text-center">
+                  {/* Refresh and Load More Buttons */}
+                  <div className="mt-6 flex flex-col gap-3 items-center">
+                    {/* Refresh Balances Button */}
+                    <button
+                      onClick={() => {
+                        setIsLoadingBalances(true);
+                        // Trigger balances refresh
+                        const loadTopBalances = async () => {
+                          try {
+                            const { data: allActivities, error: activitiesError } = await supabase
+                              .from('activities')
+                              .select('user_id, amount, type')
+                              .eq('type', 'rzc_claim')
+                              .eq('status', 'completed')
+                              .order('created_at', { ascending: false });
+
+                            if (activitiesError) {
+                              console.error('Error loading activities:', activitiesError);
+                              setTopBalances([]);
+                              return;
+                            }
+
+                            const userBalances: { [key: string]: number } = {};
+                            (allActivities || []).forEach(activity => {
+                              const userId = activity.user_id;
+                              if (!userBalances[userId]) {
+                                userBalances[userId] = 0;
+                              }
+                              userBalances[userId] += Number(activity.amount) || 0;
+                            });
+
+                            const topUsers = Object.entries(userBalances)
+                              .filter(([_, balance]) => balance > 0)
+                              .sort((a, b) => b[1] - a[1])
+                              .slice(0, 100);
+
+                            const topUserIds = topUsers.map(([id]) => parseInt(id));
+
+                            const { data: usersData, error: usersError } = await supabase
+                              .from('users')
+                              .select('id, username')
+                              .in('id', topUserIds);
+
+                            if (usersError) {
+                              console.error('Error loading users:', usersError);
+                              setTopBalances([]);
+                              return;
+                            }
+
+                            const balancesWithDetails = topUsers.map(([userIdStr, claimedRZC]) => {
+                              const userId = parseInt(userIdStr);
+                              const userData = usersData?.find(u => u.id == userId);
+                              return {
+                                id: userId,
+                                username: userData?.username || `User ${userId}`,
+                                claimedRZC,
+                                totalEarned: 0,
+                                claimableRZC: 0,
+                                currentBalance: claimedRZC
+                              };
+                            });
+
+                            const sortedBalances = balancesWithDetails
+                              .sort((a, b) => b.claimedRZC - a.claimedRZC)
+                              .slice(0, showAllPlayers ? 100 : 50);
+
+                            setTopBalances(sortedBalances);
+
+                            const userIndex = sortedBalances.findIndex(b => b.id === userId);
+                            if (userIndex !== -1) {
+                              setUserRank(userIndex + 1);
+                            } else {
+                              const userClaimed = userBalances[String(userId)] || 0;
+                              const higherCount = sortedBalances.filter(b => b.claimedRZC > userClaimed).length;
+                              setUserRank(higherCount + 1);
+                            }
+
+                            showSnackbar?.({
+                              message: 'Balances Updated',
+                              description: 'Refreshed top balances from database'
+                            });
+                          } catch (error) {
+                            console.error('Error refreshing balances:', error);
+                            showSnackbar?.({
+                              message: 'Refresh Failed',
+                              description: 'Could not update balances'
+                            });
+                          } finally {
+                            setIsLoadingBalances(false);
+                          }
+                        };
+                        loadTopBalances();
+                      }}
+                      disabled={isLoadingLeaderboards || isLoadingBalance}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-300 text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isLoadingBalance ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                          Refreshing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Refresh Balances
+                        </>
+                      )}
+                    </button>
+
+                    {/* Load More Button */}
+                    {!showAllPlayers && topBalances.length >= 50 && (
                       <button
                         onClick={() => setShowAllPlayers(true)}
                         className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105"
                       >
                         Load More Players
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -3052,6 +3255,37 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           <div className="text-center mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl font-bold text-white mb-1 sm:mb-2">💰 Balance Overview</h2>
             <p className="text-gray-400 text-xs sm:text-sm">Your RZC balance breakdown</p>
+            {/* Manual Refresh Button */}
+            <div className="mt-3 space-y-2">
+              <button
+                onClick={() => fetchBalance(true)}
+                disabled={isLoadingBalance}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-300 text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingBalance ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh Balance
+                  </>
+                )}
+              </button>
+              {/* Last Updated Indicator */}
+              {balanceLastUpdated && (
+                <div className="text-xs text-gray-500 flex items-center justify-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Updated {new Date(balanceLastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Available Balance Summary */}

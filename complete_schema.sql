@@ -16,7 +16,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     telegram_id BIGINT UNIQUE NOT NULL,
-    wallet_address VARCHAR,
+    wallet_address VARCHAR UNIQUE,
     whitelisted_wallet TEXT,
     username VARCHAR,
     first_name VARCHAR,
@@ -489,6 +489,7 @@ CREATE INDEX IF NOT EXISTS idx_users_last_sync ON users(last_sync);
 CREATE INDEX IF NOT EXISTS idx_users_team_volume ON users(team_volume);
 CREATE INDEX IF NOT EXISTS idx_users_sponsor_id ON users(sponsor_id);
 CREATE INDEX IF NOT EXISTS idx_users_sponsor_code ON users(sponsor_code);
+CREATE INDEX IF NOT EXISTS idx_users_wallet_address ON users(wallet_address);
 CREATE UNIQUE INDEX IF NOT EXISTS users_telegram_id_key ON users(telegram_id);
 
 -- User Earnings Indexes

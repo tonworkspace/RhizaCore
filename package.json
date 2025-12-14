@@ -15,6 +15,11 @@
     "predeploy": "npm run build && copy .gitignore dist\\"
   },
   "dependencies": {
+    "@particle-network/aa": "^2.0.2",
+    "@particle-network/authkit": "^2.1.1",
+    "@particle-network/chains": "^1.8.3",
+    "@particle-network/universal-account-sdk": "^1.0.10",
+    "@particle-network/wallet": "^2.1.1",
     "@supabase/supabase-js": "^2.48.1",
     "@telegram-apps/sdk-react": "^2.0.20",
     "@telegram-apps/telegram-ui": "^2.1.8",
@@ -31,6 +36,7 @@
     "cron": "^3.5.0",
     "date-fns": "^4.1.0",
     "eruda": "^3.0.1",
+    "ethers": "^6.15.0",
     "i18next": "^24.2.3",
     "i18next-browser-languagedetector": "^8.0.4",
     "lucide-react": "^0.474.0",
@@ -43,8 +49,10 @@
     "react-router-dom": "^6.23.0",
     "react-tooltip": "^5.28.0",
     "telegraf": "^4.16.3",
+    "thirdweb": "^5.114.1",
     "ton": "^13.9.0",
     "ton-core": "^0.53.0",
+    "ton-crypto": "^3.2.0",
     "tonweb": "^0.0.66",
     "uuid": "^11.0.5",
     "zustand": "^5.0.3"
