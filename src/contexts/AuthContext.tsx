@@ -91,7 +91,8 @@ interface OfflineEarnings {
 }
 
 interface AuthState {
-  isAuthenticated: boolean;
+  isAuthenticated: boolean; // True only if fully authenticated (Wallet + Telegram)
+  isTelegramAuthenticated: boolean; // New state: True if Telegram user is found/created
   isLoading: boolean;
   user: AuthUser | null;
   token: string | null;
@@ -213,6 +214,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
+    isTelegramAuthenticated: false,
     isLoading: true,
     user: null,
     token: null,
@@ -238,6 +240,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         let activeUser: AuthUser | null = null;
         let activeToken: string | null = null;
         let activeWallet: string | null = null;
+        let isWalletAuthValid = false;
 
         // 1. Primary Auth: Wallet (localStorage)
         const storedToken = localStorage.getItem('thirdweb_token');
@@ -250,6 +253,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             activeUser = user as AuthUser;
             activeToken = storedToken;
             activeWallet = storedWalletAddress;
+            isWalletAuthValid = true;
           } else {
             localStorage.removeItem('thirdweb_token');
             localStorage.removeItem('wallet_address');
@@ -307,7 +311,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                    first_name: tgUser.firstName || null,
                    last_name: tgUser.lastName || null,
                    language_code: tgUser.languageCode || null,
-                   wallet_address: '',
+                   wallet_address: '', // Wallet address starts empty
                    balance: 0,
                    total_deposit: 0,
                    total_withdrawn: 0,
@@ -388,9 +392,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
 
+        // Logic Change:
+        // isAuthenticated = true ONLY if isWalletAuthValid is true.
+        // If only Telegram auth is present, we set isTelegramAuthenticated = true but isAuthenticated = false.
+        // This forces the "login" UI to appear unless the wallet is already connected.
+
         if (activeUser) {
           setAuthState({
-            isAuthenticated: true,
+            isAuthenticated: isWalletAuthValid,
+            isTelegramAuthenticated: true,
             isLoading: false,
             user: activeUser,
             token: activeToken,
@@ -470,13 +480,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      setAuthState({
+      setAuthState(prev => ({
+        ...prev,
         isAuthenticated: true,
         isLoading: false,
         user,
         token,
         walletAddress,
-      });
+      }));
     } catch (error) {
       console.error('Login failed:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
@@ -492,23 +503,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('thirdweb_token', token);
       localStorage.setItem('wallet_address', walletAddress);
 
-      let user: AuthUser;
-      const existingUser = await getUserByWalletAddress(walletAddress);
+      // If we already have a Telegram-authenticated user, we link this wallet to them
+      if (authState.user && authState.isTelegramAuthenticated) {
+         // Update existing user with wallet address
+         await updateUserData({ wallet_address: walletAddress });
 
-      if (existingUser) {
-        user = existingUser as AuthUser;
+         setAuthState(prev => ({
+           ...prev,
+           isAuthenticated: true, // Now fully authenticated
+           token,
+           walletAddress,
+           isLoading: false,
+           user: prev.user ? { ...prev.user, wallet_address: walletAddress } : null
+         }));
       } else {
-        // Provide dummy email for wallet-only users if schema requires it, or update createOrUpdateUser to handle optional email
-        user = (await createOrUpdateUser(`${walletAddress}@wallet.user`, walletAddress)) as AuthUser;
-      }
+         // Standard Wallet Login (if no Telegram user found yet, rare in this flow but possible)
+         let user: AuthUser;
+         const existingUser = await getUserByWalletAddress(walletAddress);
 
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        user,
-        token,
-        walletAddress,
-      });
+         if (existingUser) {
+           user = existingUser as AuthUser;
+         } else {
+           // Create new user via wallet
+           user = (await createOrUpdateUser(`${walletAddress}@wallet.user`, walletAddress)) as AuthUser;
+         }
+
+         setAuthState({
+           isAuthenticated: true,
+           isTelegramAuthenticated: !!user.telegram_id,
+           isLoading: false,
+           user,
+           token,
+           walletAddress,
+         });
+      }
     } catch (error) {
       console.error('Wallet login failed:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
@@ -526,6 +554,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('wallet_address');
     setAuthState({
       isAuthenticated: false,
+      isTelegramAuthenticated: false,
       isLoading: false,
       user: null,
       token: null,

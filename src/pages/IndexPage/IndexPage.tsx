@@ -175,7 +175,8 @@ const IndexPageContent: React.FC = () => {
   const [snackbarDescription, setSnackbarDescription] = useState('');
   const snackbarTimeoutRef = useRef<NodeJS.Timeout>();
 
- // Check if user has a sponsor
+  // Check if user has a sponsor
+  // IMPORTANT: Only called when user is authenticated and data is available
  const checkSponsorStatus = async () => {
   if (!user?.id) return;
 
@@ -1192,14 +1193,16 @@ const handleDeposit = async (amount: number) => {
     );
   }
 
-  
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0A0A0F]">
-        {/* Error message component */}
-      </div>
-    );
+  // Moved loading check for auth gate here to prevent "property of null" errors
+  if (!isAuthenticated) {
+    return <EnhancedLoginForm />;
   }
+
+  // Only access user properties after authenticated
+  if (!user?.username) {
+    return <UsernameSetup />;
+  }
+
 
   // Show onboarding for new users
   if (isNewUser && user) {
@@ -1215,14 +1218,6 @@ const handleDeposit = async (amount: number) => {
   //   );
   // }
 
-
-  if (!isAuthenticated) {
-    return <EnhancedLoginForm />;
-  }
-
-  if (!user?.username) {
-    return <UsernameSetup />;
-  }
 
   const handleUserSelectForPayment = (selectedUser: User) => {
     setSelectedRecipient(selectedUser);
