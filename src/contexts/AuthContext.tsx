@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
-import { supabase, reconcileUserBalance } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import { createOrUpdateUser, getUserByWalletAddress } from '@/lib/supabaseClient';
 import { sendLoginCode, verifyLoginCode } from '@/lib/thirdwebAPI';
 import { initData, useSignal } from '@telegram-apps/sdk-react';
@@ -112,6 +112,12 @@ interface AuthContextType extends AuthState {
   setCurrentEarnings: (amount: number) => void;
   applySponsorCode: (code: string) => Promise<{ success: boolean; message: string }>;
   telegramUser: any;
+
+  // Expose earning helper and state logic so UI components can reset/modify
+  earningState: LocalEarningState;
+  setEarningState: React.Dispatch<React.SetStateAction<LocalEarningState>>;
+  calculateEarningRateLegacy: (balance: number, baseROI?: number, daysStaked?: number) => number;
+  getUserEarningsKey: (key: string) => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -834,6 +840,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setCurrentEarnings,
     applySponsorCode,
     telegramUser: telegramData?.user,
+    earningState,
+    setEarningState,
+    calculateEarningRateLegacy,
+    getUserEarningsKey
   };
 
   return (

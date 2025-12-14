@@ -22,12 +22,6 @@ import EnhancedLoginForm from '@/components/auth/EnhancedLoginForm';
 import { OnboardingScreen } from './OnboardingScreen';
 
 type PaymentFlow = 'search' | 'form' | 'confirm';
-// Time-based multipliers as per whitepaper
-const getTimeMultiplier = (daysStaked: number): number => {
-  if (daysStaked <= 7) return 1.0;   // 1-7 days: 1.0x base rate
-  if (daysStaked <= 30) return 1.1;  // 8-30 days: 1.1x bonus multiplier
-  return 1.25; // 31+ days: 1.25x maximum multiplier
-};
 
 // Referral boost system as per whitepaper
 const getReferralBoost = (referralCount: number): number => {
@@ -81,9 +75,6 @@ const tonweb = isMainnet ?
     new TonWeb(new TonWeb.HttpProvider('https://toncenter.com/api/v2/jsonRPC', {apiKey: MAINNET_API_KEY})) :
     new TonWeb(new TonWeb.HttpProvider('https://testnet.toncenter.com/api/v2/jsonRPC', {apiKey: TESTNET_API_KEY}));
 
-// Add this near the top with other constants
-// const NETWORK_NAME = isMainnet ? 'Mainnet' : 'Testnet';
-
 // Helper function to generate unique ID
 const generateUniqueId = async () => {
   let attempts = 0;
@@ -120,32 +111,6 @@ interface SnackbarConfig {
 // Add these constants near other constants
 const SNACKBAR_DURATION = 5000; // 5 seconds
 
-// Add these new interfaces
-interface LocalEarningState {
-  lastUpdate: number;
-  currentEarnings: number;
-  baseEarningRate: number;
-  isActive: boolean;
-  startDate?: number;
-}
-
-// Add these constants
-const EARNINGS_SYNC_INTERVAL = 60000; // Sync with server every 60 seconds
-const getEarningsStorageKey = (userId: number | string) => `userEarnings_${userId}`;
-const EARNINGS_UPDATE_INTERVAL = 1000; // Update UI every second
-
-// Add this interface near other interfaces
-interface OfflineEarnings {
-  lastActiveTimestamp: number;
-  baseEarningRate: number;
-}
-
-// Add this constant near other constants
-const getOfflineEarningsKey = (userId: number | string) => `offline_earnings_state_${userId}`;
-
-// // Add this constant near other constants
-// const TOTAL_EARNED_KEY = 'total_earned_state';
-
 // Add these constants at the top
 const LOCK_PERIOD_DAYS = 135;
 const LOCK_PERIOD_MS = LOCK_PERIOD_DAYS * 24 * 60 * 60 * 1000;
@@ -173,51 +138,20 @@ const calculateStakingProgress = (depositDate: Date | string | null): number => 
   return Math.min(Math.max(progress, 0), 100); // Ensure between 0 and 100
 };
 
-// Add these helper functions
-const saveOfflineEarnings = (userId: number | string, state: OfflineEarnings) => {
-  localStorage.setItem(getOfflineEarningsKey(userId), JSON.stringify(state));
-};
-
-const loadOfflineEarnings = (userId: number | string): OfflineEarnings | null => {
-  const stored = localStorage.getItem(getOfflineEarningsKey(userId));
-  return stored ? JSON.parse(stored) : null;
-};
-
-
-// Add these constants at the top
-// const USER_SESSION_KEY = 'userSession';
-const EARNINGS_KEY_PREFIX = 'userEarnings_';
-const LAST_SYNC_PREFIX = 'lastSync_';
-// Update storage keys to be user-specific
-const getUserEarningsKey = (userId: number | string) => `${EARNINGS_KEY_PREFIX}${userId}`;
-const getUserSyncKey = (userId: number | string) => `${LAST_SYNC_PREFIX}${userId}`;
-
-// Update syncEarningsToDatabase
-const syncEarningsToDatabase = async (userId: number, telegramId: number | string, earnings: number) => {
-  try {
-    const lastSync = localStorage.getItem(getUserSyncKey(telegramId));
-    const now = Date.now();
-    
-    if (!lastSync || (now - Number(lastSync)) > SYNC_INTERVAL) {
-      await supabase
-        .from('user_earnings')
-        .upsert({
-          user_id: userId,
-          current_earnings: earnings,
-          last_update: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-      
-      localStorage.setItem(getUserSyncKey(telegramId), now.toString());
-    }
-  } catch (error) {
-    console.error('Silent sync error:', error);
-  }
-};
-
 const IndexPageContent: React.FC = () => {
-  const { isAuthenticated, isLoading, user, telegramUser, updateUserData } = useWalletAuth();
+  const {
+    isAuthenticated,
+    isLoading,
+    user,
+    telegramUser,
+    updateUserData,
+    currentEarnings,
+    earningState,
+    setEarningState,
+    calculateEarningRateLegacy,
+    getUserEarningsKey
+  } = useWalletAuth();
+
   const [currentTab, setCurrentTab] = useState<'home' | 'send' | 'activity' | 'search' | 'profile'>('home');
   const [userReferralCode, setUserReferralCode] = useState<string>('');
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -247,9 +181,6 @@ const IndexPageContent: React.FC = () => {
 
   console.time('IndexPage.checkSponsorStatus');
   try {
-    console.log('🔍 Checking sponsor status for user:', user.id);
-
-    console.time('IndexPage.checkFirstUser');
     // Check if user is the first user (admin bypass)
     const { data: firstUser } = await supabase
       .from('users')
@@ -257,30 +188,21 @@ const IndexPageContent: React.FC = () => {
       .order('created_at', { ascending: true })
       .limit(1)
       .single();
-    console.timeEnd('IndexPage.checkFirstUser');
-      
-    console.log('👑 First user ID:', firstUser?.id, 'Current user ID:', user.id);
       
     // If this is the first user, bypass sponsor gate
     if (firstUser?.id === user.id) {
-      console.log('✅ First user detected - bypassing sponsor gate');
       setHasSponsor(true);
       setShowSponsorGate(false);
       return;
     }
     
-    console.time('IndexPage.checkReferralData');
     // Check if user already has a sponsor (from start parameters or manual entry)
     const { data: referralData } = await supabase
       .from('referrals')
       .select('sponsor_id')
       .eq('referred_id', user.id)
       .maybeSingle();
-    console.timeEnd('IndexPage.checkReferralData');
       
-     console.log('📊 Referral data:', referralData);
-     console.log('👤 User sponsor_id:', user.sponsor_id);
-       
      // Check if user has sponsor from referrals table
      const hasSponsorFromReferrals = !!referralData?.sponsor_id;
      
@@ -290,19 +212,11 @@ const IndexPageContent: React.FC = () => {
      // User has a sponsor if either referrals table OR users table has sponsor info
      const hasSponsorStatus = hasSponsorFromReferrals || hasSponsorFromUser;
     
-    console.log('🔍 Sponsor status check:', {
-      hasSponsorFromReferrals,
-      hasSponsorFromUser,
-      hasSponsorStatus,
-      willShowGate: !hasSponsorStatus
-    });
-    
     setHasSponsor(hasSponsorStatus);
     setShowSponsorGate(!hasSponsorStatus);
     
      // If user has sponsor_id but no referral record, create it
      if (hasSponsorFromUser && !hasSponsorFromReferrals && user.sponsor_id) {
-       console.log('📝 Creating missing referral record for sponsor_id:', user.sponsor_id);
        try {
          await supabase
            .from('referrals')
@@ -312,7 +226,6 @@ const IndexPageContent: React.FC = () => {
              status: 'active',
              created_at: new Date().toISOString()
            });
-         console.log('✅ Referral record created');
        } catch (error) {
          console.error('❌ Error creating referral record:', error);
        }
@@ -651,15 +564,6 @@ const [, setMiningStatus] = useState('Initializing mining rig...');
 // Add this state for custom amount
 const [customAmount, setCustomAmount] = useState('');
 
-// Update the earning system in the IndexPage component
-const [earningState, setEarningState] = useState<LocalEarningState>({
-  lastUpdate: Date.now(),
-  currentEarnings: 0,
-  baseEarningRate: 0,
-  isActive: false,
-});
-
-
 const [showNFTMinterModal, setShowNFTMinterModal] = useState(false);
 const [nftMintStatus, setNftMintStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 const [hasNFTPass, setHasNFTPass] = useState(false);
@@ -687,10 +591,10 @@ const handleNFTMintSuccess = async (): Promise<void> => {
   });
 };
 
-  // Add function to save earning state to localStorage
-  const saveEarningState = (userId: number | string, state: LocalEarningState) => {
+  // Function to save earning state to localStorage - kept for consistency if needed, but primarily relying on AuthContext
+  const saveEarningState = (userId: number | string, state: any) => {
     try {
-      localStorage.setItem(getEarningsStorageKey(userId), JSON.stringify(state));
+      localStorage.setItem(getUserEarningsKey(String(userId)), JSON.stringify(state));
     } catch (error) {
       console.error('Error saving earning state:', error);
     }
@@ -799,71 +703,6 @@ useEffect(() => {
   }
 }, [user?.total_withdrawn]);
 
-  // Update earnings effect
-  useEffect(() => {
-    if (!user?.id || !user.balance) return;
-
-    // // Save user session
-    // saveUserSession(user.id);
-
-    // Load saved earnings from localStorage with user-specific key
-    const savedEarnings = localStorage.getItem(getUserEarningsKey(user.telegram_id || user.id));
-    const initialEarnings = savedEarnings ? JSON.parse(savedEarnings) : {
-      currentEarnings: 0,
-      lastUpdate: Date.now(),
-      baseEarningRate: calculateEarningRate(user.balance, currentROI),
-      isActive: user.balance > 0
-    };
-
-    setEarningState(initialEarnings);
-
-    const earningsInterval = setInterval(() => {
-      setEarningState(prevState => {
-        const now = Date.now();
-        const secondsElapsed = (now - prevState.lastUpdate) / 1000;
-        const newEarnings = prevState.currentEarnings + (prevState.baseEarningRate * secondsElapsed);
-        
-        const newState = {
-          ...prevState,
-          lastUpdate: now,
-          currentEarnings: newEarnings
-        };
-        
-        // Save to user-specific localStorage key
-        localStorage.setItem(getUserEarningsKey(user.telegram_id || user.id), JSON.stringify(newState));
-        
-        // Stealth sync to database
-        syncEarningsToDatabase(user.id!, user.telegram_id!, newEarnings);
-        
-        return newState;
-      });
-    }, EARNINGS_UPDATE_INTERVAL);
-
-    return () => {
-      clearInterval(earningsInterval);
-      // Save final state before unmounting
-      const finalState = earningState;
-      localStorage.setItem(getUserEarningsKey(user.telegram_id ?? user.id), JSON.stringify(finalState));
-      
-      // Final sync with server using IIFE
-      (async () => {
-        try {
-          await supabase
-            .from('user_earnings')
-            .upsert({
-              user_id: user.id,
-              current_earnings: finalState.currentEarnings,
-              last_update: new Date().toISOString()
-            }, {
-              onConflict: 'user_id'
-            });
-          console.log('Final earnings sync completed');
-        } catch (err) {
-          console.error('Error in final earnings sync:', err);
-        }
-      })();
-    };
-  }, [user?.id, user?.balance, currentROI]);
 
   // Add this utility function
   const showSnackbar = ({ message, description = '', duration = SNACKBAR_DURATION }: SnackbarConfig) => {
@@ -908,67 +747,14 @@ useEffect(() => {
     return () => clearInterval(intervalId);
   }, [tonConnectUI]);
 
-// Network power calculation (total staked amount)
-const calculateNetworkPower = async (): Promise<number> => {
-  try {
-    const { data } = await supabase
-      .from('users')
-      .select('balance')
-      .gt('balance', 0);
-    
-    return data?.reduce((total, user) => total + (user.balance || 0), 0) || 1;
-  } catch (error) {
-    console.error('Error calculating network power:', error);
-    return 1; // Fallback to prevent division by zero
-  }
-};
-
-// Sustainable earning rate calculation matching whitepaper formula
-const calculateEarningRate = async (
-  balance: number, 
-  _baseROI: number, 
-  daysStaked: number = 0, 
-  referralCount: number = 0
-): Promise<number> => {
-  // Get multipliers
-  const timeMultiplier = getTimeMultiplier(daysStaked);
-  const referralBoost = getReferralBoost(referralCount);
-  
-  // Calculate effective staking power
-  const effectiveStakingPower = balance * timeMultiplier * referralBoost;
-  
-  // Get network power
-  const networkPower = await calculateNetworkPower();
-  
-  // Daily emission cap (sustainable amount)
-  const dailyEmission = 1000; // 1000 Rhiza per day total
-  
-  // Calculate daily reward using whitepaper formula
-  const dailyReward = (effectiveStakingPower / networkPower) * dailyEmission;
-  
-  // Convert to per-second rate
-  return dailyReward / 86400;
-};
-
-// Legacy function for backward compatibility (simplified)
-const calculateEarningRateLegacy = (balance: number, baseROI: number, daysStaked: number = 0) => {
-  // Use time-based multipliers to match modal calculation
-  const timeMultiplier = getTimeMultiplier(daysStaked);
-  const referralBoost = 1.0; // Default for users without referrals (can be enhanced later)
-  
-  const effectiveStakingPower = balance * timeMultiplier * referralBoost;
-  const dailyReward = effectiveStakingPower * baseROI;
-  
-  return dailyReward / 86400; // Per second rate
-};
-
 // Clear old cached earning rates to prevent $43 rewards
 const clearOldEarningCache = (userId: number | string) => {
   try {
     // Clear localStorage cache
-    localStorage.removeItem(getUserEarningsKey(userId));
-    localStorage.removeItem(getUserSyncKey(userId));
-    localStorage.removeItem(getOfflineEarningsKey(userId));
+    const key = getUserEarningsKey(String(userId));
+    localStorage.removeItem(key);
+    // Remove other potentially stale keys
+    localStorage.removeItem(`lastSync_${userId}`);
     
     console.log('Cleared old earning cache for user:', userId);
   } catch (error) {
@@ -1064,7 +850,8 @@ const handleDeposit = async (amount: number) => {
     };
     
     // Save current earning state
-    saveEarningState(user.telegram_id || user.id, previousState);
+    const userId = user.telegram_id || user.id;
+    saveEarningState(userId, previousState);
     
     // Record pending deposit
     const { error: pendingError } = await supabase
@@ -1115,7 +902,7 @@ const handleDeposit = async (amount: number) => {
       if (balanceError) throw balanceError;
 
       // Clear old earning cache to prevent inflated rewards
-      clearOldEarningCache(user.telegram_id || user.id);
+      clearOldEarningCache(userId);
 
       // Process referral rewards for staking
       await processReferralStakingRewards(user.id, amount);
@@ -1144,7 +931,7 @@ const handleDeposit = async (amount: number) => {
         };
 
         setEarningState(newState);
-        saveEarningState(user.telegram_id || user.id, newState);
+        saveEarningState(userId, newState);
 
         // Update earnings in database
         await supabase
@@ -1190,10 +977,7 @@ const handleDeposit = async (amount: number) => {
     
     // Restore previous state on error
     if (user) {
-      const savedState = localStorage.getItem(getEarningsStorageKey(user.telegram_id || user.id));
-      if (savedState) {
-        setEarningState(JSON.parse(savedState));
-      }
+       // Revert local state from context logic potentially
     }
   } finally {
     setCustomAmount('');
@@ -1303,197 +1087,6 @@ const handleDeposit = async (amount: number) => {
     }
   }, [user, isLoading, hasSponsor]);
 
-  // Add this effect to handle offline earnings
-  useEffect(() => {
-    if (!user) return;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // App became visible, calculate offline earnings
-        const offlineState = loadOfflineEarnings(user.telegram_id || user.id);
-        if (offlineState && earningState.isActive) {
-          const now = Date.now();
-          const secondsElapsed = (now - offlineState.lastActiveTimestamp) / 1000;
-          const offlineEarnings = offlineState.baseEarningRate * secondsElapsed;
-
-          if (offlineEarnings > 0) {
-            setEarningState(prev => ({
-              ...prev,
-              currentEarnings: prev.currentEarnings + offlineEarnings,
-              lastUpdate: now
-            }));
-
-            showSnackbar({
-              message: 'Offline Earnings Added',
-              description: `You earned ${offlineEarnings.toFixed(8)} RZC while offline`
-            });
-          }
-        }
-      } else {
-        // App is going to background, save current state
-        if (earningState.isActive) {
-          saveOfflineEarnings(user.telegram_id || user.id, {
-            lastActiveTimestamp: Date.now(),
-            baseEarningRate: earningState.baseEarningRate
-          });
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [earningState, user]);
-
-  // Update the earning effect to include offline earnings
-  useEffect(() => {
-    if (!user?.id || !user.balance) return;
-
-    const initializeEarningState = async () => {
-      try {
-        // Fetch current earnings from server
-        const { data: serverData } = await supabase
-          .from('user_earnings')
-          .select('current_earnings, last_update, start_date')
-          .eq('user_id', user.id)
-          .single();
-
-        const now = Date.now();
-        const daysStaked = serverData ? Math.floor((now - new Date(serverData.start_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
-        const newRate = calculateEarningRateLegacy(user.balance, currentROI, daysStaked);
-        
-        // Load saved earnings from localStorage
-        const savedEarnings = localStorage.getItem(getEarningsStorageKey(user.telegram_id || user.id));
-        const localEarnings = savedEarnings ? JSON.parse(savedEarnings).currentEarnings : 0;
-        
-        if (serverData) {
-          const startDate = new Date(serverData.start_date).getTime();
-          const lastUpdateTime = new Date(serverData.last_update).getTime();
-          const secondsElapsed = (now - lastUpdateTime) / 1000;
-          
-          // Use the higher value between server and local storage to prevent resets
-          const baseEarnings = Math.max(serverData.current_earnings, localEarnings);
-          const accumulatedEarnings = (newRate * secondsElapsed) + baseEarnings;
-
-          const newState = {
-            lastUpdate: now,
-            currentEarnings: accumulatedEarnings,
-            baseEarningRate: newRate,
-            isActive: user.balance > 0,
-            startDate: startDate
-          };
-          
-          setEarningState(newState);
-          saveEarningState(user.telegram_id || user.id, newState);
-          
-          // Sync with server to ensure consistency
-          await supabase
-            .from('user_earnings')
-            .upsert({
-              user_id: user.id,
-              current_earnings: accumulatedEarnings,
-              last_update: new Date(now).toISOString(),
-              start_date: new Date(startDate).toISOString()
-            }, {
-              onConflict: 'user_id'
-            });
-
-        } else {
-          // Initialize new earning state, preserving any existing earnings
-          const newState = {
-            lastUpdate: now,
-            currentEarnings: localEarnings, // Use any existing local earnings
-            baseEarningRate: newRate,
-            isActive: user.balance > 0,
-            startDate: now
-          };
-
-          // Create initial server record with preserved earnings
-          await supabase
-            .from('user_earnings')
-            .insert({
-              user_id: user.id,
-              current_earnings: localEarnings, // Preserve existing earnings
-              last_update: new Date(now).toISOString(),
-              start_date: new Date(now).toISOString()
-            });
-
-          setEarningState(newState);
-          saveEarningState(user.telegram_id || user.id, newState);
-        }
-
-        // Set up periodic sync
-        const syncInterval = setInterval(async () => {
-          const currentState = JSON.parse(localStorage.getItem(getUserEarningsKey(user.telegram_id ?? user.id)) || '{}');
-          if (currentState.currentEarnings) {
-            await supabase
-              .from('user_earnings')
-              .upsert({
-                user_id: user.id,
-                current_earnings: currentState.currentEarnings,
-                last_update: new Date().toISOString()
-              }, {
-                onConflict: 'user_id'
-              });
-          }
-        }, EARNINGS_SYNC_INTERVAL);
-
-        return () => clearInterval(syncInterval);
-
-      } catch (error) {
-        console.error('Error initializing earning state:', error);
-      }
-    };
-
-    initializeEarningState();
-
-    // Set up earnings calculation interval
-    const earningsInterval = setInterval(() => {
-      setEarningState(prevState => {
-        const now = Date.now();
-        const secondsElapsed = (now - prevState.lastUpdate) / 1000;
-        const newEarnings = prevState.currentEarnings + (prevState.baseEarningRate * secondsElapsed);
-        
-        const newState = {
-          ...prevState,
-          lastUpdate: now,
-          currentEarnings: newEarnings
-        };
-        
-        // Save to localStorage with user-specific key
-        localStorage.setItem(getUserEarningsKey(user.telegram_id!), JSON.stringify(newState));
-        
-        return newState;
-      });
-    }, EARNINGS_UPDATE_INTERVAL);
-
-    return () => {
-      clearInterval(earningsInterval);
-      // Save final state before unmounting
-      const finalState = earningState;
-      localStorage.setItem(getUserEarningsKey(user.telegram_id || user.id), JSON.stringify(finalState));
-      
-      // Final sync with server using IIFE
-      (async () => {
-        try {
-          await supabase
-            .from('user_earnings')
-            .upsert({
-              user_id: user.id,
-              current_earnings: finalState.currentEarnings,
-              last_update: new Date().toISOString()
-            }, {
-              onConflict: 'user_id'
-            });
-          console.log('Final earnings sync completed');
-        } catch (err) {
-          console.error('Error in final earnings sync:', err);
-        }
-      })();
-    };
-  }, [user?.id, user?.balance, currentROI]);
-
-
   // Add this state for live progress
   const [, setStakingProgress] = useState(0);
 
@@ -1540,117 +1133,21 @@ const handleDeposit = async (amount: number) => {
 
   // Update the earnings initialization effect
   useEffect(() => {
+    // This effect handles the visual loading state only, as data is now managed in AuthContext
     if (!user?.id || !user.balance) {
       setIsInitializing(false);
       return;
     }
 
-    const initializeEarningState = async () => {
-      try {
-        if (!hasInitializedRef.current) {
-          setIsInitializing(true);
-        }
-
-        // Check if user exists in user_earnings
-        const { data: serverData } = await supabase
-          .from('user_earnings')
-          .select('current_earnings, last_update, start_date')
-          .eq('user_id', user.id)
-          .single();
-
-        const now = Date.now();
-        const daysStaked = serverData ? Math.floor((now - new Date(serverData.start_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
-        const newRate = calculateEarningRateLegacy(user.balance, currentROI, daysStaked);
-        
-        if (serverData) {
-          // Existing user logic - preserve earnings on top-up
-          const startDate = new Date(serverData.start_date).getTime();
-          const lastUpdateTime = new Date(serverData.last_update).getTime();
-          const secondsElapsed = (now - lastUpdateTime) / 1000;
-          
-          // Preserve existing earnings and add new accumulated earnings
-          const baseEarnings = serverData.current_earnings || 0;
-          const accumulatedEarnings = (newRate * secondsElapsed) + baseEarnings;
-
-          // Update earnings state with preserved earnings
-          setEarningState({
-            lastUpdate: now,
-            currentEarnings: accumulatedEarnings,
-            baseEarningRate: newRate,
-            isActive: user.balance > 0,
-            startDate: startDate // Keep original start date
-          });
-
-          // Update database with new earnings
-          await supabase
-            .from('user_earnings')
-            .update({
-              current_earnings: accumulatedEarnings,
-              last_update: new Date(now).toISOString()
-              // Don't update start_date to preserve original staking start
-            })
-            .eq('user_id', user.id);
-
-        } else {
-          // New user logic - start with 0 earnings
-          const newState = {
-            lastUpdate: now,
-            currentEarnings: 0,
-            baseEarningRate: newRate,
-            isActive: user.balance > 0,
-            startDate: now
-          };
-
-          // Initialize new user in database
-          await supabase
-            .from('user_earnings')
-            .insert({
-              user_id: user.id,
-              current_earnings: 0,
-              last_update: new Date(now).toISOString(),
-              start_date: new Date(now).toISOString()
-            });
-
-          setEarningState(newState);
-        }
-      } catch (error) {
-        console.error('Error initializing earning state:', error);
-      } finally {
-        setIsInitializing(false);
-        hasInitializedRef.current = true;
-      }
-    };
-
-    initializeEarningState();
-    
-    // Set up earnings calculation interval
-    const earningsInterval = setInterval(() => {
-      setEarningState(prevState => {
-        const now = Date.now();
-        const secondsElapsed = (now - prevState.lastUpdate) / 1000;
-        
-        // Calculate days staked for time multiplier
-        const daysStaked = prevState.startDate ? Math.floor((now - prevState.startDate) / (1000 * 60 * 60 * 24)) : 0;
-        
-        // Calculate new earnings based on current rate and elapsed time
-        const newEarnings = prevState.currentEarnings + (prevState.baseEarningRate * secondsElapsed);
-        
-        const newState = {
-          ...prevState,
-          lastUpdate: now,
-          currentEarnings: newEarnings,
-          baseEarningRate: calculateEarningRateLegacy(user.balance, currentROI, daysStaked) // Update rate based on new balance and time
-        };
-        
-        // Save to localStorage
-        localStorage.setItem(getUserEarningsKey(user.telegram_id || user.id), JSON.stringify(newState));
-        
-        return newState;
-      });
-    }, EARNINGS_UPDATE_INTERVAL);
-
-    return () => clearInterval(earningsInterval);
-  }, [user?.id, user?.balance, currentROI]);
+    if (!hasInitializedRef.current) {
+        setIsInitializing(true);
+        // Simulate quick check to sync visually
+        setTimeout(() => {
+            setIsInitializing(false);
+            hasInitializedRef.current = true;
+        }, 500);
+    }
+  }, [user?.id, user?.balance]);
 
 
   useEffect(() => {
@@ -1764,7 +1261,7 @@ const handleDeposit = async (amount: number) => {
               ref={arcadeRef}
               balanceTon={user?.balance || 0}
               tonPrice={tonPrice || 0}
-              currentEarningsTon={earningState?.currentEarnings || 0}
+              currentEarningsTon={currentEarnings || 0}
               isClaiming={false}
               claimCooldown={0}
               cooldownText={''}
@@ -1906,26 +1403,6 @@ const handleDeposit = async (amount: number) => {
   );
 };
 
-const calculateTotalEarnings = (amount: number): number => {
-  let totalEarnings = 0;
-  const baseROI = 0.0306; // 3.06% base daily rate for better returns
-  
-  // Calculate earnings for each day up to 135 days (lock period)
-  for (let day = 1; day <= 135; day++) {
-    // Get time multiplier based on days staked
-    const timeMultiplier = getTimeMultiplier(day);
-    
-    // Calculate daily earnings with time multiplier
-    const dailyEarnings = amount * baseROI * timeMultiplier;
-    totalEarnings += dailyEarnings;
-  }
-  
-  return totalEarnings;
-};
-
-const SYNC_INTERVAL = 60000; // Sync every minute
-
-
 function IndexPage() {
   return (
     <AuthProvider>
@@ -1938,5 +1415,3 @@ function IndexPage() {
 
 
 export default IndexPage;
-
-
