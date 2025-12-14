@@ -1,34 +1,59 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { initData, useSignal } from '@telegram-apps/sdk-react';
-import { supabase, reconcileUserBalance } from '@/lib/supabaseClient';
-import type { User } from '@/lib/supabaseClient';
+import { supabase, reconcileUserBalance, createOrUpdateUser, getUserByWalletAddress } from '@/lib/supabaseClient';
+import { sendLoginCode, verifyLoginCode } from '@/lib/thirdwebAPI';
 
-export interface AuthUser extends User {
-  // Extended user properties
-  total_earned?: number;
+export interface AuthUser {
+  id: number;
+  telegram_id?: number; // Optional now
+  wallet_address: string;
+  username?: string;
+  email?: string;
+  display_name?: string;
+  avatar_url?: string;
+  created_at: string;
+
+  // Game & Economy Properties
+  balance: number;
+  total_earned: number;
+  total_deposit: number;
+  total_withdrawn: number;
+  team_volume: number;
+  rank: string;
   login_streak: number;
   last_login_date: string;
-  has_nft?: boolean;
-  referrer_username?: string;
-  referrer_rank?: string;
+  last_active: string;
+  is_active: boolean;
   sponsor_id?: number;
   sponsor_code?: string;
-  total_sbt?: number;
-  claimed_milestones?: number[];
-  photoUrl?: string;
-  team_volume: number;
-  expected_rank_bonus?: number;
-  available_earnings?: number;
   direct_referrals: number;
+  available_earnings?: number;
+  reinvestment_balance?: number;
+  last_deposit_date?: string;
+
+  // Relations
   referrer?: {
     username: string;
     rank: string;
   };
+
+  // Telegram-specific properties
+  first_name?: string;
+  last_name?: string;
+  language_code?: string;
+  photoUrl?: string;
+
+  // Game-specific properties
+  has_nft?: boolean;
+  referrer_username?: string;
+  referrer_rank?: string;
+  total_sbt?: number;
+  claimed_milestones?: number[];
+  expected_rank_bonus?: number;
   stake_date?: string;
   current_stake_date?: string;
   whitelisted_wallet?: string;
   last_deposit_time: string | null;
-  last_deposit_date?: string;
   payout_wallet?: string;
   pending_withdrawal?: boolean;
   pending_withdrawal_id?: number;
@@ -36,96 +61,141 @@ export interface AuthUser extends User {
   total_payout?: number;
 }
 
-// Update validation constants
+// --- Constants & Config (From AuthContext) ---
+
 const EARNINGS_VALIDATION = {
-  MAX_DAILY_EARNING: 1000, // Maximum TON per day
-  MAX_TOTAL_EARNING: 1000000, // Maximum total TON
-  SYNC_INTERVAL: 300000, // 5 minutes (300000ms)
-  RATE_LIMIT_WINDOW: 3600000, // 1 hour window
-  MAX_SYNCS_PER_WINDOW: 12, // Max 12 syncs per hour
-  MAX_EARNING_DAYS: 100, // Maximum days for earning
-  EARNINGS_TIMEOUT: 8640000000, // 100 days in milliseconds
+  MAX_DAILY_EARNING: 1000,
+  MAX_TOTAL_EARNING: 1000000,
+  SYNC_INTERVAL: 60000, // 1 minute
+  RATE_LIMIT_WINDOW: 3600000,
+  MAX_SYNCS_PER_WINDOW: 12,
 };
 
-// Add sync tracking
+const EARNINGS_UPDATE_INTERVAL = 1000;
+const EARNINGS_KEY_PREFIX = 'userEarnings_';
+const LAST_SYNC_PREFIX = 'lastSync_';
+const OFFLINE_EARNINGS_PREFIX = 'offline_earnings_state_';
+
+// --- Additional Interfaces ---
+
+interface LocalEarningState {
+  lastUpdate: number;
+  currentEarnings: number;
+  baseEarningRate: number;
+  isActive: boolean;
+  startDate?: number;
+}
+
+interface OfflineEarnings {
+  lastActiveTimestamp: number;
+  baseEarningRate: number;
+}
+
+interface AuthState {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  user: AuthUser | null;
+  token: string | null;
+  walletAddress: string | null;
+}
+
+// --- Helper Functions ---
+
+// Time-based multipliers
+const getTimeMultiplier = (daysStaked: number): number => {
+  if (daysStaked <= 7) return 1.0;
+  if (daysStaked <= 30) return 1.1;
+  return 1.25;
+};
+
+// Calculate earning rate
+const calculateEarningRateLegacy = (balance: number, baseROI: number = 0.0306, daysStaked: number = 0) => {
+  const timeMultiplier = getTimeMultiplier(daysStaked);
+  const referralBoost = 1.0;
+  const effectiveStakingPower = balance * timeMultiplier * referralBoost;
+  const dailyReward = effectiveStakingPower * baseROI;
+  return dailyReward / 86400; // Per second rate
+};
+
+// Local Storage Helpers
+const getUserEarningsKey = (wallet: string) => `${EARNINGS_KEY_PREFIX}${wallet}`;
+const getOfflineEarningsKey = (wallet: string) => `${OFFLINE_EARNINGS_PREFIX}${wallet}`;
+
+const saveOfflineEarnings = (wallet: string, state: OfflineEarnings) => {
+  localStorage.setItem(getOfflineEarningsKey(wallet), JSON.stringify(state));
+};
+
+const loadOfflineEarnings = (wallet: string): OfflineEarnings | null => {
+  const stored = localStorage.getItem(getOfflineEarningsKey(wallet));
+  return stored ? JSON.parse(stored) : null;
+};
+
+// EARNINGS_VALIDATION is defined above
+
+// --- Sync Logic ---
 let lastSyncTime = 0;
 let syncCount = 0;
 let lastSyncReset = Date.now();
 
-// Update the sync function with better rate limiting
 const syncEarnings = async (userId: number, earnings: number): Promise<boolean> => {
   try {
     const now = Date.now();
-
-    // Reset sync count if window has passed
     if (now - lastSyncReset >= EARNINGS_VALIDATION.RATE_LIMIT_WINDOW) {
       syncCount = 0;
       lastSyncReset = now;
     }
 
-    // Check rate limits
-    if (
-      now - lastSyncTime < EARNINGS_VALIDATION.SYNC_INTERVAL ||
-      syncCount >= EARNINGS_VALIDATION.MAX_SYNCS_PER_WINDOW
-    ) {
+    if (now - lastSyncTime < EARNINGS_VALIDATION.SYNC_INTERVAL || syncCount >= EARNINGS_VALIDATION.MAX_SYNCS_PER_WINDOW) {
       console.debug('Rate limit reached, skipping sync');
       return false;
     }
 
-    // Update sync tracking
     lastSyncTime = now;
     syncCount++;
 
-    // Update earnings directly without stake validation
+    // Update user_earnings table (preferred) or users table
     const { error } = await supabase
-      .from('users')
-      .update({ 
-        total_earned: earnings,
-        last_sync: new Date().toISOString()
-      })
-      .eq('id', userId);
+      .from('user_earnings')
+      .upsert({
+        user_id: userId,
+        current_earnings: earnings,
+        last_update: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+
+    // Also update main user record for redundancy if needed
+    if (!error) {
+       await supabase.from('users').update({ total_earned: earnings }).eq('id', userId);
+    }
 
     if (error) throw error;
     return true;
-
   } catch (error) {
     console.error('Sync error:', error);
     return false;
   }
 };
 
-// Simplify validation function to remove stake-related checks
-const validateAndSyncData = async (userId: number) => {
-  try {
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('total_earned, last_sync')
-      .eq('id', userId)
-      .single();
-
-    if (!dbUser) return 0;
-
-    // Use simple validation against max total earnings
-    const validatedEarnings = Math.min(
-      dbUser.total_earned,
-      EARNINGS_VALIDATION.MAX_TOTAL_EARNING
-    );
-
-    await syncEarnings(userId, validatedEarnings);
-    return validatedEarnings;
-  } catch (error) {
-    console.error('Validation error:', error);
-    return null;
-  }
-};
-
 export const useAuth = () => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [authState, setAuthState] = useState<AuthState>({
+    isAuthenticated: false,
+    isLoading: true,
+    user: null,
+    token: null,
+    walletAddress: null,
+  });
+
+  // Game States
+  const [currentEarnings, setCurrentEarnings] = useState(0);
+  const [earningState, setEarningState] = useState<LocalEarningState>({
+    lastUpdate: Date.now(),
+    currentEarnings: 0,
+    baseEarningRate: 0,
+    isActive: false,
+  });
+
   const [error, setError] = useState<string | null>(null);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const [currentEarnings, setCurrentEarnings] = useState(0);
-  
+
   const telegramData = useSignal(initData.state);
 
   // Add sync interval state
@@ -135,7 +205,7 @@ export const useAuth = () => {
     console.time('useAuth.initializeAuth');
     if (!telegramData?.user) {
       setError('Please open this app in Telegram');
-      setIsLoading(false);
+      setAuthState(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
@@ -366,11 +436,21 @@ export const useAuth = () => {
         console.timeEnd('useAuth.referralProcessing');
 
         // Set the newly created user
-        setUser({
-          ...newUser,
-          login_streak: 0,
-          last_login_date: new Date().toISOString()
+        const storedToken = localStorage.getItem('thirdweb_token');
+        setAuthState({
+          isAuthenticated: !!storedToken,
+          isLoading: false,
+          user: {
+            ...newUser,
+            login_streak: 0,
+            last_login_date: new Date().toISOString()
+          },
+          token: null,
+          walletAddress: null,
         });
+        if (!storedToken) {
+          setError('Please connect your wallet to authenticate');
+        }
         
       } else if (fetchError && fetchError.code !== 'PGRST116') {
         // Handle other fetch errors (not "no rows found")
@@ -391,18 +471,28 @@ export const useAuth = () => {
         }
 
         // Set the existing user
-        setUser({
-          ...existingUser,
-          login_streak: existingUser.login_streak || 0,
-          last_login_date: existingUser.last_login_date || new Date().toISOString()
+        const storedToken = localStorage.getItem('thirdweb_token');
+        setAuthState({
+          isAuthenticated: !!storedToken,
+          isLoading: false,
+          user: {
+            ...existingUser,
+            login_streak: existingUser.login_streak || 0,
+            last_login_date: existingUser.last_login_date || new Date().toISOString()
+          },
+          token: null,
+          walletAddress: null,
         });
+        if (!storedToken) {
+          setError('Please connect your wallet to authenticate');
+        }
       }
 
     } catch (err) {
       console.error('Authentication error:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      setAuthState(prev => ({ ...prev, isLoading: false }));
     } finally {
-      setIsLoading(false);
       console.timeEnd('useAuth.initializeAuth');
     }
   }, [telegramData]);
@@ -413,22 +503,22 @@ export const useAuth = () => {
 
   // Real-time subscription to user changes
   useEffect(() => {
-    if (!user?.telegram_id) return;
+    if (!authState.user?.telegram_id) return;
 
     const subscription = supabase
-      .channel(`public:users:telegram_id=eq.${user.telegram_id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
+      .channel(`public:users:telegram_id=eq.${authState.user.telegram_id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
         table: 'users',
-        filter: `telegram_id=eq.${user.telegram_id}`
+        filter: `telegram_id=eq.${authState.user.telegram_id}`
       }, async (payload) => {
         if (payload.new) {
           // Fetch fresh user data without trying to join the referrer
           const { data } = await supabase
             .from('users')
             .select('*')
-            .eq('telegram_id', user.telegram_id)
+            .eq('telegram_id', authState.user!.telegram_id)
             .single();
 
           if (data) {
@@ -440,7 +530,7 @@ export const useAuth = () => {
                 .select('username, rank')
                 .eq('id', data.sponsor_id)
                 .single();
-              
+
               if (sponsorData) {
                 sponsorInfo = {
                   username: sponsorData.username,
@@ -457,7 +547,7 @@ export const useAuth = () => {
               last_login_date: data.last_login_date,
               referrer: sponsorInfo
             };
-            setUser(authUser);
+            setAuthState(prev => ({ ...prev, user: authUser }));
           }
         }
       })
@@ -466,7 +556,7 @@ export const useAuth = () => {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [user?.telegram_id]);
+  }, [authState.user?.telegram_id]);
 
   const updateUserData = useCallback(async (updatedData: Partial<AuthUser>) => {
     if (debounceTimer) {
@@ -475,7 +565,7 @@ export const useAuth = () => {
 
     setDebounceTimer(setTimeout(async () => {
       try {
-        if (!user?.id) throw new Error('No user ID found');
+        if (!authState.user?.id) throw new Error('No user ID found');
 
         // Remove referrer property to avoid issues with the update
         const { referrer, ...dataToUpdate } = updatedData;
@@ -490,21 +580,21 @@ export const useAuth = () => {
         const { data: updatedUser, error } = await supabase
           .from('users')
           .update(payload)
-          .eq('id', user.id)
+          .eq('id', authState.user!.id)
           .select('*')
           .single();
 
         if (error) throw error;
 
         // If we need sponsor info, fetch it separately
-        let sponsorInfo = user.referrer;
-        if (updatedUser.sponsor_id && (!sponsorInfo || updatedUser.sponsor_id !== user.sponsor_id)) {
+        let sponsorInfo = authState.user.referrer;
+        if (updatedUser.sponsor_id && (!sponsorInfo || updatedUser.sponsor_id !== authState.user.sponsor_id)) {
           const { data: sponsorData } = await supabase
             .from('users')
             .select('username, rank')
             .eq('id', updatedUser.sponsor_id)
             .single();
-          
+
           if (sponsorData) {
             sponsorInfo = {
               username: sponsorData.username,
@@ -513,27 +603,40 @@ export const useAuth = () => {
           }
         }
 
-        setUser(prev => ({
+        setAuthState(prev => ({
           ...prev,
-          ...updatedUser,
-          referrer: sponsorInfo,
-          referrer_username: sponsorInfo?.username,
-          referrer_rank: sponsorInfo?.rank,
-          lastUpdate: new Date().toISOString()
+          user: prev.user ? {
+            ...prev.user,
+            ...updatedUser,
+            referrer: sponsorInfo,
+            referrer_username: sponsorInfo?.username,
+            referrer_rank: sponsorInfo?.rank,
+            lastUpdate: new Date().toISOString()
+          } : null
         }));
 
       } catch (error) {
         console.error('Update failed:', error);
       }
     }, 500));
-  }, [user?.id, debounceTimer]);
+  }, [authState.user?.id, debounceTimer]);
 
   const logout = useCallback(() => {
-    console.log('Logging out user:', user?.telegram_id);
+    console.log('Logging out user:', authState.user?.telegram_id);
+
+    // Save final earnings before logout
+    if (authState.user && earningState.currentEarnings > 0) {
+       syncEarnings(authState.user!.id, earningState.currentEarnings);
+    }
 
     // Clear all authentication state
-    setUser(null);
-    setIsLoading(false);
+    setAuthState({
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+      token: null,
+      walletAddress: null,
+    });
     setError(null);
 
     // Clear any pending operations
@@ -545,21 +648,28 @@ export const useAuth = () => {
     // Clean up local storage
     localStorage.removeItem('userSession');
     localStorage.removeItem('authToken');
+    localStorage.removeItem('thirdweb_token');
+    localStorage.removeItem('wallet_address');
 
     // Log the logout event
     console.log('User logged out successfully');
-  }, [user, debounceTimer]);
+  }, [authState.user, earningState.currentEarnings, debounceTimer]);
 
   // Update sync interval
   useEffect(() => {
-    if (user?.id) {
+    if (authState.user?.id) {
       const interval = setInterval(async () => {
-        const success = await syncEarnings(user.id, currentEarnings);
+        const success = await syncEarnings(authState.user!.id, currentEarnings);
         if (!success) {
           // Reset to last valid state
-          const validatedEarnings = await validateAndSyncData(user.id);
-          if (validatedEarnings !== null) {
-            setCurrentEarnings(validatedEarnings);
+          const { data: lastValidState } = await supabase
+            .from('users')
+            .select('total_earned')
+            .eq('id', authState.user!.id)
+            .single();
+
+          if (lastValidState) {
+            setCurrentEarnings(lastValidState.total_earned);
           }
         }
       }, 5 * 60 * 1000);
@@ -567,12 +677,12 @@ export const useAuth = () => {
       setSyncInterval(interval);
       return () => clearInterval(interval);
     }
-  }, [user?.id, currentEarnings]);
+  }, [authState.user?.id, currentEarnings]);
 
 
   // Update the useEffect to handle earnings updates more efficiently
   useEffect(() => {
-    if (!user?.id) return;
+    if (!authState.user?.id) return;
 
     let isMounted = true;
     let syncTimeout: NodeJS.Timeout | null = null;
@@ -581,14 +691,14 @@ export const useAuth = () => {
       if (!isMounted) return;
 
       try {
-        const success = await syncEarnings(user.id, currentEarnings);
-        
+        const success = await syncEarnings(authState.user!.id, currentEarnings);
+
         if (!success && isMounted) {
           // If sync fails, validate and reset to last known good state
           const { data: lastValidState } = await supabase
             .from('users')
             .select('total_earned')
-            .eq('id', user.id)
+            .eq('id', authState.user!.id)
             .single();
 
           if (lastValidState && isMounted) {
@@ -602,7 +712,7 @@ export const useAuth = () => {
       // Schedule next sync if component is still mounted
       if (isMounted) {
         syncTimeout = setTimeout(
-          handleEarningsUpdate, 
+          handleEarningsUpdate,
           EARNINGS_VALIDATION.SYNC_INTERVAL
         );
       }
@@ -618,35 +728,346 @@ export const useAuth = () => {
         clearTimeout(syncTimeout);
       }
     };
-  }, [user?.id, currentEarnings]);
+  }, [authState.user?.id, currentEarnings]);
 
   // Add periodic balance check
   useEffect(() => {
-    if (!user?.id) return;
+    if (!authState.user?.id) return;
 
     const checkBalance = async () => {
-      await reconcileUserBalance(user.id);
+      await reconcileUserBalance(authState.user!.id);
     };
 
     // Check balance every hour
     const interval = setInterval(checkBalance, 60 * 60 * 1000);
-    
+
     // Initial check
     checkBalance();
 
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [authState.user?.id]);
+
+  // --- Auth Actions ---
+
+  const sendCode = async (email: string) => {
+    try {
+      await sendLoginCode(email);
+    } catch (error) {
+      console.error('Failed to send login code:', error);
+      throw error;
+    }
+  };
+
+  const login = async (email: string, code: string) => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      const authResult = await verifyLoginCode(email, code);
+      const { token, walletAddress, isNewUser } = authResult;
+
+      localStorage.setItem('thirdweb_token', token);
+      localStorage.setItem('wallet_address', walletAddress);
+
+      let user: AuthUser;
+      if (isNewUser) {
+        user = (await createOrUpdateUser(email, walletAddress)) as AuthUser;
+      } else {
+        const existingUser = await getUserByWalletAddress(walletAddress);
+        if (existingUser) {
+          user = existingUser as AuthUser;
+        } else {
+          user = (await createOrUpdateUser(email, walletAddress)) as AuthUser;
+        }
+      }
+
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: true,
+        token,
+        walletAddress,
+      }));
+      setError(null);
+    } catch (error) {
+      console.error('Login failed:', error);
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      throw error;
+    }
+  };
+
+  const loginWithWallet = async (walletAddress: string) => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      const token = `wallet_token_${walletAddress}_${Date.now()}`;
+
+      localStorage.setItem('thirdweb_token', token);
+      localStorage.setItem('wallet_address', walletAddress);
+
+      let user: AuthUser;
+      const existingUser = await getUserByWalletAddress(walletAddress);
+
+      if (existingUser) {
+        user = existingUser as AuthUser;
+      } else {
+        // Provide dummy email for wallet-only users if schema requires it, or update createOrUpdateUser to handle optional email
+        user = (await createOrUpdateUser(`${walletAddress}@wallet.user`, walletAddress)) as AuthUser;
+      }
+
+      setAuthState({
+        isAuthenticated: true,
+        isLoading: false,
+        user,
+        token,
+        walletAddress,
+      });
+    } catch (error) {
+      console.error('Wallet login failed:', error);
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+      throw error;
+    }
+  };
+
+  const updateUser = (updates: Partial<AuthUser>) => {
+    setAuthState(prev => ({
+      ...prev,
+      user: prev.user ? { ...prev.user, ...updates } : null,
+    }));
+  };
+
+  const refreshUser = async () => {
+    if (!authState.walletAddress) return;
+    try {
+      const user = await getUserByWalletAddress(authState.walletAddress);
+      if (user) {
+        setAuthState(prev => ({ ...prev, user: user as AuthUser }));
+      }
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
+  // --- Referral Logic ---
+
+  const applySponsorCode = async (sponsorCode: string): Promise<{ success: boolean; message: string }> => {
+    if (!authState.user?.id || !sponsorCode.trim()) {
+        return { success: false, message: 'Invalid data' };
+    }
+
+    try {
+        // 1. Validation
+        if (sponsorCode === String(authState.user!.id)) {
+            return { success: false, message: 'Cannot use own code' };
+        }
+
+        // Check if already has referral
+        const { data: existing } = await supabase
+            .from('referrals')
+            .select('*')
+            .eq('referred_id', authState.user!.id)
+            .maybeSingle();
+
+        if (existing) {
+            return { success: false, message: 'You already have a sponsor.' };
+        }
+
+        // 2. Find Sponsor (Search by ID, code, or username if needed)
+        // Assuming code is user ID or generated code string.
+        // Adjust logic based on your exact code generation strategy.
+        const { data: sponsor } = await supabase
+            .from('users')
+            .select('id, username')
+            .or(`id.eq.${sponsorCode},sponsor_code.eq.${sponsorCode}`) // Requires casting if ID is number and code is string in DB
+            .maybeSingle();
+
+        if (!sponsor) {
+            return { success: false, message: 'Sponsor not found' };
+        }
+
+        // 3. Create Referral
+        const { error: insertErr } = await supabase.from('referrals').insert({
+            sponsor_id: sponsor.id,
+            referred_id: authState.user.id,
+            status: 'active',
+            created_at: new Date().toISOString()
+        });
+
+        if (insertErr) throw insertErr;
+
+        // 4. Update User
+        await supabase.from('users').update({ sponsor_id: sponsor.id }).eq('id', authState.user!.id);
+
+        // 5. Update local state
+        refreshUser();
+
+        return { success: true, message: `Joined ${sponsor.username}'s team!` };
+
+    } catch (error) {
+        console.error('Apply code error:', error);
+        return { success: false, message: 'Failed to apply code' };
+    }
+  };
+
+  // --- Mining & Earnings Logic ---
+
+  // 1. Initialize Earnings State from DB + LocalStorage
+  useEffect(() => {
+    if (!authState.user?.id || !authState.user.balance) return;
+
+    const initializeEarningState = async () => {
+      try {
+        const { data: serverData } = await supabase
+          .from('user_earnings')
+          .select('current_earnings, last_update, start_date')
+          .eq('user_id', authState.user!.id)
+          .single();
+
+        const now = Date.now();
+        const daysStaked = serverData ? Math.floor((now - new Date(serverData.start_date).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        // Use default ROI or fetch from constants
+        const newRate = calculateEarningRateLegacy(authState.user!.balance, 0.0306, daysStaked);
+
+        const savedEarnings = localStorage.getItem(getUserEarningsKey(authState.walletAddress!));
+        const localEarnings = savedEarnings ? JSON.parse(savedEarnings).currentEarnings : 0;
+
+        let initialState: LocalEarningState;
+
+        if (serverData) {
+          const lastUpdateTime = new Date(serverData.last_update).getTime();
+          const secondsElapsed = (now - lastUpdateTime) / 1000;
+          const baseEarnings = Math.max(serverData.current_earnings, localEarnings);
+          const accumulatedEarnings = (newRate * secondsElapsed) + baseEarnings;
+
+          initialState = {
+            lastUpdate: now,
+            currentEarnings: accumulatedEarnings,
+            baseEarningRate: newRate,
+            isActive: authState.user!.balance > 0,
+            startDate: new Date(serverData.start_date).getTime()
+          };
+        } else {
+          initialState = {
+            lastUpdate: now,
+            currentEarnings: localEarnings,
+            baseEarningRate: newRate,
+            isActive: authState.user!.balance > 0,
+            startDate: now
+          };
+
+          // Init record in DB
+          await supabase.from('user_earnings').insert({
+            user_id: authState.user!.id,
+            current_earnings: 0,
+            last_update: new Date().toISOString(),
+            start_date: new Date().toISOString()
+          });
+        }
+
+        setEarningState(initialState);
+        setCurrentEarnings(initialState.currentEarnings);
+
+      } catch (error) {
+        console.error('Error initializing earning state:', error);
+      }
+    };
+
+    initializeEarningState();
+  }, [authState.user?.id, authState.user?.balance]);
+
+  // 2. Main Earning Interval (The Ticker)
+  useEffect(() => {
+    if (!authState.user?.id || !authState.user.balance) return;
+
+    const interval = setInterval(() => {
+      setEarningState(prev => {
+        const now = Date.now();
+        const secondsElapsed = (now - prev.lastUpdate) / 1000;
+
+        // Dynamic Rate Recalculation based on days
+        const daysStaked = prev.startDate ? Math.floor((now - prev.startDate) / (1000 * 60 * 60 * 24)) : 0;
+        const currentRate = calculateEarningRateLegacy(authState.user!.balance, 0.0306, daysStaked);
+
+        const newEarnings = prev.currentEarnings + (currentRate * secondsElapsed);
+
+        const newState = {
+          ...prev,
+          lastUpdate: now,
+          currentEarnings: newEarnings,
+          baseEarningRate: currentRate
+        };
+
+        // Local Persistence
+        if (authState.walletAddress) {
+          localStorage.setItem(getUserEarningsKey(authState.walletAddress), JSON.stringify(newState));
+        }
+
+        setCurrentEarnings(newEarnings);
+        return newState;
+      });
+    }, EARNINGS_UPDATE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [authState.user?.id, authState.user?.balance]);
+
+  // 3. Periodic Sync to DB
+  useEffect(() => {
+    if (!authState.user?.id) return;
+
+    const interval = setInterval(async () => {
+      await syncEarnings(authState.user!.id, currentEarnings);
+    }, EARNINGS_VALIDATION.SYNC_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [authState.user?.id, currentEarnings]);
+
+  // 4. Offline Earnings & Visibility
+  useEffect(() => {
+    if (!authState.user || !authState.walletAddress) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const offlineState = loadOfflineEarnings(authState.walletAddress!);
+        if (offlineState && earningState.isActive) {
+          const now = Date.now();
+          const secondsElapsed = (now - offlineState.lastActiveTimestamp) / 1000;
+          const offlineEarnings = offlineState.baseEarningRate * secondsElapsed;
+
+          if (offlineEarnings > 0) {
+            setEarningState(prev => ({
+              ...prev,
+              currentEarnings: prev.currentEarnings + offlineEarnings,
+              lastUpdate: now
+            }));
+            setCurrentEarnings(prev => prev + offlineEarnings);
+            console.log(`Earned ${offlineEarnings} while offline`);
+          }
+        }
+      } else {
+        if (earningState.isActive) {
+          saveOfflineEarnings(authState.walletAddress!, {
+            lastActiveTimestamp: Date.now(),
+            baseEarningRate: earningState.baseEarningRate
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [earningState, authState.user]);
 
   return useMemo(() => ({
-    user,
-    isLoading,
+    ...authState,
     error,
-    updateUserData,
+    login,
+    loginWithWallet,
+    sendCode,
     logout,
-    telegramUser: telegramData?.user,
+    updateUser,
+    updateUserData,
+    refreshUser,
     currentEarnings,
-    setCurrentEarnings
-  }), [user, isLoading, error, updateUserData, logout, telegramData, currentEarnings]);
+    setCurrentEarnings,
+    applySponsorCode,
+    telegramUser: telegramData?.user,
+  }), [authState, error, login, loginWithWallet, sendCode, logout, updateUser, updateUserData, refreshUser, currentEarnings, applySponsorCode, telegramData]);
 };
 
 // function getPreviousDay(date: string): string {
