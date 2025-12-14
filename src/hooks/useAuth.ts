@@ -73,7 +73,7 @@ const EARNINGS_VALIDATION = {
 
 const EARNINGS_UPDATE_INTERVAL = 1000;
 const EARNINGS_KEY_PREFIX = 'userEarnings_';
-const LAST_SYNC_PREFIX = 'lastSync_';
+// const LAST_SYNC_PREFIX = 'lastSync_';
 const OFFLINE_EARNINGS_PREFIX = 'offline_earnings_state_';
 
 // --- Additional Interfaces ---
@@ -194,7 +194,7 @@ export const useAuth = () => {
   });
 
   const [error, setError] = useState<string | null>(null);
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const telegramData = useSignal(initData.state);
 
@@ -559,11 +559,11 @@ export const useAuth = () => {
   }, [authState.user?.telegram_id]);
 
   const updateUserData = useCallback(async (updatedData: Partial<AuthUser>) => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
 
-    setDebounceTimer(setTimeout(async () => {
+    debounceTimerRef.current = setTimeout(async () => {
       try {
         if (!authState.user?.id) throw new Error('No user ID found');
 
@@ -618,8 +618,8 @@ export const useAuth = () => {
       } catch (error) {
         console.error('Update failed:', error);
       }
-    }, 500));
-  }, [authState.user?.id, debounceTimer]);
+    }, 500);
+  }, [authState.user?.id]);
 
   const logout = useCallback(() => {
     console.log('Logging out user:', authState.user?.telegram_id);
@@ -640,9 +640,9 @@ export const useAuth = () => {
     setError(null);
 
     // Clear any pending operations
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      setDebounceTimer(null);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
 
     // Clean up local storage
@@ -653,7 +653,7 @@ export const useAuth = () => {
 
     // Log the logout event
     console.log('User logged out successfully');
-  }, [authState.user, earningState.currentEarnings, debounceTimer]);
+  }, [authState.user, earningState.currentEarnings]);
 
   // Update sync interval
   useEffect(() => {
@@ -749,16 +749,16 @@ export const useAuth = () => {
 
   // --- Auth Actions ---
 
-  const sendCode = async (email: string) => {
+  const sendCode = useCallback(async (email: string) => {
     try {
       await sendLoginCode(email);
     } catch (error) {
       console.error('Failed to send login code:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const login = async (email: string, code: string) => {
+  const login = useCallback(async (email: string, code: string) => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
       const authResult = await verifyLoginCode(email, code);
@@ -791,9 +791,9 @@ export const useAuth = () => {
       setAuthState(prev => ({ ...prev, isLoading: false }));
       throw error;
     }
-  };
+  }, []);
 
-  const loginWithWallet = async (walletAddress: string) => {
+  const loginWithWallet = useCallback(async (walletAddress: string) => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
       const token = `wallet_token_${walletAddress}_${Date.now()}`;
@@ -801,38 +801,52 @@ export const useAuth = () => {
       localStorage.setItem('thirdweb_token', token);
       localStorage.setItem('wallet_address', walletAddress);
 
-      let user: AuthUser;
-      const existingUser = await getUserByWalletAddress(walletAddress);
-
-      if (existingUser) {
-        user = existingUser as AuthUser;
+      if (authState.user) {
+        // Update existing user with wallet address
+        await updateUserData({ wallet_address: walletAddress });
+        setAuthState(prev => ({
+          ...prev,
+          isAuthenticated: true,
+          token,
+          walletAddress,
+          isLoading: false,
+        }));
       } else {
-        // Provide dummy email for wallet-only users if schema requires it, or update createOrUpdateUser to handle optional email
-        user = (await createOrUpdateUser(`${walletAddress}@wallet.user`, walletAddress)) as AuthUser;
-      }
+        // Login with wallet
+        let user: AuthUser;
+        const existingUser = await getUserByWalletAddress(walletAddress);
 
-      setAuthState({
-        isAuthenticated: true,
-        isLoading: false,
-        user,
-        token,
-        walletAddress,
-      });
+        if (existingUser) {
+          user = existingUser as AuthUser;
+        } else {
+          // Provide dummy email for wallet-only users if schema requires it, or update createOrUpdateUser to handle optional email
+          user = (await createOrUpdateUser(`${walletAddress}@wallet.user`, walletAddress)) as AuthUser;
+        }
+
+        setAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          user,
+          token,
+          walletAddress,
+        });
+      }
+      setError(null);
     } catch (error) {
       console.error('Wallet login failed:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
       throw error;
     }
-  };
+  }, [authState.user, updateUserData]);
 
-  const updateUser = (updates: Partial<AuthUser>) => {
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
     setAuthState(prev => ({
       ...prev,
       user: prev.user ? { ...prev.user, ...updates } : null,
     }));
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     if (!authState.walletAddress) return;
     try {
       const user = await getUserByWalletAddress(authState.walletAddress);
@@ -842,11 +856,11 @@ export const useAuth = () => {
     } catch (error) {
       console.error('Failed to refresh user:', error);
     }
-  };
+  }, [authState.walletAddress]);
 
   // --- Referral Logic ---
 
-  const applySponsorCode = async (sponsorCode: string): Promise<{ success: boolean; message: string }> => {
+  const applySponsorCode = useCallback(async (sponsorCode: string): Promise<{ success: boolean; message: string }> => {
     if (!authState.user?.id || !sponsorCode.trim()) {
         return { success: false, message: 'Invalid data' };
     }
@@ -903,7 +917,7 @@ export const useAuth = () => {
         console.error('Apply code error:', error);
         return { success: false, message: 'Failed to apply code' };
     }
-  };
+  }, [authState.user, refreshUser]);
 
   // --- Mining & Earnings Logic ---
 

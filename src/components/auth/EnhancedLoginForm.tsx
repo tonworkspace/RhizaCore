@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useWalletAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { ConnectButton, useActiveAccount, useActiveWallet } from 'thirdweb/react';
 import { client, bscTestnet } from '@/lib/client';
 
@@ -9,7 +9,7 @@ const EnhancedLoginForm: React.FC = () => {
   // const [authMethod, setAuthMethod] = useState<'wallet'>('wallet');
   // const [guestAccount, setGuestAccount] = useState(null);
 
-  const { loginWithWallet } = useWalletAuth();
+  const { loginWithWallet } = useAuth();
   const activeAccount = useActiveAccount();
   const activeWallet = useActiveWallet();
 
