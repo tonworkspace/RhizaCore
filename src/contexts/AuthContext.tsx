@@ -15,7 +15,6 @@ const EARNINGS_VALIDATION = {
 
 const EARNINGS_UPDATE_INTERVAL = 1000;
 const EARNINGS_KEY_PREFIX = 'userEarnings_';
-const LAST_SYNC_PREFIX = 'lastSync_';
 const OFFLINE_EARNINGS_PREFIX = 'offline_earnings_state_';
 
 // --- Interfaces ---
@@ -230,6 +229,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        let activeUser: AuthUser | null = null;
+        let activeToken: string | null = null;
+        let activeWallet: string | null = null;
+
+        // 1. Primary Auth: Wallet (localStorage)
         const storedToken = localStorage.getItem('thirdweb_token');
         const storedWalletAddress = localStorage.getItem('wallet_address');
 
@@ -237,21 +241,159 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const user = await getUserByWalletAddress(storedWalletAddress); // Returns AuthUser (casted)
 
           if (user) {
-            setAuthState({
-              isAuthenticated: true,
-              isLoading: false,
-              user: user as AuthUser,
-              token: storedToken,
-              walletAddress: storedWalletAddress,
-            });
+            activeUser = user as AuthUser;
+            activeToken = storedToken;
+            activeWallet = storedWalletAddress;
           } else {
             localStorage.removeItem('thirdweb_token');
             localStorage.removeItem('wallet_address');
-            setAuthState(prev => ({ ...prev, isLoading: false }));
           }
+        }
+
+        // 2. Secondary Auth: Telegram
+        // This ensures that even if wallet auth is primary, we validate against the current Telegram user
+        // and load the correct game data if possible, or fallback to Telegram-based login if wallet fails.
+        if (telegramData?.user) {
+          const tgUser = telegramData.user;
+          const tgId = String(tgUser.id);
+          const startParamRaw = telegramData.startParam as unknown as string | undefined;
+
+          if (activeUser) {
+             // User exists via Wallet -> Check/Update Telegram ID
+             if (String(activeUser.telegram_id) !== tgId) {
+                // If the authenticated user's telegram_id doesn't match the current Telegram session,
+                // we attempt to update it. This links the wallet user to this Telegram account.
+                // Note: We might want to check for duplicates here, but for now we assume linking.
+                const { error: updateError } = await supabase
+                   .from('users')
+                   .update({ telegram_id: tgId })
+                   .eq('id', activeUser.id);
+
+                if (!updateError) {
+                   activeUser.telegram_id = parseInt(tgId);
+                   // Also refresh the user object to be sure
+                   activeUser = { ...activeUser, telegram_id: parseInt(tgId) };
+                }
+             }
+          } else {
+             // No Wallet User -> Try to Login/Create via Telegram ID
+             // (Logic ported from useAuth to ensure game data loads)
+
+             // A. Try to fetch existing user by telegram_id
+             const { data: existingUser } = await supabase
+                .from('users')
+                .select(`*, referrer:users!referrer_id(username, rank)`)
+                .eq('telegram_id', tgId)
+                .maybeSingle();
+
+             if (existingUser) {
+                activeUser = existingUser as AuthUser;
+                // Update activity
+                await supabase.from('users').update({
+                   last_active: new Date().toISOString(),
+                   last_login_date: new Date().toISOString()
+                }).eq('id', existingUser.id);
+             } else {
+                // B. Create New User
+                const newUserData = {
+                   telegram_id: tgId,
+                   username: tgUser.username || `user_${tgId}`,
+                   first_name: tgUser.firstName || null,
+                   last_name: tgUser.lastName || null,
+                   language_code: tgUser.languageCode || null,
+                   wallet_address: '',
+                   balance: 0,
+                   total_deposit: 0,
+                   total_withdrawn: 0,
+                   total_earned: 0,
+                   team_volume: 0,
+                   direct_referrals: 0,
+                   rank: 'Novice',
+                   last_active: new Date().toISOString(),
+                   login_streak: 0,
+                   last_login_date: new Date().toISOString(),
+                   is_active: true,
+                   stake: 0,
+                   total_sbt: 0,
+                   available_balance: 0,
+                   reinvestment_balance: 0
+                };
+
+                let createdUser = null;
+                const { data: newUser, error: createError } = await supabase
+                   .from('users')
+                   .upsert(newUserData, { onConflict: 'telegram_id' })
+                   .select(`*, referrer:users!referrer_id(username, rank)`)
+                   .single();
+
+                if (createError && (createError.code === '23505' || createError.message.includes('duplicate'))) {
+                    // Race condition handling
+                    const { data: retryUser } = await supabase
+                        .from('users')
+                        .select(`*, referrer:users!referrer_id(username, rank)`)
+                        .eq('telegram_id', tgId)
+                        .single();
+                    createdUser = retryUser;
+                } else {
+                    createdUser = newUser;
+                }
+
+                if (createdUser) {
+                   activeUser = createdUser as AuthUser;
+
+                   // Handle Referral
+                   if (startParamRaw) {
+                      const startParam = startParamRaw.trim();
+                      const referrerTgId = parseInt(startParam, 10);
+                      if (!isNaN(referrerTgId) && String(referrerTgId) !== tgId) {
+                         const { data: referrer } = await supabase
+                            .from('users')
+                            .select('id, telegram_id, direct_referrals')
+                            .eq('telegram_id', String(referrerTgId))
+                            .single();
+
+                         if (referrer) {
+                            // Update User Sponsor
+                            await supabase.from('users').update({ sponsor_id: referrer.id }).eq('id', createdUser.id);
+                            // Insert Referral
+                            const { error: refError } = await supabase.from('referrals').insert({
+                               sponsor_id: referrer.id,
+                               referred_id: createdUser.id,
+                               status: 'active'
+                            });
+                            if (!refError) {
+                               await supabase.from('users').update({ direct_referrals: (referrer.direct_referrals || 0) + 1 }).eq('id', referrer.id);
+                            }
+
+                            // Reload user to get updated referrer info if needed
+                            const { data: refreshedUser } = await supabase
+                                .from('users')
+                                .select(`*, referrer:users!referrer_id(username, rank)`)
+                                .eq('id', createdUser.id)
+                                .single();
+                             if (refreshedUser) {
+                                 activeUser = refreshedUser as AuthUser;
+                             }
+                         }
+                      }
+                   }
+                }
+             }
+          }
+        }
+
+        if (activeUser) {
+          setAuthState({
+            isAuthenticated: true,
+            isLoading: false,
+            user: activeUser,
+            token: activeToken,
+            walletAddress: activeWallet,
+          });
         } else {
           setAuthState(prev => ({ ...prev, isLoading: false }));
         }
+
       } catch (error) {
         console.error('Failed to initialize auth:', error);
         localStorage.removeItem('thirdweb_token');
@@ -261,7 +403,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, []);
+  }, [telegramData]);
 
   // --- Real-time Subscription ---
   useEffect(() => {
@@ -489,7 +631,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Use default ROI or fetch from constants
         const newRate = calculateEarningRateLegacy(authState.user!.balance, 0.0306, daysStaked);
 
-        const savedEarnings = localStorage.getItem(getUserEarningsKey(authState.walletAddress!));
+        const savedEarnings = localStorage.getItem(getUserEarningsKey(authState.walletAddress || `tg_${authState.user!.id}`));
         const localEarnings = savedEarnings ? JSON.parse(savedEarnings).currentEarnings : 0;
 
         let initialState: LocalEarningState;
@@ -559,9 +701,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
 
         // Local Persistence
-        if (authState.walletAddress) {
-          localStorage.setItem(getUserEarningsKey(authState.walletAddress), JSON.stringify(newState));
-        }
+        const key = authState.walletAddress || `tg_${authState.user!.id}`;
+        localStorage.setItem(getUserEarningsKey(key), JSON.stringify(newState));
 
         setCurrentEarnings(newEarnings);
         return newState;
@@ -584,11 +725,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 4. Offline Earnings & Visibility
   useEffect(() => {
-    if (!authState.user || !authState.walletAddress) return;
+    if (!authState.user) return;
+    const key = authState.walletAddress || `tg_${authState.user!.id}`;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        const offlineState = loadOfflineEarnings(authState.walletAddress!);
+        const offlineState = loadOfflineEarnings(key);
         if (offlineState && earningState.isActive) {
           const now = Date.now();
           const secondsElapsed = (now - offlineState.lastActiveTimestamp) / 1000;
@@ -606,7 +748,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } else {
         if (earningState.isActive) {
-          saveOfflineEarnings(authState.walletAddress!, {
+          saveOfflineEarnings(key, {
             lastActiveTimestamp: Date.now(),
             baseEarningRate: earningState.baseEarningRate
           });
