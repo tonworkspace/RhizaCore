@@ -3,7 +3,7 @@ import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import React, {  FC, useState, useEffect, useRef } from 'react';
 import { I18nProvider, useI18n } from '@/components/I18nProvider';
-import { useAuth } from '@/hooks/useAuth';
+import { AuthProvider, useWalletAuth } from '@/contexts/AuthContext';
 // import LoginForm from '@/components/auth/LoginForm';
 import UsernameSetup from '@/components/auth/UsernameSetup';
 import Layout from '@/components/ui/Layout';
@@ -16,8 +16,8 @@ import { toNano, fromNano } from "ton";
 import TonWeb from 'tonweb';
 import ArcadeMiningUI, { ArcadeMiningUIHandle } from '@/components/ArcadeMiningUI';
 import { SponsorGate } from '@/components/SponsorGate';
-// import { Button } from '@telegram-apps/telegram-ui';
-// import { Snackbar } from '@telegram-apps/telegram-ui';
+import { Button } from '@telegram-apps/telegram-ui';
+import { Snackbar } from '@telegram-apps/telegram-ui';
 import EnhancedLoginForm from '@/components/auth/EnhancedLoginForm';
 import { OnboardingScreen } from './OnboardingScreen';
 
@@ -217,8 +217,7 @@ const syncEarningsToDatabase = async (userId: number, telegramId: number | strin
 };
 
 const IndexPageContent: React.FC = () => {
-  const { user, isLoading, error, updateUserData, logout, telegramUser, currentEarnings, setCurrentEarnings, loginWithWallet } = useAuth();
-  const isAuthenticated = !!user && !isLoading;
+  const { isAuthenticated, isLoading, user, telegramUser, updateUserData } = useWalletAuth();
   const [currentTab, setCurrentTab] = useState<'home' | 'send' | 'activity' | 'search' | 'profile'>('home');
   const [userReferralCode, setUserReferralCode] = useState<string>('');
   const [showDepositModal, setShowDepositModal] = useState(false);
@@ -637,15 +636,8 @@ useEffect(() => {
     const rawAddress = tonConnectUI.account.address;
     const friendlyAddress = toUserFriendlyAddress(rawAddress);
     setUserFriendlyAddress(friendlyAddress);
-
-    // Authenticate wallet login via thirdwebAPI
-    if (user && loginWithWallet) {
-      loginWithWallet(friendlyAddress).catch(error => {
-        console.error('Wallet authentication failed:', error);
-      });
-    }
   }
-}, [tonConnectUI, user, loginWithWallet]);
+}, [tonConnectUI]);
 
 const [activeCard] = useState<CardType>('stats');
 const [currentROI, ] = useState<number>(0.0306); // 3.06% daily to match modal calculation
@@ -1688,14 +1680,6 @@ const handleDeposit = async (amount: number) => {
 
 
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0A0A0F]">
-        <p className="text-red-400">{error}</p>
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <Layout currentTab="home" onTabChange={() => {}}>
@@ -1704,19 +1688,20 @@ const handleDeposit = async (amount: number) => {
             <div className="w-16 h-16 bg-gradient-to-br from-green-600 to-green-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/20">
               <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <p className="text-green-400">Loading...</p>
+            <p className="text-green-400">Loading wallet...</p>
           </div>
         </div>
       </Layout>
     );
   }
 
-  if (!user) {
-    return <EnhancedLoginForm />;
-  }
-
-  if (!user?.username) {
-    return <UsernameSetup />;
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0A0A0F]">
+        {/* Error message component */}
+      </div>
+    );
   }
 
   // Show onboarding for new users
@@ -1726,11 +1711,20 @@ const handleDeposit = async (amount: number) => {
     );
   }
 
-  // Show sponsor gate if user doesn't have a sponsor
-  if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
-    return (
-      <SponsorGate onApplyCode={handleApplySponsorCode} isLoading={isApplying} />
-    );
+  // // Show sponsor gate if user doesn't have a sponsor
+  // if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
+  //   return (
+  //     <SponsorGate onApplyCode={handleApplySponsorCode} isLoading={isApplying} />
+  //   );
+  // }
+
+
+  if (!isAuthenticated) {
+    return <EnhancedLoginForm />;
+  }
+
+  if (!user?.username) {
+    return <UsernameSetup />;
   }
 
   const handleUserSelectForPayment = (selectedUser: User) => {
@@ -1847,16 +1841,6 @@ const handleDeposit = async (amount: number) => {
         );
       
       case 'profile':
-        if (!telegramUser) {
-          return (
-            <div className="p-4 space-y-6">
-              <div className="venmo-card">
-                <h2 className="text-lg font-semibold text-green-400 mb-4">Profile</h2>
-                <p className="text-green-200">Please open this app in Telegram to view your profile.</p>
-              </div>
-            </div>
-          );
-        }
         return (
           <div className="p-4 space-y-6">
             <div className="venmo-card">
@@ -1864,11 +1848,11 @@ const handleDeposit = async (amount: number) => {
               <div className="space-y-4">
                 <div className="flex items-center space-x-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-green-600 to-green-500 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-green-500/20">
-                    {telegramUser?.username?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || 'U'}
+                    {telegramUser.username?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold text-green-400">
-                    {telegramUser?.firstName || user.first_name || 'N/A'} {telegramUser?.lastName || user.last_name || 'N/A'}
+                    {telegramUser.firstName || 'N/A'} {telegramUser.lastName || 'N/A'}
                     </h3>
                     <p className="text-green-300">@{user.username}</p>
                     <p className="text-sm text-green-200">{user.email}</p>
@@ -1944,9 +1928,11 @@ const SYNC_INTERVAL = 60000; // Sync every minute
 
 function IndexPage() {
   return (
-    <I18nProvider>
+    <AuthProvider>
+      <I18nProvider>
       <IndexPageContent />
-    </I18nProvider>
+      </I18nProvider>
+    </AuthProvider>
   );
 }
 
