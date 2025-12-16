@@ -130,3 +130,35 @@ export type IconProps = {
   size?: number;
   className?: string;
 }
+
+
+import { Icons } from "@/uicomponents/Icons";
+
+export type BottomTab = 'Mining' | 'Task' | 'Wallet' | 'Core' | 'More';
+export type TopTab = 'Mining' | 'Boost' | 'Rank';
+
+export interface MiningState {
+  balance: number;
+  miningRatePerHour: number;
+  sessionStartTime: number; // Timestamp
+  isMining: boolean;
+  validatedBalance: number;
+  miningBalance: number;
+}
+
+export interface UserProfile {
+  username: string;
+  tag: string;
+  avatarLetter: string;
+  rank: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  reward: number;
+  icon: keyof typeof Icons;
+  category: 'social' | 'partner' | 'daily';
+  status: 'pending' | 'ready_to_claim' | 'completed';
+  link?: string;
+}

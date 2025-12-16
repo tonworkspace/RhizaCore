@@ -1,5 +1,7 @@
 export type TabView = 'wallet' | 'swap' | 'earn' | 'profile';
 
+export type BottomTab = 'Mining' | 'Task' | 'Wallet' | 'Core' | 'More';
+
 export type ChainType = 'ton' | 'ethereum' | 'solana';
 
 export interface ChainInfo {
@@ -31,4 +33,32 @@ export interface WalletState {
   totalBalanceUsd: number;
   isConnected: boolean;
   chain: ChainType;
+}
+
+
+
+export type TopTab = 'Mining' | 'Boost' | 'Rank' | 'Activity';
+
+export interface MiningState {
+  isMining: boolean;
+  // Balances
+  balance: number; // Total available (claimable + accumulated)
+  miningBalance: number; // Currently accumulating in session
+  validatedBalance: number; // Already claimed/safe
+  // Rates & Time
+  miningRatePerHour: number;
+  sessionStartTime: number; // Timestamp
+  sessionEndTime: number; // Timestamp
+  // Limits
+  maxSessionDuration: number; // e.g., 24 or 48 hours
+  // User Info
+  referralCode: string | null;
+  streak: number;
+}
+
+export interface MiningActions {
+  startMining: () => Promise<void>;
+  claimRewards: () => Promise<void>;
+  purchaseUpgrade: (type: string) => Promise<void>;
+  refreshBalance: () => Promise<void>;
 }

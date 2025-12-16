@@ -3,8 +3,8 @@ import { AppRoot } from '@telegram-apps/telegram-ui';
 import { Navigate, Route, Routes, HashRouter } from 'react-router-dom';
 import { PriceProvider } from '@/contexts/PriceContext';
 import { routes } from '@/navigation/routes.tsx';
-import { ParticleAAProvider } from '@/contexts/ParticleAAContext';
-import { AuthProvider } from '@/contexts/AuthContext';
+// import { ParticleAAProvider } from '@/contexts/ParticleAAContext';
+// import { AuthProvider } from '@/contexts/AuthContext';
 
 
 
@@ -48,8 +48,8 @@ export function App() {
             },
           }}
         > */}
-            <AuthProvider>
-        <ParticleAAProvider>
+            {/* <AuthProvider> */}
+        {/* <ParticleAAProvider> */}
           <PriceProvider>
             <HashRouter>
               <Routes>
@@ -58,8 +58,8 @@ export function App() {
               </Routes>
             </HashRouter>
           </PriceProvider>
-        </ParticleAAProvider>
-        </AuthProvider>
+        {/* </ParticleAAProvider> */}
+        {/* </AuthProvider> */}
 
       {/* </AuthCoreContextProvider> */}
     </AppRoot>

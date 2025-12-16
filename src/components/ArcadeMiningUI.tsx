@@ -21,7 +21,7 @@ import {
   getPassiveIncomeBoostCost,
   purchaseUpgrade
 } from '../lib/supabaseClient';
-import { Copy } from 'lucide-react';
+import { Icons } from './Icon';
 
 // Assuming these types are defined elsewhere, or I'd need to add them.
 // For this example, I'll add placeholder types for missing ones.
@@ -2210,23 +2210,21 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   // };
 
   return (
-    <div className="w-full max-w-md mx-auto relative overflow-hidden flex flex-col sm:max-w-lg md:max-w-xl">
+    <div className="flex flex-col h-full w-full pb-24 overflow-y-auto custom-scrollbar">
       {/* Simplified Background */}
 
       {/* Tab Navigation */}
       <div className="relative z-0 mb-4">
-        <div className="flex items-center justify-center gap-1 p-1 bg-gray-900/50 rounded-2xl border border-gray-700/50 backdrop-blur-sm">
+        <div className="mx-4 mt-2 bg-rzc-gray/30 rounded-2xl p-1 flex justify-between items-center border border-white/5 backdrop-blur-sm">
           <button
             onClick={() => setActiveTab('mining')}
             className={`relative px-3 py-2 text-xs sm:text-sm font-medium rounded-xl flex items-center gap-2 ${
               activeTab === 'mining'
-                ? 'bg-green-500/20 text-green-300 border border-green-400/50 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+                ? 'bg-rzc-dark text-rzc-green shadow-lg border border-rzc-green/20'
                 : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/50'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+           <Icons.Energy size={16} className="text-rzc-green mr-3 flex-shrink-0" />
             <span className=" sm:inline">Mining</span>
           </button>
 
@@ -2235,13 +2233,11 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             onClick={() => setActiveTab('upgrades')}
             className={`relative px-3 py-2 text-xs sm:text-sm font-medium rounded-xl flex items-center gap-2 ${
               activeTab === 'upgrades'
-                ? 'bg-green-500/20 text-green-300 border border-green-400/50 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+                ? 'bg-rzc-dark text-rzc-green shadow-lg border border-rzc-green/20'
                 : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/50'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
+           <Icons.Boost size={16} className="text-rzc-green mr-3 flex-shrink-0" />
             <span className="sm:inline">Boost</span>
           </button>
 
@@ -2249,13 +2245,11 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             onClick={() => setActiveTab('leaderboard')}
             className={`relative px-3 py-2 text-xs sm:text-sm font-medium rounded-xl flex items-center gap-2 ${
               activeTab === 'leaderboard'
-                ? 'bg-green-500/20 text-green-300 border border-green-400/50 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
-                : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/50'
+               ? 'bg-rzc-dark text-rzc-green shadow-lg border border-rzc-green/20'
+               : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/50'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-            </svg>
+            <Icons.Rank size={16} className="text-rzc-green mr-3 flex-shrink-0" />
             <span className="sm:inline">Rank</span>
           </button>
 
@@ -2285,47 +2279,40 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     {(referralCode || sponsorCode) && (
               <div className="mb-2">
                 <div className="flex items-center justify-center text-center gap-2">
-                  <h1 className="text-xl font-bold text-white">RhizaCore AI Nodes</h1>
+                  <h1 className="text-xl font-bold text-white tracking-wider mb-2e">RhizaCore AI Nodes</h1>
                 </div>
 
                 
-               <p className="text-gray-400 text-[13px] text-center mb-4 leading-relaxed">
-                  Track your RZC airdrop earnings and claim your rewards! Share your referral link to earn more.
-                </p>
+               <div className="flex justify-center">
+                 <p className="text-gray-400 text-xs text-center max-w-xs leading-relaxed mb-6">
+                   Track your RZC airdrop earnings and claim your rewards! Share your referral link to earn more.
+                 </p>
+               </div>
 
-                {/* Referral Link Section */}
-                <div className="space-y-0">
-                  {/* <label className="text-sm text-gray-400 block">Your Referral Link</label> */}
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1 px-4 py-3 bg-gray-900/50 rounded-xl border border-gray-700/50">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <span className="text-xs sm:text-sm text-white font-mono tracking-wide truncate">
-                          {`https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const codeToCopy = `https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`;
-                          if (!codeToCopy) throw new Error('No Link to copy');
-                          await navigator.clipboard.writeText(codeToCopy);
-                          showSnackbar?.({ message: t('copy_success') });
-                        } catch (error) {
-                          showSnackbar?.({ message: t('copy_failed') });
-                        }
-                      }}
-                      className="p-3 bg-green-500/20 hover:bg-green-500/30 rounded-xl border border-green-500/30 transition-colors relative flex-shrink-0"
-                      title="Copy referral link"
-                      aria-label="Copy referral link"
-                    >
-                      <Copy className="w-5 h-5 text-green-400" />
-                    </button>
-                  </div>
-                </div>
+               <div className="w-full flex gap-3 mb-8">
+          <div className="flex-1 bg-rzc-dark border border-rzc-gray rounded-xl flex items-center px-4 py-3 relative overflow-hidden group">
+             <div className="absolute left-0 top-0 bottom-0 w-1 bg-rzc-green"></div>
+             <Icons.Energy size={16} className="text-rzc-green mr-3 flex-shrink-0" />
+             <span className="text-gray-300 text-xs truncate font-mono">
+             {`https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`}
+             </span>
+          </div>
+          <button 
+            onClick={async () => {
+              try {
+                const codeToCopy = `https://t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`;
+                if (!codeToCopy) throw new Error('No Link to copy');
+                await navigator.clipboard.writeText(codeToCopy);
+                showSnackbar?.({ message: t('copy_success') });
+              } catch (error) {
+                showSnackbar?.({ message: t('copy_failed') });
+              }
+            }}
+            className="p-3 bg-green-500/20 hover:bg-green-500/30 rounded-xl border border-green-500/30 transition-colors relative flex-shrink-0"
+            >
+            <Icons.Copy size={20} />
+          </button>
+        </div>
               </div>
             )}
 
@@ -2342,11 +2329,12 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
               </div>
             </div>
           )}
-          
+
+
           {/* Unified Smart Mining Component - Complete Integration */}
           <div className="relative flex flex-col items-center justify-center mx-auto mb-3 sm:mb-4">
             {/* Main Circular Indicator with Dynamic Sizing */}
-            <div className={`relative rounded-full flex items-center justify-center transition-all duration-500 transform translate-z-0 ${
+            <div className={`relative w-56 h-56 rounded-full border-2 border-rzc-green/40 bg-gradient-to-b from-rzc-dark to-black flex flex-col items-center justify-center shadow-[0_0_30px_rgba(74,222,128,0.15)] z-10 backdrop-blur-sm ${
               isLoadingBalance
                 ? 'w-32 h-32 sm:w-20 sm:h-20 md:w-24 md:h-24'
                 : 'w-40 h-40 sm:w-24 sm:h-24 md:w-28 md:h-28'
@@ -2425,7 +2413,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
             {/* Status Label */}
             <div className="text-center mt-2">
-              <p className={`text-xs sm:text-sm md:text-base font-medium transition-colors duration-300 ${
+              <p className={`text-rzc-green font-medium tracking-wide text-xs sm:text-sm md:text-base font-medium transition-colors duration-300 ${
                 isLoadingBalance
                   ? 'text-green-400/80'
                   : isMining
@@ -2596,6 +2584,8 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
               </button>
             </div>
           </div>
+
+          
 
         <div className="mb-3 mt-3 sm:mb-4">
             <div className="relative overflow-hidden font-mono 
