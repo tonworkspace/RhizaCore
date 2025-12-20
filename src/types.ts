@@ -1,6 +1,6 @@
 export type TabView = 'wallet' | 'swap' | 'earn' | 'profile';
 
-export type BottomTab = 'Mining' | 'Task' | 'Wallet' | 'Core' | 'More';
+export type BottomTab = 'Mining' | 'Task' | 'Wallet' | 'Friends' |  'Core' | 'More';
 
 export type ChainType = 'ton' | 'ethereum' | 'solana';
 

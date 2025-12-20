@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
+import React, { createContext, useContext, useMemo, useState, useEffect, useRef } from 'react';
 
-type LangCode = 'en' | 'es' | 'fr' | 'de' | 'pt' | 'ru' | 'tr' | 'ar';
+export type LangCode = 'en' | 'es' | 'fr' | 'de' | 'pt' | 'ru' | 'tr' | 'ar';
 
 type Dict = Record<string, Record<LangCode, string>>;
 
@@ -154,14 +154,18 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const detect = (typeof navigator !== 'undefined' ? (navigator.language?.slice(0,2) as LangCode) : 'en') || 'en';
   const initial = (typeof localStorage !== 'undefined' && (localStorage.getItem('app_language') as LangCode)) || (supported.includes(detect) ? detect : 'en');
   const [lang, setLangState] = useState<LangCode>(initial);
+  const isSettingRef = useRef(false);
 
   const setLang = (l: LangCode) => {
+    if (isSettingRef.current) return;
+    isSettingRef.current = true;
     setLangState(l);
     try {
       localStorage.setItem('app_language', l);
       // Dispatch a custom event for other components to react to language changes
       window.dispatchEvent(new CustomEvent('app:language-change', { detail: { language: l } }));
     } catch {}
+    isSettingRef.current = false;
   };
 
   useEffect(() => {

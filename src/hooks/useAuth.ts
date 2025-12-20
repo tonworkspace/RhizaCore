@@ -227,17 +227,9 @@ export const useAuth = () => {
         console.time('useAuth.createUser');
         // Create new user idempotently using upsert on telegram_id
         let newUser: any = null;
-        const { data: upsertUser, error: upsertError } = await supabase
+        const { error: upsertError } = await supabase
           .from('users')
-          .upsert(newUserData, { onConflict: 'telegram_id' })
-          .select(`
-            *,
-            referrer:users!referrer_id(
-              username,
-              rank
-            )
-          `)
-          .single();
+          .upsert(newUserData, { onConflict: 'telegram_id' });
         console.timeEnd('useAuth.createUser');
 
         if (upsertError) {
@@ -254,12 +246,37 @@ export const useAuth = () => {
                 )
               `)
               .eq('telegram_id', telegramId)
-              .single();
+              .maybeSingle();
             if (!fetchExistingErr && fetchedExisting) {
               newUser = fetchedExisting;
             } else {
               console.error('Duplicate detected but failed to fetch existing user:', fetchExistingErr);
-              throw new Error('Failed to create or fetch existing user after duplicate.');
+              // Retry upsert without select to avoid issues
+              console.log('Retrying upsert after fetch failure');
+              const { error: retryError } = await supabase
+                .from('users')
+                .upsert(newUserData, { onConflict: 'telegram_id' });
+              if (retryError) {
+                console.error('Retry upsert also failed:', retryError);
+                throw new Error(`Failed to create or fetch existing user after duplicate and retry.`);
+              }
+              // Fetch after retry
+              const { data: retryFetched, error: retryFetchErr } = await supabase
+                .from('users')
+                .select(`
+                  *,
+                  referrer:users!referrer_id(
+                    username,
+                    rank
+                  )
+                `)
+                .eq('telegram_id', telegramId)
+                .single();
+              if (retryFetchErr) {
+                console.error('Failed to fetch after retry:', retryFetchErr);
+                throw new Error('Failed to fetch user after successful retry.');
+              }
+              newUser = retryFetched;
             }
           } else {
             console.error('Detailed create error:', {
@@ -271,7 +288,23 @@ export const useAuth = () => {
             throw new Error(`Failed to create new user: ${upsertError.message}`);
           }
         } else {
-          newUser = upsertUser;
+          // Fetch the created/updated user
+          const { data: fetchedUser, error: fetchError } = await supabase
+            .from('users')
+            .select(`
+              *,
+              referrer:users!referrer_id(
+                username,
+                rank
+              )
+            `)
+            .eq('telegram_id', telegramId)
+            .single();
+          if (fetchError) {
+            console.error('Failed to fetch user after upsert:', fetchError);
+            throw new Error('Failed to fetch user after creation.');
+          }
+          newUser = fetchedUser;
         }
 
         if (!newUser) {

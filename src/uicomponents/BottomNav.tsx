@@ -12,7 +12,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
     { id: 'Mining', icon: Icons.Mining, label: 'Node' },
     { id: 'Task', icon: Icons.Task, label: 'Task' },
     { id: 'Wallet', icon: Icons.Wallet, label: 'Wallet' },
-    { id: 'Core', icon: Icons.Core, label: 'Core' },
+    { id: 'Friends', icon: Icons.Users, label: 'Friends' },
+    // { id: 'Core', icon: Icons.Core, label: 'Core' },
     { id: 'More', icon: Icons.More, label: 'More' },
   ];
 

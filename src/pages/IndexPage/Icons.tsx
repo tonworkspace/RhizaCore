@@ -1,10 +1,11 @@
 import React from 'react';
-import { 
-  FaMagento, 
-  FaTasks, 
-  FaWallet, 
-  FaCube, 
-  FaEllipsisH 
+import {
+  FaMagento,
+  FaTasks,
+  FaWallet,
+  FaCube,
+  FaEllipsisH,
+  FaGlobe
 } from 'react-icons/fa';
 
 interface IconProps {
@@ -19,4 +20,5 @@ export const Icons = {
   Wallet: (props: IconProps) => <FaWallet size={props.size} className={props.className} />,
   Core: (props: IconProps) => <FaCube size={props.size} className={props.className} />,
   More: (props: IconProps) => <FaEllipsisH size={props.size} className={props.className} />,
+  Globe: (props: IconProps) => <FaGlobe size={props.size} className={props.className} />,
 };

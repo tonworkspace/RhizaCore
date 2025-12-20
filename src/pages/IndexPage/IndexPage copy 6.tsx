@@ -17,7 +17,6 @@ import { SponsorGate } from '@/components/SponsorGate';
 import SocialTasks from '@/components/SocialTasks';
 import ReferralSystem from '@/components/ReferralSystem';
 import ReferralContest from '@/components/ReferralContest';
-import WalletOnboarding from '@/components/WalletOnboarding';
 
 // Time-based multipliers as per whitepaper
 const getTimeMultiplier = (daysStaked: number): number => {
@@ -1848,7 +1847,7 @@ const handleDeposit = async (amount: number) => {
               claimCooldown={0}
               cooldownText={''}
               onClaim={() => {}}
-              onOpenDeposit={() => setShowDepositModal(true)}
+              // onOpenDeposit={() => setShowDepositModal(true)}
               potentialEarningsTon={0}
               airdropBalanceNova={0}
               totalWithdrawnTon={user?.total_withdrawn || 0}

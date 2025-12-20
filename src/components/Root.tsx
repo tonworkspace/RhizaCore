@@ -6,6 +6,7 @@ import { App } from '@/components/App.tsx';
 import { ErrorBoundary } from '@/components/ErrorBoundary.tsx';
 import { publicUrl } from '@/helpers/publicUrl.ts';
 import { ThirdwebProvider } from "thirdweb/react";
+import { GameDataProvider } from '@/contexts/GameDataContext';
 
 
 
@@ -38,7 +39,9 @@ export function Root() {
       <TonConnectUIProvider
         manifestUrl={publicUrl('https://cdn4.stakenova.io/tonconnect-manifest.json')}
       >
-        <App/>
+        <GameDataProvider>
+          <App/>
+        </GameDataProvider>
       </TonConnectUIProvider>
       </ThirdwebProvider>
     </ErrorBoundary>

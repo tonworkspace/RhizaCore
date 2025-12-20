@@ -3,6 +3,7 @@ import { TopTab, MiningState } from '../types';
 import { Icons } from './Icons';
 import { getMiningOptimizationTip } from '../services/geminiService';
 
+
 interface MiningDashboardProps {
   state: MiningState;
   activeTopTab: TopTab;
