@@ -1,15 +1,11 @@
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import '../buffer-polyfill';
 
-
 import { App } from '@/components/App.tsx';
 import { ErrorBoundary } from '@/components/ErrorBoundary.tsx';
 import { publicUrl } from '@/helpers/publicUrl.ts';
-import { ThirdwebProvider } from "thirdweb/react";
+// import { ThirdwebProvider } from "thirdweb/react";
 import { GameDataProvider } from '@/contexts/GameDataContext';
-
-
-
 
 function ErrorBoundaryError({ error }: { error: unknown }) {
   if (error instanceof Error && error.message === 'USER_CANCELED') {
@@ -33,9 +29,10 @@ function ErrorBoundaryError({ error }: { error: unknown }) {
 }
 
 export function Root() {
+
   return (
     <ErrorBoundary fallback={ErrorBoundaryError}>
-      <ThirdwebProvider>
+      {/* <ThirdwebProvider> */}
       <TonConnectUIProvider
         manifestUrl={publicUrl('https://cdn4.stakenova.io/tonconnect-manifest.json')}
       >
@@ -43,7 +40,7 @@ export function Root() {
           <App/>
         </GameDataProvider>
       </TonConnectUIProvider>
-      </ThirdwebProvider>
+      {/* </ThirdwebProvider> */}
     </ErrorBoundary>
   );
 }

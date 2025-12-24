@@ -157,10 +157,23 @@ class TonWalletErrorBoundary extends React.Component<
   }
 }
 
-const TonWallet = () => {
+interface MiningData {
+  isMining: boolean;
+  accumulatedRZC: number;
+  sessionCountdown: string;
+  displayBalance: number;
+  claimedRZC: number;
+}
+
+interface TonWalletProps {
+  miningData?: MiningData | null;
+}
+
+const TonWallet = ({ miningData }: TonWalletProps) => {
   // const { t } = useI18n();
-  const { claimedRZC, miningBalance } = useGameData();
+  const { claimedRZC } = useGameData();
   const [tonBalance, setTonBalance] = useState<string>("0.00");
+  // const [displayBalance, setDisplayBalance] = useState(0);
   const [jettons, setJettons] = useState<JettonBalance[]>([]);
   const [selectedJetton, setSelectedJetton] = useState<JettonBalance | null>(null);
    
@@ -334,6 +347,8 @@ const TonWallet = () => {
     return assets.sort((a, b) => b.usd - a.usd);
   }, [jettons, tonBalance, tonUsdPrice, debouncedSearchQuery]);
 
+  const combinedBalance = portfolioValue + ((miningData?.displayBalance ?? claimedRZC) * 0.1);
+
   return (
     <div className="flex flex-col h-full w-full px-4 pt-4 pb-24 overflow-y-auto scrollbar relative min-h-screen">
       
@@ -357,64 +372,15 @@ const TonWallet = () => {
         </div>
       </div>
 
-      
-
-      {/* Main Card */}
-      <div className="w-full bg-gradient-to-br from-zinc-900 to-[#050a05] border border-green-500/20 rounded-3xl p-6 relative shadow-lg mb-6 group">
-        {/* Glow Effect */}
-        <div className="absolute top-0 right-0 w-40 h-40 bg-green-500/10 rounded-full -mr-12 -mt-12 blur-3xl group-hover:bg-green-500/15 transition-colors duration-500"></div>
-        
-        <div className="relative z-10">
-          {/* <div className="flex justify-between items-start mb-2">
-            <span className="text-gray-400 text-xs font-mono uppercase tracking-widest">Total Balance</span>
-            <div className="bg-green-500/10 p-2 rounded-xl text-green-400 border border-green-500/20">
-              <Icons.Wallet size={18} />
-            </div>
-          </div> */}
-          
-          <div className="text-4xl font-bold text-white font-mono mb-1 tracking-tighter">
-          {claimedRZC.toFixed(2)} <span className="text-sm text-rzc-green">RZC</span>
-          </div>
-          <div className="text-gray-500 text-xs font-mono">
-            ≈ ${(claimedRZC * 0.1).toFixed(2)}
-          </div>
-          {/* <div className="text-gray-500 text-xs font-mono">
-            ≈  ${formatDisplayBalance(portfolioValue)}
-          </div> */}
-
-
-          {connectedAddressString && (
-             <div onClick={handleCopyAddress} className="flex items-center gap-2 cursor-pointer group/addr w-fit">
-                <span className="text-gray-500 text-xs font-mono group-hover/addr:text-green-400 transition-colors">
-                    {connectedAddressString.slice(0, 4)}...{connectedAddressString.slice(-4)}
-                </span>
-                <Icons.Copy size={10} className="text-gray-600 group-hover/addr:text-green-400" />
-             </div>
-          )}
-          
-          {/* Game Data Section */}
-        
-          {/* <div className="flex gap-3 mt-8">
-            <button 
-                onClick={() => setIsReceiveModalOpen(true)}
-                disabled={!connectedAddress}
-                className="flex-1 bg-white text-black py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icons.Receive size={16} />
-              Deposit
-            </button>
-            <button 
-                onClick={() => setIsSendModalOpen(true)}
-                disabled={!connectedAddress}
-                className="flex-1 bg-white/5 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icons.Send size={16} />
-              Send
-            </button>
-          </div> */}
+      <div className="mb-6 px-1">
+        <span className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.2em]">Total Combined Balance</span>
+        <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-3xl font-bold text-white font-mono tracking-tighter">
+             ${formatDisplayBalance(combinedBalance)}
+            </span>
+            <span className="text-rzc-green font-bold text-sm">USD</span>
         </div>
       </div>
-
       {/* Breakdown Grid */}
       {/* <div className="grid grid-cols-2 gap-3 mb-6">
          <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-4 hover:border-green-500/20 transition-colors">
@@ -435,13 +401,13 @@ const TonWallet = () => {
          </div>
       </div> */}
 
-      <div className="grid grid-cols-2 gap-3 mb-6">
+      {/* <div className="grid grid-cols-2 gap-3 mb-6">
             <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1 text-purple-400">
                 <Icons.Rank size={14} />
                 <span className="text-xs font-bold">Claimable RZC</span>
               </div>
-              <div className="text-white font-mono font-bold text-lg">{claimedRZC.toFixed(4)}</div>
+              <div className="text-white font-mono font-bold text-lg">{(miningData?.claimedRZC ?? claimedRZC).toFixed(4)}</div>
               <div className="text-[10px] text-gray-500 mt-1">Validated Balance</div>
             </div>
             <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-3">
@@ -449,10 +415,10 @@ const TonWallet = () => {
                 <Icons.Mining size={14} />
                 <span className="text-xs font-bold">Locked Balance</span>
               </div>
-              <div className="text-white font-mono font-bold text-lg">{miningBalance.toFixed(4)}</div>
+              <div className="text-white font-mono font-bold text-lg">{(miningData?.accumulatedRZC ?? miningBalance).toFixed(4)}</div>
               <div className="text-[10px] text-gray-500 mt-1">Accumulated RZC</div>
             </div>
-          </div>
+          </div> */}
 
 
       {/* Connect Wallet Prompt */}
@@ -629,9 +595,9 @@ const TonWallet = () => {
   );
 };
 
-const TonWalletWithErrorBoundary = () => (
+const TonWalletWithErrorBoundary = (props: TonWalletProps) => (
   <TonWalletErrorBoundary>
-    <TonWallet />
+    <TonWallet {...props} />
   </TonWalletErrorBoundary>
 );
 

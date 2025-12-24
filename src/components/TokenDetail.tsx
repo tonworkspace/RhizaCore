@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, ExternalLink, Copy, Check } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, ExternalLink, Copy } from 'lucide-react';
 import { Token } from '../types';
 
 interface TokenDetailProps {

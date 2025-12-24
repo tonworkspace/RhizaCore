@@ -68,7 +68,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
     return (
       <div className="flex flex-col h-full w-full relative overflow-hidden bg-black z-50">
-         {/* Background Grid */}
+        {/* Background Grid */}
         <div className="absolute inset-0 pointer-events-none opacity-10" 
              style={{ 
                backgroundImage: 'linear-gradient(#4ade80 1px, transparent 1px), linear-gradient(90deg, #4ade80 1px, transparent 1px)', 
@@ -78,22 +78,22 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
         {/* Top Skip Button */}
         <div className="absolute top-6 right-6 z-20">
-            <button onClick={onComplete} className="text-gray-500 text-xs font-mono hover:text-white transition-colors">
-                SKIP_INTRO
-            </button>
+          <button onClick={onComplete} className="text-gray-500 text-xs font-mono hover:text-white transition-colors">
+            SKIP_INTRO
+          </button>
         </div>
 
         {/* Content Area */}
         <div className="flex-1 flex flex-col items-center justify-center p-8 relative z-10 text-center">
-             {/* Animated Icon Circle */}
-            <div className={`w-32 h-32 bg-rzc-dark border border-white/10 rounded-[2rem] flex items-center justify-center mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)] relative group`}>
-                <div className={`absolute inset-0 rounded-[2rem] opacity-20 blur-xl ${currentSlide.color.replace('text-', 'bg-')}`}></div>
-                <Icon size={48} className={`${currentSlide.color} drop-shadow-lg transition-all duration-500 transform scale-110`} />
-                
-                {/* Decorative corners */}
-                <div className="absolute top-2 left-2 w-2 h-2 border-t-2 border-l-2 border-white/20"></div>
-                <div className="absolute top-2 right-2 w-2 h-2 border-t-2 border-r-2 border-white/20"></div>
-                <div className="absolute bottom-2 left-2 w-2 h-2 border-b-2 border-l-2 border-white/20"></div>
+          {/* Animated Icon Circle */}
+          <div className={`w-32 h-32 bg-rzc-dark border border-white/10 rounded-[2rem] flex items-center justify-center mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)] relative group`}>
+            <div className={`absolute inset-0 rounded-[2rem] opacity-20 blur-xl ${currentSlide.color.replace('text-', 'bg-')}`}></div>
+            <Icon size={48} className={`${currentSlide.color} drop-shadow-lg transition-all duration-500 transform scale-110`} />
+            
+            {/* Decorative corners */}
+            <div className="absolute top-2 left-2 w-2 h-2 border-t-2 border-l-2 border-white/20"></div>
+            <div className="absolute top-2 right-2 w-2 h-2 border-t-2 border-r-2 border-white/20"></div>
+            <div className="absolute bottom-2om-2 left-2 w-2 h-2 border-b-2 border-l-2 border-white/20"></div>
                 <div className="absolute bottom-2 right-2 w-2 h-2 border-b-2 border-r-2 border-white/20"></div>
             </div>
 

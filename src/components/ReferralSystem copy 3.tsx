@@ -109,7 +109,7 @@ const ReferralSystem = () => {
   const calculateActiveReferralReward = (referrals: ReferralWithUsers[]): number => {
     return referrals.reduce((total, referral) => {
       if (referral.status === 'active') {
-        return total + (referral.referred?.is_premium ? 100 : ACTIVE_REFERRAL_REWARD);
+        return total + (referral.referred?.is_premium ? 2000 : ACTIVE_REFERRAL_REWARD);
       }
       return total;
     }, 0);
@@ -152,11 +152,9 @@ const ReferralSystem = () => {
     }
   };
 
-  // 2. Load Leaderboard (Enhanced with debugging)
+  // 2. Load Leaderboard (Strict Logic Fix)
   const loadLeaderboard = async () => {
     setIsLoadingLeaderboards(true);
-    console.log('🔄 Loading leaderboard...');
-    
     try {
       const { data: rawData, error } = await supabase
         .from('referrals')
@@ -168,27 +166,10 @@ const ReferralSystem = () => {
         .not('sponsor_id', 'is', null) 
         .limit(10000); 
 
-      if (error) {
-          console.error('❌ Leaderboard query error:', error);
+      if (error || !rawData) {
           setTopReferrers([]);
           return;
       }
-
-      if (!rawData || rawData.length === 0) {
-          console.warn('⚠️ No referral data found');
-          setTopReferrers([]);
-          return;
-      }
-
-      console.log(`✅ Found ${rawData.length} referral records`);
-
-      // Debug: Check status distribution
-      const statusCounts = rawData.reduce((acc: any, curr: any) => {
-        const status = curr.status || 'null';
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
-      console.log('📊 Status distribution:', statusCounts);
 
       // Aggregate counts strictly by sponsor_id
       const counts = rawData.reduce((acc: { [key: string]: SponsorStat }, curr: any) => {
@@ -210,9 +191,7 @@ const ReferralSystem = () => {
 
         acc[id].referral_count++;
 
-        // More robust status checking
-        const status = (curr.status || '').toString().toLowerCase().trim();
-        if (status === 'active') {
+        if ((curr.status || '').toLowerCase() === 'active') {
             acc[id].active_referrals++;
         }
 
@@ -228,13 +207,10 @@ const ReferralSystem = () => {
         })
         .slice(0, 25);
 
-      console.log(`🏆 Top 5 leaderboard:`, sortedStats.slice(0, 5));
-      
       setTotalSponsors(Object.keys(counts).length);
       setTopReferrers(sortedStats);
     } catch (error) {
-      console.error('❌ Error loading leaderboard:', error);
-      setTopReferrers([]);
+      console.error('Error loading leaderboard:', error);
     } finally {
       setIsLoadingLeaderboards(false);
     }
@@ -300,23 +276,11 @@ const ReferralSystem = () => {
   useEffect(() => { loadUserReferrals(); loadLeaderboard(); }, [user?.id]);
   
   useEffect(() => {
-      console.log('🔌 Setting up real-time subscription...');
-      const sub = supabase.channel('public_referrals').on('postgres_changes', { 
-          event: '*', 
-          schema: 'public', 
-          table: 'referrals'
-      }, (payload) => {
-          console.log('📡 Real-time referral update:', payload);
+      const sub = supabase.channel('public_referrals').on('postgres_changes', { event: '*', schema: 'public', table: 'referrals'}, () => {
           loadUserReferrals();
           loadLeaderboard();
-      }).subscribe((status) => {
-          console.log('📡 Subscription status:', status);
-      });
-      
-      return () => { 
-          console.log('🔌 Cleaning up subscription...');
-          supabase.removeChannel(sub); 
-      };
+      }).subscribe();
+      return () => { supabase.removeChannel(sub); };
   }, [user?.id]);
 
   useEffect(() => {
@@ -496,22 +460,7 @@ const ReferralSystem = () => {
               <h3 className="text-white font-bold text-sm">
                   {activeTab === 'network' ? `Direct Invites (${userReferrals.length})` : `Top Performers (${totalSponsors})`}
               </h3>
-              <div className="flex items-center gap-2">
-                  {activeTab === 'network' && <span className="text-[10px] text-gray-500 font-mono">Last 7 Days: {userReferrals.filter(r => isRecentlyJoined(r.created_at)).length}</span>}
-                  {activeTab === 'leaderboard' && (
-                      <button 
-                          onClick={() => {
-                              console.log('🔄 Manual leaderboard refresh');
-                              loadLeaderboard();
-                          }}
-                          disabled={isLoadingLeaderboards}
-                          className={`text-gray-500 hover:text-white p-1 rounded transition-colors ${isLoadingLeaderboards ? "animate-spin text-green-400" : ""}`}
-                          title="Refresh Leaderboard"
-                      >
-                          <Icons.Refresh size={14} />
-                      </button>
-                  )}
-              </div>
+              {activeTab === 'network' && <span className="text-[10px] text-gray-500 font-mono">Last 7 Days: {userReferrals.filter(r => isRecentlyJoined(r.created_at)).length}</span>}
           </div>
 
           <div className="space-y-3 pb-6">

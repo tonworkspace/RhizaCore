@@ -1,258 +1,265 @@
-import React, { FC, useState, useEffect } from 'react';
-import { FaChartLine, FaUsers, FaGem, FaPlay, FaMountain } from 'react-icons/fa';
+import { FC, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-
-interface OnboardingStep {
-  icon: JSX.Element;
-  title: string;
-  description: string;
-  color: string;
-  bgPattern: string;
-}
+import { Icons } from '@/uicomponents/Icons';
 
 export const OnboardingScreen: FC = () => {
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [shouldShow, setShouldShow] = useState(false);
-  const [autoAdvance, setAutoAdvance] = useState(true);
-  const [gameStarted, setGameStarted] = useState(false);
+  const [bootStep, setBootStep] = useState(0);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
 
-  const steps: OnboardingStep[] = [
+  // Determine if user is new or returning
+  const isNewUser = user?.total_deposit === 0;
+  const userName = user?.first_name || user?.username || 'Miner';
+
+  const bootSequence = [
+    "Initializing RhizaCore Kernel...",
+    "Loading Neural Interfaces...",
+    "Verifying Cryptographic Keys...",
+    "Establishing Uplink to Mainframe...",
+    isNewUser ? "Welcome Protocol Activated." : "Welcome Back Protocol Activated.",
+    "Connection Secure."
+  ];
+
+  const tutorialSteps = isNewUser ? [
     {
-      icon: <FaMountain className="w-12 h-12" />,
-      title: `Welcome to RhizaCore Mine${user?.first_name ? ` ${user.first_name}` : ''}!`,
-      description: "Start your mining adventure and earn RZC tokens",
-      color: "from-green-500 to-green-700",
-      bgPattern: "bg-green-500/10"
+      title: `Welcome ${userName}!`,
+      description: "Welcome to RhizaCore Mine! Your journey into decentralized mining begins now. Let's get you started.",
+      icon: Icons.Mining,
+      color: "text-rzc-green"
     },
     {
-      icon: <FaChartLine className="w-12 h-12" />,
-      title: "Level Up Your Earnings",
-      description: "Watch your RZC tokens grow with every mining session",
-      color: "from-green-600 to-green-800",
-      bgPattern: "bg-green-600/10"
+      title: "Activate Your Node",
+      description: "Your device acts as a neural node. Keep mining sessions active to earn RZC tokens continuously.",
+      icon: Icons.Mining,
+      color: "text-rzc-green"
     },
     {
-      icon: <FaUsers className="w-12 h-12" />,
-      title: "Build Your Mining Network",
-      description: "Invite friends and unlock network bonuses together",
-      color: "from-green-700 to-green-900",
-      bgPattern: "bg-green-700/10"
+      title: "Complete Missions",
+      description: "Boost your earnings by completing daily tasks, social quests, and partner missions for extra rewards.",
+      icon: Icons.Task,
+      color: "text-purple-400"
     },
     {
-      icon: <FaGem className="w-12 h-12" />,
-      title: "Unlock Epic Rewards",
-      description: "Complete quests and claim legendary bonuses",
-      color: "from-green-800 to-emerald-900",
-      bgPattern: "bg-green-800/10"
+      title: "Build Your Network",
+      description: "Invite friends to join your mining network and unlock powerful referral bonuses together.",
+      icon: Icons.Users,
+      color: "text-blue-400"
+    },
+    {
+      title: "Upgrade Hardware",
+      description: "Reinvest your RZC into Core upgrades and NFTs to permanently increase your mining hashrate.",
+      icon: Icons.Core,
+      color: "text-orange-400"
+    }
+  ] : [
+    {
+      title: `Welcome Back ${userName}!`,
+      description: "Your mining node is ready to resume operations. Let's check what's new in your dashboard.",
+      icon: Icons.Mining,
+      color: "text-rzc-green"
+    },
+    {
+      title: "Enhanced Features",
+      description: "Discover new missions, improved rewards, and upgraded mining capabilities in this update.",
+      icon: Icons.Task,
+      color: "text-purple-400"
+    },
+    {
+      title: "Network Growth",
+      description: "Your referral network continues to grow. Check your latest bonuses and team performance.",
+      icon: Icons.Users,
+      color: "text-blue-400"
     }
   ];
 
-  const handleContinue = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+  useEffect(() => {
+    if (bootStep < bootSequence.length) {
+      const timeout = setTimeout(() => {
+        setBootStep(prev => prev + 1);
+      }, 600); // Speed of typing lines
+      return () => clearTimeout(timeout);
     } else {
-      setGameStarted(true);
-      setTimeout(() => setShouldShow(false), 1000);
+      const timeout = setTimeout(() => {
+        setShowTutorial(true);
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [bootStep]);
+
+  const handleNext = () => {
+    if (tutorialStep < tutorialSteps.length - 1) {
+      setTutorialStep(prev => prev + 1);
+    } else {
+      setIsComplete(true);
+      // Mark onboarding as seen for this user
+      if (user?.telegram_id) {
+        localStorage.setItem(`onboarding_seen_${user.telegram_id}`, 'true');
+        localStorage.setItem(`onboarding_completed_${user.telegram_id}`, new Date().toISOString());
+      }
+      // Auto-close after showing completion
+      setTimeout(() => {
+        // Parent component will handle closing
+      }, 2000);
     }
   };
 
   const handleSkip = () => {
-    setGameStarted(true);
-    setTimeout(() => setShouldShow(false), 1000);
+    setIsComplete(true);
+    // Mark as skipped but seen
+    if (user?.telegram_id) {
+      localStorage.setItem(`onboarding_seen_${user.telegram_id}`, 'true');
+      localStorage.setItem(`onboarding_skipped_${user.telegram_id}`, 'true');
+    }
+    // Auto-close after showing completion
+    setTimeout(() => {
+      // Parent component will handle closing
+    }, 1000);
   };
 
+  if (!user) return null;
 
-  useEffect(() => {
-    if (!user) return;
-
-    const hasSeenOnboarding = localStorage.getItem(`onboarding_${user.telegram_id}`);
-    if (!hasSeenOnboarding && user.total_deposit === 0) {
-      setShouldShow(true);
-      localStorage.setItem(`onboarding_${user.telegram_id}`, 'true');
-    }
-
-    const loadingTimer = setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(loadingTimer);
-  }, [user]);
-
-  useEffect(() => {
-    if (loading || !autoAdvance) return;
-
-    const stepInterval = setInterval(() => {
-      setCurrentStep((prev) => (prev < steps.length - 1 ? prev + 1 : 0));
-    }, 3000);
-
-    return () => clearInterval(stepInterval);
-  }, [loading, steps.length, autoAdvance]);
-
-  useEffect(() => {
-    const handleUserInteraction = () => {
-      setAutoAdvance(false);
-    };
-
-    window.addEventListener('click', handleUserInteraction);
-    window.addEventListener('keydown', handleUserInteraction);
-
-    return () => {
-      window.removeEventListener('click', handleUserInteraction);
-      window.removeEventListener('keydown', handleUserInteraction);
-    };
-  }, []);
-
-  if (!user || !shouldShow) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-green-900 p-4">
-      {/* Animated background grid */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `
-            linear-gradient(rgba(34, 197, 94, 0.1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(34, 197, 94, 0.1) 1px, transparent 1px)
-          `,
-          backgroundSize: '20px 20px'
-        }} />
-      </div>
-      
-      {/* Floating particles */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${2 + Math.random() * 2}s`
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="relative max-w-lg w-full px-8 py-12 rounded-3xl bg-gray-900/95 backdrop-blur-md border-4 border-green-500 shadow-2xl pixel-corners">
-        {/* Game-style header */}
-        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-          <div className="bg-green-600 text-white px-6 py-2 rounded-full text-sm font-bold border-2 border-green-800 shadow-lg">
-            ⛏️ RHIZACORE
-          </div>
+  // Show completion screen
+  if (isComplete) {
+    return (
+      <div className="fixed inset-0 flex flex-col h-screen w-screen relative overflow-hidden bg-black z-50">
+        {/* Background Grid */}
+        <div className="absolute inset-0 pointer-events-none opacity-10" 
+             style={{ 
+               backgroundImage: 'linear-gradient(#4ade80 1px, transparent 1px), linear-gradient(90deg, #4ade80 1px, transparent 1px)', 
+               backgroundSize: '30px 30px' 
+             }}>
         </div>
 
-        {loading ? (
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              <div className="w-32 h-32 rounded-full bg-gradient-to-r from-green-500 to-green-700 animate-pulse p-2 border-4 border-green-300">
-                <div className="w-full h-full bg-gray-800 rounded-full flex items-center justify-center">
-                  <FaMountain className="w-16 h-16 text-green-400 animate-bounce" />
-                </div>
-              </div>
-              {/* Spinning rings */}
-              <div className="absolute inset-0 rounded-full border-4 border-green-300 border-t-transparent animate-spin" />
-              <div className="absolute inset-2 rounded-full border-2 border-green-400 border-t-transparent animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
-            </div>
-            <div className="mt-8 text-center">
-              <h2 className="text-3xl font-black text-green-300 mb-2">
-                {user?.total_deposit === 0 ? '⛏️ INITIALIZING MINE' : '⛏️ WELCOME BACK, MINER!'}
-              </h2>
-              <p className="text-lg text-green-400 font-semibold">
-                {user?.total_deposit === 0
-                  ? 'Setting up your mining adventure...'
-                  : 'Loading your mining dashboard...'}
-              </p>
-              <div className="mt-4 flex justify-center">
-                <div className="flex space-x-1">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
-                  ))}
-                </div>
-              </div>
-            </div>
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8 relative z-10 text-center">
+          {/* Success Icon */}
+          <div className="w-32 h-32 bg-rzc-dark border border-white/10 rounded-[2rem] flex items-center justify-center mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)] relative group">
+            <div className="absolute inset-0 rounded-[2rem] opacity-20 blur-xl bg-rzc-green"></div>
+            <Icons.Power size={48} className="text-rzc-green drop-shadow-lg transition-all duration-500 transform scale-110 animate-pulse" />
+            
+            {/* Decorative corners */}
+            <div className="absolute top-2 left-2 w-2 h-2 border-t-2 border-l-2 border-white/20"></div>
+            <div className="absolute top-2 right-2 w-2 h-2 border-t-2 border-r-2 border-white/20"></div>
+            <div className="absolute bottom-2 left-2 w-2 h-2 border-b-2 border-l-2 border-white/20"></div>
+            <div className="absolute bottom-2 right-2 w-2 h-2 border-b-2 border-r-2 border-white/20"></div>
           </div>
-        ) : gameStarted ? (
-          <div className="text-center animate-fadeIn">
-            <div className="w-32 h-32 mx-auto rounded-full bg-gradient-to-r from-green-500 to-green-700 p-2 border-4 border-green-300 mb-8">
-              <div className="w-full h-full bg-gray-800 rounded-full flex items-center justify-center">
-                <FaPlay className="w-16 h-16 text-green-400 animate-pulse" />
-              </div>
-            </div>
-            <h2 className="text-4xl font-black text-green-300 mb-4">⛏️ MINE STARTED!</h2>
-            <p className="text-xl text-green-400 font-semibold mb-8">Your mining adventure begins now!</p>
-            <div className="flex justify-center">
-              <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-            </div>
+
+          <h2 className="text-3xl font-bold text-rzc-green mb-4 tracking-tight">
+            {isNewUser ? '⛏️ SYSTEM INITIALIZED' : '⛏️ WELCOME BACK'}
+          </h2>
+          <p className="text-gray-400 text-lg leading-relaxed max-w-[320px] mb-8">
+            {isNewUser 
+              ? 'Your mining node is now active and ready to earn RZC tokens!'
+              : 'Your mining operations are resuming. Happy mining!'
+            }
+          </p>
+
+          {/* Loading indicator */}
+          <div className="flex justify-center">
+            <div className="w-8 h-8 border-4 border-rzc-green border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : (
-          <div key={currentStep} className="text-center">
-            {/* Game-style step indicator */}
-            <div className="mb-6">
-              <div className="inline-flex items-center px-4 py-2 bg-green-900/50 rounded-full border-2 border-green-300">
-                <span className="text-green-300 font-bold text-sm">LEVEL {currentStep + 1} / {steps.length}</span>
-              </div>
-            </div>
+        </div>
+      </div>
+    );
+  }
 
-            {/* Icon with game-style border */}
-            <div className="relative mb-8">
-              <div className={`w-32 h-32 mx-auto rounded-full bg-gradient-to-r ${steps[currentStep].color} p-2 border-4 border-green-300 shadow-2xl`}>
-                <div className="w-full h-full bg-gray-800 rounded-full flex items-center justify-center">
-                  {React.cloneElement(steps[currentStep].icon as React.ReactElement, {
-                    className: 'w-16 h-16 text-green-400'
-                  })}
-                </div>
-              </div>
-              {/* Glow effect */}
-              <div className={`absolute inset-0 w-32 h-32 mx-auto rounded-full bg-gradient-to-r ${steps[currentStep].color} opacity-30 blur-xl animate-pulse`} />
-            </div>
+  if (showTutorial) {
+    const currentSlide = tutorialSteps[tutorialStep];
+    const Icon = currentSlide.icon;
+    const isLastStep = tutorialStep === tutorialSteps.length - 1;
 
-            <h2 className="text-3xl font-black text-green-300 mb-4">
-              {steps[currentStep].title}
-            </h2>
-            <p className="text-lg text-green-400 font-semibold mb-8 px-4 leading-relaxed">
-              {steps[currentStep].description}
-            </p>
+    return (
+      <div className="fixed inset-0 flex flex-col h-screen w-screen relative overflow-hidden bg-black z-50">
+        {/* Background Grid */}
+        <div className="absolute inset-0 pointer-events-none opacity-10" 
+             style={{ 
+               backgroundImage: 'linear-gradient(#4ade80 1px, transparent 1px), linear-gradient(90deg, #4ade80 1px, transparent 1px)', 
+               backgroundSize: '30px 30px' 
+             }}>
+        </div>
 
-            {/* Game-style progress dots */}
-            <div className="flex justify-center gap-3 mb-8">
-              {steps.map((_, index) => (
-                <div
-                  key={index}
-                  className={`h-3 rounded-full transition-all duration-300 cursor-pointer ${
-                    index === currentStep 
-                      ? 'w-8 bg-green-600 border-2 border-green-800'
-                      : index < currentStep
-                      ? 'w-3 bg-green-400 border-2 border-green-600'
-                      : 'w-3 bg-green-200 border-2 border-green-300 hover:bg-green-300'
-                  }`}
-                  onClick={() => {
-                    setCurrentStep(index);
-                    setAutoAdvance(false);
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Game-style buttons */}
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button
-                onClick={handleSkip}
-                className="order-2 sm:order-1 px-8 py-4 text-base font-bold text-green-400 hover:text-green-300 transition-colors rounded-xl border-2 border-green-300 hover:border-green-400 bg-gray-800 hover:bg-gray-700 transform hover:-translate-y-1 transition-all"
-              >
-                ⏭️ Skip Tutorial
-              </button>
-              <button
-                onClick={handleContinue}
-                className={`order-1 sm:order-2 px-8 py-4 rounded-xl bg-gradient-to-r ${steps[currentStep].color} text-white font-bold hover:opacity-90 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 border-2 border-green-800`}
-              >
-                {currentStep === steps.length - 1 ? '⛏️ START MINING' : '▶️ Continue'}
-              </button>
-            </div>
+        {/* Top Skip Button - Only show for new users */}
+        {isNewUser && (
+          <div className="absolute top-6 right-6 z-20">
+            <button onClick={handleSkip} className="text-gray-500 text-xs font-mono hover:text-white transition-colors">
+              SKIP_INTRO
+            </button>
           </div>
         )}
+
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8 relative z-10 text-center">
+          {/* Animated Icon Circle */}
+          <div className={`w-32 h-32 bg-rzc-dark border border-white/10 rounded-[2rem] flex items-center justify-center mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)] relative group`}>
+            <div className={`absolute inset-0 rounded-[2rem] opacity-20 blur-xl ${currentSlide.color.replace('text-', 'bg-')}`}></div>
+            <Icon size={48} className={`${currentSlide.color} drop-shadow-lg transition-all duration-500 transform scale-110`} />
+            
+            {/* Decorative corners */}
+            <div className="absolute top-2 left-2 w-2 h-2 border-t-2 border-l-2 border-white/20"></div>
+            <div className="absolute top-2 right-2 w-2 h-2 border-t-2 border-r-2 border-white/20"></div>
+            <div className="absolute bottom-2 left-2 w-2 h-2 border-b-2 border-l-2 border-white/20"></div>
+            <div className="absolute bottom-2 right-2 w-2 h-2 border-b-2 border-r-2 border-white/20"></div>
+          </div>
+
+          <h2 className="text-2xl font-bold text-white mb-4 tracking-tight">{currentSlide.title}</h2>
+          <p className="text-gray-400 text-sm leading-relaxed max-w-[320px]">
+            {currentSlide.description}
+          </p>
+        </div>
+
+        {/* Bottom Controls */}
+        <div className="p-8 pb-12 w-full z-10">
+          {/* Pagination Dots */}
+          <div className="flex justify-center gap-2 mb-8">
+            {tutorialSteps.map((_, idx) => (
+              <div 
+                key={idx} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  idx === tutorialStep 
+                  ? 'w-6 bg-rzc-green' 
+                  : 'w-1.5 bg-white/20'
+                }`} 
+              />
+            ))}
+          </div>
+
+          <button 
+            onClick={handleNext}
+            className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 ${
+              isLastStep 
+                ? 'bg-rzc-green text-black hover:bg-rzc-green-dim shadow-[0_0_20px_rgba(74,222,128,0.3)]' 
+                : 'bg-white text-black hover:bg-gray-200'
+            }`}
+          >
+            {isLastStep ? (
+              <>
+                {isNewUser ? '⛏️ START MINING' : '⛏️ CONTINUE MINING'} <Icons.Power size={18} />
+              </>
+            ) : (
+              'NEXT STEP'
+            )}
+          </button>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 flex flex-col items-start justify-end pb-24 h-screen w-screen p-8 bg-black font-mono text-xs z-50">
+      {/* User status indicator */}
+      <div className="absolute top-6 right-6 text-rzc-green/60 text-xs font-mono">
+        {isNewUser ? 'NEW_USER_DETECTED' : 'RETURNING_USER_DETECTED'}
+      </div>
+      
+      {bootSequence.slice(0, bootStep).map((line, index) => (
+        <div key={index} className="text-rzc-green/80 mb-2 animate-fadeIn">
+          <span className="mr-2 opacity-50">{`>`}</span>
+          {line}
+        </div>
+      ))}
+      <div className="text-rzc-green animate-pulse">_</div>
     </div>
   );
 }; 

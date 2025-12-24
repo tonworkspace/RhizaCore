@@ -14,7 +14,7 @@ const GameDataContext = createContext<GameDataContextType | undefined>(undefined
 
 export const GameDataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [claimedRZC, setClaimedRZC] = useState<number>(0);
-  const [accumulatedRZC, setAccumulatedRZC] = useState<number>(0);
+  const [accumulatedRZC] = useState<number>(0);
   const [isMining, setIsMining] = useState<boolean>(false);
   const [miningBalance, setMiningBalance] = useState<number>(0);
 

@@ -58,53 +58,53 @@ if (import.meta.env.DEV) {
       //   ['signature', 'a2b4c6d8t5f2g4hghj6yhjj0k2m4n6p8q0'],
       // ]).toString();
 
-      const rand = Math.floor(Math.random() * 1_000_000);
-      const now = Date.now();
-      const mockId = Number(`${now}${rand}`).toString().slice(0, 13); // up to 13 digits
-      const firstNames = ['Ava','Liam','Noah','Mia','Zoe','Eli','Kai','Nina','Ivy','Leo'];
-      const lastNames = ['Stone','River','Blake','Wren','Vale','Quinn','Skye','Dune','Reed','Lane'];
-      const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-      const firstName = pick(firstNames);
-      const lastName = pick(lastNames);
-      const username = `${firstName.toLowerCase()}_${lastName.toLowerCase()}_${rand}`;
-
-      const initDataRaw = new URLSearchParams([
-        ['user', JSON.stringify({
-          id: Number(mockId),
-          first_name: firstName,
-          last_name: lastName,
-          username,
-          language_code: 'en',
-          is_premium: Math.random() < 0.5,
-          allows_write_to_pm: true,
-        })],
-        ['hash', `${now.toString(36)}${rand.toString(36)}`],
-        ['auth_date', String(now)],
-        ['start_param', 'debug'],
-        ['chat_type', 'sender'],
-        ['chat_instance', (now + rand).toString()],
-        ['signature', `${rand.toString(36)}${now.toString(36)}sig`],
-      ]).toString();
-      
-
+      // const rand = Math.floor(Math.random() * 1_000_000);
+      // const now = Date.now();
+      // const mockId = Number(`${now}${rand}`).toString().slice(0, 13); // up to 13 digits
+      // const firstNames = ['Ava','Liam','Noah','Mia','Zoe','Eli','Kai','Nina','Ivy','Leo'];
+      // const lastNames = ['Stone','River','Blake','Wren','Vale','Quinn','Skye','Dune','Reed','Lane'];
+      // const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+      // const firstName = pick(firstNames);
+      // const lastName = pick(lastNames);
+      // const username = `${firstName.toLowerCase()}_${lastName.toLowerCase()}_${rand}`;
 
       // const initDataRaw = new URLSearchParams([
       //   ['user', JSON.stringify({
-      //     id: 923481567,
-      //     first_name: 'Sarah',
-      //     last_name: 'Johnson',
-      //     username: 'sarahj',
+      //     id: Number(mockId),
+      //     first_name: firstName,
+      //     last_name: lastName,
+      //     username,
       //     language_code: 'en',
-      //     is_premium: false,
+      //     is_premium: Math.random() < 0.5,
       //     allows_write_to_pm: true,
       //   })],
-      //   ['hash', 'x7y9z2a4b6c8d0e2f4g6h8i0j2k4m6n8p0q2'],
-      //   ['auth_date', '1711777777'],
+      //   ['hash', `${now.toString(36)}${rand.toString(36)}`],
+      //   ['auth_date', String(now)],
       //   ['start_param', 'debug'],
       //   ['chat_type', 'sender'],
-      //   ['chat_instance', '9876543210123456789'],
-      //   ['signature', 'a2b4c6d8e0f2g4h6i8j0k2m4n6p8q0'],
+      //   ['chat_instance', (now + rand).toString()],
+      //   ['signature', `${rand.toString(36)}${now.toString(36)}sig`],
       // ]).toString();
+      
+
+
+      const initDataRaw = new URLSearchParams([
+        ['user', JSON.stringify({
+          id: 923481567,
+          first_name: 'Sarah',
+          last_name: 'Johnson',
+          username: 'sarahj',
+          language_code: 'en',
+          is_premium: false,
+          allows_write_to_pm: true,
+        })],
+        ['hash', 'x7y9z2a4b6c8d0e2f4g6h8i0j2k4m6n8p0q2'],
+        ['auth_date', '1711777777'],
+        ['start_param', 'debug'],
+        ['chat_type', 'sender'],
+        ['chat_instance', '9876543210123456789'],
+        ['signature', 'a2b4c6d8e0f2g4h6i8j0k2m4n6p8q0'],
+      ]).toString();
 
       lp = {
         themeParams: {

@@ -204,7 +204,7 @@ export const useAuth = () => {
           first_name: telegramUser.firstName || null,
           last_name: telegramUser.lastName || null,
           language_code: telegramUser.languageCode || null,
-          wallet_address: '', // Empty string as default
+          wallet_address: null, // null as default to allow unique constraint
           balance: 0,
           total_deposit: 0,
           total_withdrawn: 0,

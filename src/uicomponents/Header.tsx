@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icons } from '@/pages/IndexPage/Icons';
+import { Icons } from '@/components/Icon';
 import { useAuth } from '@/hooks/useAuth';
 import { useI18n, LangCode } from '@/components/I18nProvider';
 

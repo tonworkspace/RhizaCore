@@ -1,8 +1,6 @@
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { toUserFriendlyAddress } from '@tonconnect/sdk';
-import { FC, useState, useEffect, useRef } from 'react';
-// import { toNano, fromNano } from "ton";
-import TonWeb from 'tonweb';
+import { FC, useState, useEffect, useRef, useCallback } from 'react';
 import { Snackbar, Button } from '@telegram-apps/telegram-ui';
 
 // Local Component Imports
@@ -19,12 +17,12 @@ import ArcadeMiningUI, { ArcadeMiningUIHandle } from '@/components/ArcadeMiningU
 // Logic & Hooks Imports
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabaseClient';
-import { UserProfile, BottomTab } from '@/utils/types';
+import { BottomTab } from '@/utils/types';
 import SocialTasks from '@/components/SocialTasks';
-import TonWallet from '@/components/TonWallet';
+// import TonWallet from '@/components/TonWallet';
 import ReferralSystem from '@/components/ReferralSystem';
 import SettingsComponent from '@/components/SettingsComponent';
-import { Onboarding } from '@/uicomponents/Onboarding';
+import NativeWalletUI from '@/components/NativeWalletUI';
 
 type CardType = 'stats' | 'activity' | 'community';
 
@@ -72,28 +70,6 @@ interface OfflineEarnings {
 }
 
 // --- Constants & Configuration ---
-// const INITIAL_STATE: MiningState = {
-//   balance: 89496.8182,
-//   miningRatePerHour: 260.42,
-//   sessionStartTime: Date.now() - (23 * 60 * 60 * 1000 + 58 * 60 * 1000),
-//   isMining: true,
-//   validatedBalance: 1036.732345,
-//   miningBalance: 0.085883
-// };
-
-const MAINNET_DEPOSIT_ADDRESS = 'UQC3NglZSzm_8mrdGixS7OcIC-R53etS4XAuKrk_qq6PjeCi';
-const TESTNET_DEPOSIT_ADDRESS = 'UQC3NglZSzm_8mrdGixS7OcIC-R53etS4XAuKrk_qq6PjeCi';
-const isMainnet = true;
-const DEPOSIT_ADDRESS = isMainnet ? MAINNET_DEPOSIT_ADDRESS : TESTNET_DEPOSIT_ADDRESS;
-
-const MAINNET_API_KEY = '26197ebc36a041a5546d69739da830635ed339c0d8274bdd72027ccbff4f4234';
-const TESTNET_API_KEY = 'd682d9b65115976e52f63713d6dd59567e47eaaa1dc6067fe8a89d537dd29c2c';
-
-// Initialize TonWeb outside component to avoid recreation
-const tonweb = isMainnet ?
-    new TonWeb(new TonWeb.HttpProvider('https://toncenter.com/api/v2/jsonRPC', {apiKey: MAINNET_API_KEY})) :
-    new TonWeb(new TonWeb.HttpProvider('https://testnet.toncenter.com/api/v2/jsonRPC', {apiKey: TESTNET_API_KEY}));
-
 const SNACKBAR_DURATION = 5000;
 const EARNINGS_SYNC_INTERVAL = 60000;
 const EARNINGS_UPDATE_INTERVAL = 1000;
@@ -228,7 +204,7 @@ const IndexPageContent: FC = () => {
   // // Data State
   // const [miningState, setMiningState] = useState<MiningState>(INITIAL_STATE);
   // const [walletBalance, setWalletBalance] = useState<string>('0');
-  const [, setUserFriendlyAddress] = useState<string | null>(null);
+  const [userFriendlyAddress, setUserFriendlyAddress] = useState<string | null>(null);
   const [tonPrice, setTonPrice] = useState(0);
   const [, setTonPriceChange] = useState(0);
   const [currentROI] = useState<number>(0.0306);
@@ -237,13 +213,13 @@ const IndexPageContent: FC = () => {
   // Interaction State
   const [showOnboarding, setShowOnboarding] = useState(false);
   // const [showDepositModal, setShowDepositModal] = useState(false);
-  // const [showSponsorGate, setShowSponsorGate] = useState(false);
+  const [showSponsorGate, setShowSponsorGate] = useState(false);
   const [hasSponsor, setHasSponsor] = useState<boolean | null>(null);
-  // const [isApplying, setIsApplying] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   // const [isDepositing, setIsDepositing] = useState(false);
   // const [depositStatus, setDepositStatus] = useState('idle');
   // const [customAmount, setCustomAmount] = useState('');
-  const [userReferralCode] = useState<string>('');
+  const [userReferralCode, setUserReferralCode] = useState<string>('');
   // const [showReferralContest, setShowReferralContest] = useState(false);
 
   // Mining/Loading State
@@ -281,13 +257,13 @@ const IndexPageContent: FC = () => {
 
   // --- Utility Functions (Inside Component) ---
 
-  const showSnackbar = ({ message, description = '', duration = SNACKBAR_DURATION }: SnackbarConfig) => {
+  const showSnackbar = useCallback(({ message, description = '', duration = SNACKBAR_DURATION }: SnackbarConfig) => {
     if (snackbarTimeoutRef.current) clearTimeout(snackbarTimeoutRef.current);
     setSnackbarMessage(message);
     setSnackbarDescription(description);
     setSnackbarVisible(true);
     snackbarTimeoutRef.current = setTimeout(() => setSnackbarVisible(false), duration);
-  };
+  }, []);
 
   const saveEarningState = (userId: number | string, state: LocalEarningState) => {
     try {
@@ -296,6 +272,82 @@ const IndexPageContent: FC = () => {
       console.error('Error saving earning state:', error);
     }
   };
+
+  // --- Handlers ---
+
+  const checkSponsorStatus = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data: firstUser } = await supabase.from('users').select('id').order('created_at', { ascending: true }).limit(1).single();
+      
+      if (firstUser?.id === user.id) {
+        setHasSponsor(true);
+        setShowSponsorGate(false);
+        return;
+      }
+      
+      const { data: referralData } = await supabase.from('referrals').select('sponsor_id').eq('referred_id', user.id).maybeSingle();
+      const hasSponsorStatus = !!referralData?.sponsor_id || !!user.sponsor_id;
+      
+      setHasSponsor(hasSponsorStatus);
+      setShowSponsorGate(!hasSponsorStatus);
+
+      // Auto-fix if missing record
+      if (user.sponsor_id && !referralData?.sponsor_id) {
+         await supabase.from('referrals').insert({
+            sponsor_id: user.sponsor_id,
+            referred_id: user.id,
+            status: 'active',
+            created_at: new Date().toISOString()
+         });
+      }
+
+    } catch (error) {
+      console.error('Error checking sponsor:', error);
+      setHasSponsor(false);
+      setShowSponsorGate(true);
+    }
+  }, [user?.id, user?.sponsor_id]);
+
+  const handleApplySponsorCode = useCallback(async (sponsorCode: string) => {
+    if (!user?.id || !sponsorCode.trim()) return;
+    try {
+      setIsApplying(true);
+      
+      // Basic validation logic
+      const codeNum = Number(sponsorCode);
+      if (isNaN(codeNum)) {
+         showSnackbar({ message: 'Invalid Code', description: 'Must be numeric.' });
+         return;
+      }
+      
+      // Perform DB Lookup
+      const { data: sponsor } = await supabase.from('users').select('id, username').or(`telegram_id.eq.${codeNum},id.eq.${codeNum}`).maybeSingle();
+      
+      if (!sponsor || sponsor.id === user.id) {
+          showSnackbar({ message: 'Invalid Sponsor', description: 'Cannot find user or self-referral.' });
+          return;
+      }
+
+      await supabase.from('referrals').insert({ sponsor_id: sponsor.id, referred_id: user.id, status: 'active', created_at: new Date().toISOString() });
+      await supabase.from('users').update({ sponsor_id: sponsor.id }).eq('id', user.id);
+      
+      // Update local user data
+      if (updateUserData) {
+        updateUserData({ sponsor_id: sponsor.id });
+      }
+      
+      showSnackbar({ message: 'Joined Team!', description: `Joined ${sponsor.username}'s team!` });
+      setHasSponsor(true);
+      setShowSponsorGate(false);
+
+    } catch (e) {
+      console.error(e);
+      showSnackbar({ message: 'Error', description: 'Failed to apply code.' });
+    } finally {
+      setIsApplying(false);
+    }
+  }, [user?.id, updateUserData, showSnackbar]);
 
   // 1. Loading Sequence
   useEffect(() => {
@@ -325,41 +377,43 @@ const IndexPageContent: FC = () => {
   }, [isLoading]);
 
   // 2. User Data & Staking Status
-  // useEffect(() => {
-  //   if (user) {
-  //     // Set staking completion
-  //     const storedCompletion = localStorage.getItem(`isStakingCompleted_${user.telegram_id}`) === 'true';
-  //     setIsStakingCompleted(storedCompletion);
+  useEffect(() => {
+    if (user) {
+      // Set staking completion
+      // const storedCompletion = localStorage.getItem(`isStakingCompleted_${user.telegram_id}`) === 'true';
+      // setIsStakingCompleted(storedCompletion);
       
-  //     if (user.balance && user.balance >= 1 && !storedCompletion) {
-  //       setHasStaked(true);
-  //       setIsStakingCompleted(true);
-  //       localStorage.setItem(`isStakingCompleted_${user.telegram_id}`, 'true');
-  //     }
+      // if (user.balance && user.balance >= 1 && !storedCompletion) {
+      //   setHasStaked(true);
+      //   setIsStakingCompleted(true);
+      //   localStorage.setItem(`isStakingCompleted_${user.telegram_id}`, 'true');
+      // }
 
-  //     // Check NFT pass
-  //     setHasNFTPass(localStorage.getItem(`hasClaimedNFTPass_${user.telegram_id}`) === 'true');
+      // Check NFT pass
+      // setHasNFTPass(localStorage.getItem(`hasClaimedNFTPass_${user.telegram_id}`) === 'true');
       
-  //     // Update staking progress
-  //     if (user.last_deposit_date) {
-  //       setStakingProgress(calculateStakingProgress(user.last_deposit_date));
-  //     }
+      // Update staking progress
+      // if (user.last_deposit_date) {
+      //   setStakingProgress(calculateStakingProgress(user.last_deposit_date));
+      // }
 
-  //     // Set Referral Code
-  //     setUserReferralCode(String(user.telegram_id || user.id));
+      // Set Referral Code
+      setUserReferralCode(String(user.telegram_id || user.id));
       
-  //     // Check Sponsor Status
-  //     checkSponsorStatus();
-  //   }
-  // }, [user]);
+      // Check Sponsor Status
+      checkSponsorStatus();
+    }
+  }, [user, checkSponsorStatus]);
 
   // 3. Wallet Address
   useEffect(() => {
     if (tonConnectUI.account) {
       const rawAddress = tonConnectUI.account.address;
       setUserFriendlyAddress(toUserFriendlyAddress(rawAddress));
+    } else {
+      setUserFriendlyAddress(null);
     }
-  }, [tonConnectUI]);
+  }, [tonConnectUI.account]);
 
   // 4. Wallet Balance Polling
   // useEffect(() => {
@@ -444,24 +498,31 @@ const IndexPageContent: FC = () => {
         const fallbackTimer = setTimeout(() => {
             if (hasSponsor === null) {
               setHasSponsor(false);
-              // setShowSponsorGate(true);
+              setShowSponsorGate(true);
             }
         }, 5000);
 
         if (!isLoading && hasSponsor) {
-            const hasSeenOnboarding = localStorage.getItem(`onboarding_${user.telegram_id}`);
+            const hasSeenOnboarding = localStorage.getItem(`onboarding_seen_${user.telegram_id}`);
             const isNewUser = user.total_deposit === 0;
-            if (!hasSeenOnboarding || isNewUser) {
+            
+            // Show onboarding for new users or returning users who haven't seen the latest version
+            if (!hasSeenOnboarding || (isNewUser && !hasSeenOnboarding)) {
               setShowOnboarding(true);
               const timer = setTimeout(() => {
                 setShowOnboarding(false);
-                localStorage.setItem(`onboarding_${user.telegram_id}`, 'true');
-              }, 14000); 
+                // Fallback in case onboarding doesn't close itself
+                if (!localStorage.getItem(`onboarding_seen_${user.telegram_id}`)) {
+                  localStorage.setItem(`onboarding_seen_${user.telegram_id}`, 'true');
+                }
+              }, isNewUser ? 20000 : 12000); // Longer timeout for new users
               return () => {
                   clearTimeout(timer);
                   clearTimeout(fallbackTimer);
               }
             }
+        } else if (!isLoading && hasSponsor === false) {
+            setShowSponsorGate(true);
         }
         return () => clearTimeout(fallbackTimer);
     }
@@ -664,154 +725,7 @@ const IndexPageContent: FC = () => {
     };
   }, [user?.id, user?.balance, currentROI]);
 
-  // --- Handlers ---
-
-  // const checkSponsorStatus = async () => {
-  //   if (!user?.id) return;
-  //   try {
-  //     const { data: firstUser } = await supabase.from('users').select('id').order('created_at', { ascending: true }).limit(1).single();
-      
-  //     if (firstUser?.id === user.id) {
-  //       setHasSponsor(true);
-  //       setShowSponsorGate(false);
-  //       return;
-  //     }
-      
-  //     const { data: referralData } = await supabase.from('referrals').select('sponsor_id').eq('referred_id', user.id).maybeSingle();
-  //     const hasSponsorStatus = !!referralData?.sponsor_id || !!user.sponsor_id;
-      
-  //     setHasSponsor(hasSponsorStatus);
-  //     setShowSponsorGate(!hasSponsorStatus);
-
-  //     // Auto-fix if missing record
-  //     if (user.sponsor_id && !referralData?.sponsor_id) {
-  //        await supabase.from('referrals').insert({
-  //           sponsor_id: user.sponsor_id,
-  //           referred_id: user.id,
-  //           status: 'active',
-  //           created_at: new Date().toISOString()
-  //        });
-  //     }
-
-  //   } catch (error) {
-  //     console.error('Error checking sponsor:', error);
-  //     setHasSponsor(false);
-  //     setShowSponsorGate(true);
-  //   }
-  // };
-
-  // const handleApplySponsorCode = async (sponsorCode: string) => {
-  //   if (!user?.id || !sponsorCode.trim()) return;
-  //   try {
-  //     setIsApplying(true);
-      
-  //     // ... (Specific logic for admin/default codes omitted for brevity but should be here as in original) ...
-  //     // Basic validation logic
-  //     const codeNum = Number(sponsorCode);
-  //     if (isNaN(codeNum)) {
-  //        showSnackbar({ message: 'Invalid Code', description: 'Must be numeric.' });
-  //        return;
-  //     }
-      
-  //     // Perform DB Lookup
-  //     const { data: sponsor } = await supabase.from('users').select('id, username').or(`telegram_id.eq.${codeNum},id.eq.${codeNum}`).maybeSingle();
-      
-  //     if (!sponsor || sponsor.id === user.id) {
-  //         showSnackbar({ message: 'Invalid Sponsor', description: 'Cannot find user or self-referral.' });
-  //         return;
-  //     }
-
-  //     await supabase.from('referrals').insert({ sponsor_id: sponsor.id, referred_id: user.id, status: 'active', created_at: new Date().toISOString() });
-  //     await supabase.from('users').update({ sponsor_id: sponsor.id }).eq('id', user.id);
-      
-  //     if (updateUserData) updateUserData({ sponsor_id: sponsor.id });
-      
-  //     showSnackbar({ message: 'Joined Team!', description: `Joined ${sponsor.username}'s team!` });
-  //     setHasSponsor(true);
-  //     setShowSponsorGate(false);
-
-  //   } catch (e) {
-  //     console.error(e);
-  //     showSnackbar({ message: 'Error', description: 'Failed to apply code.' });
-  //   } finally {
-  //     setIsApplying(false);
-  //   }
-  // };
-
-  // const handleDeposit = async (amount: number) => {
-  //   try {
-  //     setIsDepositing(true);
-  //     if (amount < 1) { showSnackbar({ message: 'Invalid Amount', description: 'Minimum 1 TON' }); return; }
-  //     if (!tonConnectUI.account) { showSnackbar({ message: 'Connect Wallet', description: 'Wallet required' }); return; }
-
-  //     const walletBalanceNum = Number(walletBalance);
-  //     if (walletBalanceNum < amount) { showSnackbar({ message: 'Insufficient Balance' }); return; }
-
-  //     setDepositStatus('pending');
-  //     const amountInNano = toNano(amount.toString());
-  //     const depositId = await generateUniqueId();
-  //     const isNewUser = !user?.balance || user.balance === 0;
-
-  //     // Preserve current earnings state
-  //     const previousEarnings = isNewUser ? 0 : Number(earningState.currentEarnings.toFixed(8));
-  //     const previousState = { ...earningState, currentEarnings: previousEarnings, lastUpdate: Date.now() };
-  //     saveEarningState(user!.telegram_id, previousState);
-
-  //     const { error: pendingError } = await supabase.from('deposits').insert([{
-  //       id: depositId, user_id: user!.id, amount, amount_nano: amountInNano.toString(), status: 'pending', created_at: new Date().toISOString()
-  //     }]);
-  //     if (pendingError) throw pendingError;
-
-  //     const transaction = {
-  //       validUntil: Math.floor(Date.now() / 1000) + 60 * 20,
-  //       messages: [{ address: DEPOSIT_ADDRESS, amount: amountInNano.toString() }]
-  //     };
-
-  //     const result = await tonConnectUI.sendTransaction(transaction);
-
-  //     if (result) {
-  //       await supabase.from('deposits').update({ status: 'confirmed', tx_hash: result.boc }).eq('id', depositId);
-  //       await supabase.rpc('update_user_deposit', { p_user_id: user!.id, p_amount: amount, p_deposit_id: depositId });
-        
-  //       clearOldEarningCache(user!.telegram_id);
-  //       await processReferralStakingRewards(user!.id, amount);
-
-  //       const { data: updatedUser } = await supabase.from('users').select('*').eq('id', user!.id).single();
-  //       if (updatedUser) {
-  //          updateUserData(updatedUser);
-  //          const newBaseEarningRate = calculateEarningRateLegacy(updatedUser.balance, currentROI, 0);
-  //          const newState = {
-  //            ...previousState, baseEarningRate: newBaseEarningRate, isActive: true, currentEarnings: previousEarnings
-  //          };
-  //          setEarningState(newState);
-  //          saveEarningState(user!.telegram_id, newState);
-           
-  //          await supabase.from('user_earnings').upsert({
-  //            user_id: user!.id, current_earnings: previousEarnings, last_update: new Date().toISOString(),
-  //            start_date: isNewUser ? new Date().toISOString() : undefined
-  //          }, { onConflict: 'user_id' });
-
-  //          showSnackbar({ message: 'Deposit Successful', description: `Deposited ${amount} TON` });
-  //       }
-  //       setDepositStatus('success');
-  //       setShowDepositModal(false);
-  //     }
-  //   } catch (error) {
-  //     console.error('Deposit failed:', error);
-  //     setDepositStatus('error');
-  //     showSnackbar({ message: 'Deposit Failed', description: 'Transaction failed or rejected.' });
-  //     // Restore state
-  //     if (user) {
-  //        const saved = localStorage.getItem(getEarningsStorageKey(user.telegram_id));
-  //        if (saved) setEarningState(JSON.parse(saved));
-  //     }
-  //   } finally {
-  //     setCustomAmount('');
-  //     setIsDepositing(false);
-  //   }
-  // };
-
- // Immediate balance refresh for SocialTasks
+  // Immediate balance refresh for SocialTasks
  const handleRewardClaimed = async (_amount: number) => {
   if (arcadeRef.current && typeof arcadeRef.current.refreshBalance === 'function') {
     arcadeRef.current.refreshBalance();
@@ -835,33 +749,62 @@ const IndexPageContent: FC = () => {
 
   // --- Rendering ---
 
-  if (isLoading || isInitializing) {
+  // Comprehensive loading state that covers all loading conditions
+  if (isLoading || isInitializing || !user || hasSponsor === null) {
+    const getLoadingMessage = () => {
+      if (isLoading) return 'Authenticating...';
+      if (isInitializing) return 'Initializing system...';
+      if (!user) return 'Loading user data...';
+      if (hasSponsor === null) return 'Checking sponsor status...';
+      return 'Loading...';
+    };
+
+    const getLoadingProgress = () => {
+      if (isLoading) return 20;
+      if (isInitializing) return miningProgress;
+      if (!user) return 60;
+      if (hasSponsor === null) return 80;
+      return 100;
+    };
+
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-black to-green-900">
-        <div className="text-center max-w-md mx-auto px-6">
-          <div className="mb-8">
-            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-green-500 to-green-700 flex items-center justify-center border-4 border-green-300 shadow-2xl">
-              <span className="text-3xl font-bold text-white">R</span>
-            </div>
-            <div className="mt-4">
-              <h1 className="text-2xl font-bold text-green-300">RhizaCore Mine</h1>
-              <p className="text-sm text-green-400">Decentralized Yield Protocol</p>
-            </div>
+      <div className="fixed inset-0 flex flex-col items-start justify-end pb-24 h-screen w-screen p-8 bg-black font-mono text-xs z-50">
+        {/* User status indicator */}
+        <div className="absolute top-6 right-6 text-rzc-green/60 text-xs font-mono">
+          SYSTEM_LOADING
+        </div>
+        
+        {/* Loading sequence */}
+        <div className="text-rzc-green/80 mb-2 animate-fadeIn">
+          <span className="mr-2 opacity-50">{`>`}</span>
+          {getLoadingMessage()}
+        </div>
+        
+        {/* Progress indicator */}
+        <div className="text-rzc-green/60 mb-2 text-xs">
+          <span className="mr-2 opacity-50">{`>`}</span>
+          Progress: {getLoadingProgress()}% Complete
+        </div>
+        
+        {/* Progress bar */}
+        <div className="w-full max-w-md mb-4">
+          <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-rzc-green to-green-400 transition-all duration-500 ease-out"
+              style={{ width: `${getLoadingProgress()}%` }}
+            />
           </div>
-          <div className="mb-6">
-            <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-500 ease-out"
-                style={{ width: `${miningProgress}%` }}
-              />
-            </div>
-            <div className="mt-2 text-sm text-gray-400">{miningProgress}% Complete</div>
-          </div>
-          <div className="flex justify-center space-x-1">
-             {[0, 1, 2].map((i) => (
-                <div key={i} className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
-             ))}
-          </div>
+        </div>
+        
+        {/* Animated cursor */}
+        <div className="text-rzc-green animate-pulse">_</div>
+        
+        {/* Background Grid */}
+        <div className="absolute inset-0 pointer-events-none opacity-5" 
+             style={{ 
+               backgroundImage: 'linear-gradient(#4ade80 1px, transparent 1px), linear-gradient(90deg, #4ade80 1px, transparent 1px)', 
+               backgroundSize: '30px 30px' 
+             }}>
         </div>
       </div>
     );
@@ -880,10 +823,15 @@ const IndexPageContent: FC = () => {
      return <OnboardingScreen />;
   }
 
-  // // Show sponsor gate
-  // if (showSponsorGate && (hasSponsor === false || hasSponsor === null) && user) {
-  //    return <SponsorGate onApplyCode={handleApplySponsorCode} isLoading={isApplying} />;
-  // }
+  // Show sponsor gate if user doesn't have a sponsor
+  if (showSponsorGate && user) {
+    return (
+      <SponsorGate
+        onApplyCode={handleApplySponsorCode}
+        isLoading={isApplying}
+      />
+    );
+  }
 
   const renderContent = () => {
     switch (activeBottomTab) {
@@ -920,7 +868,29 @@ const IndexPageContent: FC = () => {
         // onNavigateToReferralContest={() => setShowReferralContest(true)}
       />;
       case 'Wallet':
-        return <TonWallet/>;
+        return <NativeWalletUI
+                ref={arcadeRef}
+          balanceTon={user?.balance || 0}
+          tonPrice={tonPrice || 0}
+          currentEarningsTon={earningState?.currentEarnings || 0}
+          isClaiming={false}
+          claimCooldown={0}
+          cooldownText={''}
+          onClaim={() => {}}
+          // onOpenDeposit={[]}
+          potentialEarningsTon={0}
+          airdropBalanceNova={0}
+          totalWithdrawnTon={user?.total_withdrawn || 0}
+          activities={activities}
+          withdrawals={[]}
+          // isLoadingActivities={isLoadingActivities}
+          userId={user?.id}
+          userUsername={user?.username}
+          referralCode={userReferralCode}
+          estimatedDailyTapps={0}
+          showSnackbar={showSnackbar}
+          tonAddress={userFriendlyAddress}
+        />;
       
         case 'Friends':
           return <ReferralSystem />;
@@ -948,10 +918,7 @@ const IndexPageContent: FC = () => {
              }}>
         </div>
 
-        {showOnboarding ? (
-          <Onboarding onComplete={() => setShowOnboarding(false)} />
-        ) : (
-          <>
+        <>
         <Header/>
             
             <main className="flex-1 overflow-hidden relative z-10">
@@ -959,8 +926,7 @@ const IndexPageContent: FC = () => {
             </main>
             
             <BottomNav activeTab={activeBottomTab} onTabChange={setActiveBottomTab} />
-          </>
-        )}
+        </>
 
         {/* Snackbar Container */}
         {isSnackbarVisible && (

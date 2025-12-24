@@ -358,7 +358,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
         const [
           rzcBalance,
-          freeMining,
+          ,  // freeMining - unused
           miningCheck,
           activeSession,
           history,
@@ -845,10 +845,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
     const validateMiningState = async () => {
       try {
-        const [updatedBalance] = await Promise.all([
-          getUserRZCBalance(userId),
-          getFreeMiningStatus(userId)
-        ]);
+        const updatedBalance = await getUserRZCBalance(userId);
 
         setClaimableRZC(updatedBalance.claimableRZC);
         setTotalEarnedRZC(updatedBalance.totalEarned);
@@ -990,10 +987,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         // setSessionProgress(0);
         // setLastLiveUpdate('');
 
-        const [updatedBalance] = await Promise.all([
-          getUserRZCBalance(userId),
-          getFreeMiningStatus(userId)
-        ]);
+        const updatedBalance = await getUserRZCBalance(userId);
         
         setClaimableRZC(updatedBalance.claimableRZC);
         setTotalEarnedRZC(updatedBalance.totalEarned);

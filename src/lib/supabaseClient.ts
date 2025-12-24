@@ -28,7 +28,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
 export interface User {
   id: number;
   telegram_id: number;
-  wallet_address: string;
+  wallet_address: string | null;
   username?: string;
   created_at: string;
   balance: number;
