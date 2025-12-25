@@ -99,7 +99,7 @@ const NativeWalletUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
   // Derived Values
   const actualBalance = claimableRZC + (isMining ? accumulatedRZC : 0) + claimedRZC;
-  const totalUsd = actualBalance * 0.0025; // Estimated USD value
+  const totalUsd = actualBalance * 0.1; // Estimated USD value
 
   // --- EFFECTS (Data Fetching & Timers) ---
 

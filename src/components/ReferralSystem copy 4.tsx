@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import useAuth from '@/hooks/useAuth';
+import ReferralContest from './ReferralContest';
 import {
   Users,
   Copy,
   Check,
+  Trophy,
   Zap,
   Shield,
   Loader2,
@@ -20,6 +22,7 @@ const Icons = {
   Users,
   Copy,
   Check,
+  Trophy,
   Zap,
   Shield,
   Loader: Loader2,
@@ -52,8 +55,18 @@ interface ReferralWithUsers {
   total_sbt_earned: number;
 }
 
+interface SponsorStat {
+  sponsor_id: number;
+  username: string;
+  referral_count: number;
+  active_referrals: number;
+  total_earned: number;
+  total_deposit: number;
+}
+
 // --- Constants ---
 const ACTIVE_REFERRAL_REWARD = 50;
+const LEADERBOARD_REFRESH_INTERVAL = 30_000;
 
 // --- Helper ---
 const isRecentlyJoined = (dateString: string): boolean => {
@@ -72,9 +85,19 @@ const ReferralSystem = () => {
   const [, setUserActiveReferrals] = useState<number>(0);
   const [activeReferralReward, setActiveReferralReward] = useState<number>(0);
   
+  // Tabs & Views
+  const [activeTab, setActiveTab] = useState<'network' | 'leaderboard'>('network');
+  const [showReferralContest, setShowReferralContest] = useState(false);
+  
+  // Leaderboard
+  const [topReferrers, setTopReferrers] = useState<SponsorStat[]>([]);
+  const [isLoadingLeaderboards, setIsLoadingLeaderboards] = useState(false);
+  const [totalSponsors, setTotalSponsors] = useState(0);
+
   // Duplicates
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+//   const [isClearingDuplicates, setIsClearingDuplicates] = useState(false);
 
   // UI State
   const [copied, setCopied] = useState(false);
@@ -101,7 +124,7 @@ const ReferralSystem = () => {
 
   // --- Logic: Data Fetching ---
 
-  // Load User Referrals (My Network)
+  // 1. Load User Referrals (My Network)
   const loadUserReferrals = async () => {
     if (!user?.id) return;
     try {
@@ -126,6 +149,94 @@ const ReferralSystem = () => {
       console.error('Error loading referrals:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 2. Load Leaderboard (Enhanced with debugging)
+  const loadLeaderboard = async () => {
+    setIsLoadingLeaderboards(true);
+    console.log('🔄 Loading leaderboard...');
+    
+    try {
+      const { data: rawData, error } = await supabase
+        .from('referrals')
+        .select(`
+          sponsor_id,
+          status,
+          sponsor:users!sponsor_id(username, total_earned, total_deposit)
+        `)
+        .not('sponsor_id', 'is', null) 
+        .limit(10000); 
+
+      if (error) {
+          console.error('❌ Leaderboard query error:', error);
+          setTopReferrers([]);
+          return;
+      }
+
+      if (!rawData || rawData.length === 0) {
+          console.warn('⚠️ No referral data found');
+          setTopReferrers([]);
+          return;
+      }
+
+      console.log(`✅ Found ${rawData.length} referral records`);
+
+      // Debug: Check status distribution
+      const statusCounts = rawData.reduce((acc: any, curr: any) => {
+        const status = curr.status || 'null';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+      console.log('📊 Status distribution:', statusCounts);
+
+      // Aggregate counts strictly by sponsor_id
+      const counts = rawData.reduce((acc: { [key: string]: SponsorStat }, curr: any) => {
+        const id = curr.sponsor_id;
+        if (!id) return acc;
+
+        const sponsorData = Array.isArray(curr.sponsor) ? curr.sponsor[0] : curr.sponsor;
+
+        if (!acc[id]) {
+          acc[id] = {
+            sponsor_id: id,
+            username: sponsorData?.username || `User ${id}`, 
+            referral_count: 0,
+            active_referrals: 0,
+            total_earned: sponsorData?.total_earned || 0,
+            total_deposit: sponsorData?.total_deposit || 0,
+          };
+        }
+
+        acc[id].referral_count++;
+
+        // More robust status checking
+        const status = (curr.status || '').toString().toLowerCase().trim();
+        if (status === 'active') {
+            acc[id].active_referrals++;
+        }
+
+        return acc;
+      }, {});
+
+      const sortedStats = Object.values(counts)
+        .sort((a: SponsorStat, b: SponsorStat) => {
+            if (b.active_referrals !== a.active_referrals) {
+                return b.active_referrals - a.active_referrals;
+            }
+            return b.referral_count - a.referral_count;
+        })
+        .slice(0, 25);
+
+      console.log(`🏆 Top 5 leaderboard:`, sortedStats.slice(0, 5));
+      
+      setTotalSponsors(Object.keys(counts).length);
+      setTopReferrers(sortedStats);
+    } catch (error) {
+      console.error('❌ Error loading leaderboard:', error);
+      setTopReferrers([]);
+    } finally {
+      setIsLoadingLeaderboards(false);
     }
   };
 
@@ -186,7 +297,7 @@ const ReferralSystem = () => {
   };
 
   // --- Effects ---
-  useEffect(() => { loadUserReferrals(); }, [user?.id]);
+  useEffect(() => { loadUserReferrals(); loadLeaderboard(); }, [user?.id]);
   
   useEffect(() => {
       console.log('🔌 Setting up real-time subscription...');
@@ -197,6 +308,7 @@ const ReferralSystem = () => {
       }, (payload) => {
           console.log('📡 Real-time referral update:', payload);
           loadUserReferrals();
+          loadLeaderboard();
       }).subscribe((status) => {
           console.log('📡 Subscription status:', status);
       });
@@ -207,7 +319,32 @@ const ReferralSystem = () => {
       };
   }, [user?.id]);
 
+  useEffect(() => {
+      const interval = setInterval(loadLeaderboard, LEADERBOARD_REFRESH_INTERVAL);
+      return () => clearInterval(interval);
+  }, []);
+
+  // const handleCopy = () => {
+  //   navigator.clipboard.writeText(referralLink);
+  //   setCopied(true);
+  //   setTimeout(() => setCopied(false), 2000);
+  // };
+
   // --- Render ---
+
+  if (showReferralContest) {
+      return (
+          <div className="flex flex-col h-full w-full px-4 pt-4 pb-24">
+              <button onClick={() => setShowReferralContest(false)} className="text-gray-400 hover:text-white mb-4 flex items-center gap-2">
+                  ← Back to Network
+              </button>
+              <ReferralContest 
+                showSnackbar={(cfg) => console.log(cfg)} 
+                onClose={() => setShowReferralContest(false)} 
+              />
+          </div>
+      );
+  }
 
   return (
     <div className="flex flex-col h-full w-full px-4 pt-4 pb-24 overflow-y-auto no-scrollbar bg-black text-white relative responsive-padding">
@@ -308,7 +445,7 @@ const ReferralSystem = () => {
                  <button 
                     onClick={() => {
                         if (!user?.id) return;
-                        const shareText = "🚀 Join me on RhizaCore! Start mining RZC tokens with your phone and earn passive income. The future of decentralized mining is here! 💎⛏️";
+                        const shareText = "Join RhizaCore and start mining today! 🚀";
                         const fullUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
                         if ((window as any).Telegram?.WebApp) {
                             (window as any).Telegram.WebApp.openTelegramLink(fullUrl);
@@ -320,27 +457,67 @@ const ReferralSystem = () => {
                     className="flex-1 bg-green-500 text-black py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-green-400 transition-colors shadow-lg shadow-green-900/20 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                      <Icons.Share size={14} />
-                     Invite Friends
+                     Invite
+                 </button>
+                 <button 
+                    onClick={() => setShowReferralContest(true)}
+                    className="flex-1 bg-orange-500/10 text-orange-400 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-orange-500/20 hover:bg-orange-500/20 transition-colors active:scale-[0.98]"
+                 >
+                     <Icons.Trophy size={14} />
+                     Contest
                  </button>
              </div>
          </div>
       </div>
 
-      {/* Network Content */}
+      {/* Tabs */}
+      <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl mb-4 border border-white/5">
+          <button 
+            onClick={() => setActiveTab('network')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                activeTab === 'network' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+              My Network
+          </button>
+          <button 
+            onClick={() => setActiveTab('leaderboard')}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                activeTab === 'leaderboard' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+              Leaderboard
+          </button>
+      </div>
+
+      {/* List Content */}
       <div className="flex-1">
           <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-bold text-sm">
-                  Direct Invites ({userReferrals.length})
+                  {activeTab === 'network' ? `Direct Invites (${userReferrals.length})` : `Top Performers (${totalSponsors})`}
               </h3>
               <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-500 font-mono">Last 7 Days: {userReferrals.filter(r => isRecentlyJoined(r.created_at)).length}</span>
+                  {activeTab === 'network' && <span className="text-[10px] text-gray-500 font-mono">Last 7 Days: {userReferrals.filter(r => isRecentlyJoined(r.created_at)).length}</span>}
+                  {activeTab === 'leaderboard' && (
+                      <button 
+                          onClick={() => {
+                              console.log('🔄 Manual leaderboard refresh');
+                              loadLeaderboard();
+                          }}
+                          disabled={isLoadingLeaderboards}
+                          className={`text-gray-500 hover:text-white p-1 rounded transition-colors ${isLoadingLeaderboards ? "animate-spin text-green-400" : ""}`}
+                          title="Refresh Leaderboard"
+                      >
+                          <Icons.Refresh size={14} />
+                      </button>
+                  )}
               </div>
           </div>
 
           <div className="space-y-3 pb-6">
-              {isLoading ? (
+              {isLoading || isLoadingLeaderboards ? (
                   <div className="flex justify-center py-8"><Icons.Loader className="animate-spin text-green-400" /></div>
-              ) : (
+              ) : activeTab === 'network' ? (
                   /* My Network List */
                   userReferrals.length > 0 ? (
                       userReferrals.map((ref) => (
@@ -373,11 +550,37 @@ const ReferralSystem = () => {
                   ) : (
                       <div className="text-center py-8 text-gray-500 text-xs">No referrals yet. Invite friends to start earning!</div>
                   )
+              ) : (
+                  /* Leaderboard List */
+                  topReferrers.map((sponsor, idx) => (
+                      <div key={sponsor.sponsor_id} className="bg-zinc-900/50 border border-white/5 rounded-2xl p-3 flex items-center justify-between hover:bg-white/5 transition-colors">
+                          <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                                  idx < 3 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'bg-zinc-800 text-gray-400 border border-white/10'
+                              }`}>
+                                  #{idx + 1}
+                              </div>
+                              <div>
+                                  <div className="flex items-center gap-1.5">
+                                      <span className="text-white text-xs font-bold">{sponsor.username}</span>
+                                      {idx < 3 && <Icons.Trophy size={10} className="text-orange-400" />}
+                                  </div>
+                                  <span className="text-[9px] text-gray-500 font-mono">
+                                      Total Referrals: {sponsor.referral_count}
+                                  </span>
+                              </div>
+                          </div>
+                          <div className="text-right">
+                              <div className="text-white text-xs font-mono font-bold">{sponsor.active_referrals}</div>
+                              <div className="text-[9px] text-green-400 uppercase tracking-tighter">Active</div>
+                          </div>
+                      </div>
+                  ))
               )}
           </div>
 
           <div className="mt-2 p-4 rounded-xl bg-green-400/5 border border-dashed border-green-400/20 text-center">
-              <p className="text-[10px] text-gray-500 italic">"Invite friends to grow your mining network and earn 10% of their RZC rewards."</p>
+              <p className="text-[10px] text-gray-500 italic">"Refer more friends to climb the global leaderboard and unlock exclusive validator roles."</p>
           </div>
       </div>
 

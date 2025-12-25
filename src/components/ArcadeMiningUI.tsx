@@ -1778,14 +1778,68 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
 
       {/* Telegram Popup - preserved logic, simple render */}
       {showTelegramPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-           <div className="bg-gray-900 border border-green-500/30 rounded-2xl p-6 w-full max-w-sm">
-              <h3 className="text-xl font-bold text-white mb-2 text-center">Join Community</h3>
-              <p className="text-gray-400 text-sm mb-4 text-center">Stay updated with the latest news!</p>
-              <div className="flex flex-col gap-3">
-                 <a href="https://t.me/RhizaCore" target="_blank" rel="noreferrer" className="bg-blue-600 text-white py-2 rounded-lg text-center font-bold">Join Group</a>
-                 <button onClick={() => setShowTelegramPopup(false)} className="text-gray-500 text-sm">Close</button>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowTelegramPopup(false)}></div>
+           
+           <div className="bg-rzc-dark border-2 border-rzc-green/30 rounded-[2.5rem] p-8 w-full max-w-sm relative z-10 overflow-hidden shadow-[0_0_50px_rgba(74,222,128,0.2)]">
+              {/* Scanline Effect */}
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none opacity-20"></div>
+              
+              {/* Top Prize Badge */}
+              <div className="flex justify-center mb-6">
+                <div className="bg-rzc-green/10 border border-rzc-green/30 px-4 py-1 rounded-full">
+                    <span className="text-rzc-green text-[10px] font-bold tracking-[0.3em] uppercase">Genesis Protocol</span>
+                </div>
               </div>
+
+              {/* Central Icon */}
+              <div className="flex flex-col items-center mb-6">
+                 <div className="relative">
+                    <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 animate-pulse"></div>
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white relative shadow-xl transform rotate-3">
+                        <Icons.Telegram size={40} />
+                    </div>
+                 </div>
+                 <h3 className="text-2xl font-bold text-white mt-6 mb-2 text-center tracking-tight">1,000,000 RZC Pool</h3>
+                 <p className="text-gray-400 text-xs text-center leading-relaxed">
+                    Join the terminal community to validate your node and enter the <span className="text-rzc-green font-bold">Genesis Node Giveaway</span>.
+                 </p>
+              </div>
+
+              {/* Stats/Social Proof */}
+              <div className="bg-black/40 rounded-2xl p-4 mb-6 border border-white/5">
+                 <div className="flex justify-between items-center mb-2">
+                    <span className="text-[9px] text-gray-500 font-bold uppercase">Community Strength</span>
+                    <span className="text-rzc-green text-[9px] font-mono">1000+ ACTIVE</span>
+                 </div>
+                 <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-rzc-green w-[85%] animate-pulse"></div>
+                 </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                 <a 
+                    href="https://t.me/RhizaCore" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="group relative bg-white text-black py-4 rounded-2xl text-center font-bold tracking-widest text-xs uppercase overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
+                 >
+                    <div className="absolute inset-0 bg-rzc-green opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <span className="relative z-10 flex items-center justify-center gap-2">
+                        ENTER CONTEST <Icons.ChevronRight size={14} />
+                    </span>
+                 </a>
+                 <button 
+                    onClick={() => setShowTelegramPopup(false)} 
+                    className="text-gray-500 text-[10px] font-bold uppercase tracking-widest hover:text-white transition-colors"
+                 >
+                    Dismiss Terminal
+                 </button>
+              </div>
+
+              {/* Decorative corners */}
+              <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-rzc-green/20"></div>
+              <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-rzc-green/20"></div>
            </div>
         </div>
       )}
