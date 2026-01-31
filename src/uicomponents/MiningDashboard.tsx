@@ -27,7 +27,7 @@ export const MiningDashboard: React.FC<MiningDashboardProps> = ({ state, activeT
       // Calculate increment based on per-hour rate: rate / 3600000 * deltaTime (ms)
       const increment = (state.miningRatePerHour / 3600000) * deltaTime;
       if (state.isMining) {
-        setDisplayBalance(prev => prev + increment);
+        setDisplayBalance((prev: number) => prev + increment);
       }
     }
     previousTimeRef.current = time;

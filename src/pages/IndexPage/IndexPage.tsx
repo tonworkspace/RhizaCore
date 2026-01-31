@@ -1,5 +1,5 @@
-import { useTonConnectUI } from '@tonconnect/ui-react';
-import { toUserFriendlyAddress } from '@tonconnect/sdk';
+import { useTonAddress } from '@tonconnect/ui-react';
+// import { toUserFriendlyAddress } from '@tonconnect/sdk';
 import { FC, useState, useEffect, useRef, useCallback } from 'react';
 import { Snackbar, Button } from '@telegram-apps/telegram-ui';
 
@@ -8,47 +8,54 @@ import { Header } from '@/uicomponents/Header';
 import { I18nProvider } from '@/components/I18nProvider';
 import { BottomNav } from '@/uicomponents/BottomNav';
 // import { Onboarding } from '@/uicomponents/Onboarding';
-// import { Icons } from '@/uicomponents/Icons';
+import { Icons } from '@/uicomponents/Icons';
 import { OnboardingScreen } from './OnboardingScreen';
 import { SponsorGate } from '@/components/SponsorGate';
 // import { NFTMinter } from '@/components/NFTMinter';
 import ArcadeMiningUI, { ArcadeMiningUIHandle } from '@/components/ArcadeMiningUI';
+import StoreUI from '@/components/StoreUI';
+import AdminPanel from '@/components/AdminPanel';
+import { AdminAuthService } from '@/services/AdminAuthService';
 
 // Logic & Hooks Imports
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabaseClient';
 import { BottomTab } from '@/utils/types';
+import { SnackbarData } from '@/types';
 import SocialTasks from '@/components/SocialTasks';
 // import TonWallet from '@/components/TonWallet';
 import ReferralSystem from '@/components/ReferralSystem';
 import SettingsComponent from '@/components/SettingsComponent';
+// import { WalletView } from '@/components/WalletView';
+// import { AirdropView } from '@/components/AirdropView';
+// import { MiningState } from '@/types';
 import NativeWalletUI from '@/components/NativeWalletUI';
 
-type CardType = 'stats' | 'activity' | 'community';
+// type CardType = 'stats' | 'activity' | 'community';
 
-type ActivityType = 
-  | 'deposit' 
-  | 'withdrawal' 
-  | 'stake' 
-  | 'redeposit' 
-  | 'nova_reward' 
-  | 'nova_income'
-  | 'offline_reward'
-  | 'earnings_update'
-  | 'claim'
-  | 'transfer'
-  | 'reward'
-  | 'bonus'
-  | 'top_up';
+// type ActivityType = 
+//   | 'deposit' 
+//   | 'withdrawal' 
+//   | 'stake' 
+//   | 'redeposit' 
+//   | 'nova_reward' 
+//   | 'nova_income'
+//   | 'offline_reward'
+//   | 'earnings_update'
+//   | 'claim'
+//   | 'transfer'
+//   | 'reward'
+//   | 'bonus'
+//   | 'top_up';
 
-interface Activity {
-  id: string;
-  user_id: string;
-  type: ActivityType;
-  amount: number;
-  status: string;
-  created_at: string;
-}
+// interface Activity {
+//   id: string;
+//   user_id: string;
+//   type: ActivityType;
+//   amount: number;
+//   status: string;
+//   created_at: string;
+// }
 
 interface SnackbarConfig {
   message: string;
@@ -160,7 +167,7 @@ const loadOfflineEarnings = (userId: number | string): OfflineEarnings | null =>
   return stored ? JSON.parse(stored) : null;
 };
 
-const syncEarningsToDatabase = async (userId: number, telegramId: number | string, earnings: number) => {
+const syncEarningsToDatabase = async (userId: string, telegramId: number | string, earnings: number) => {
   try {
     const lastSync = localStorage.getItem(getUserSyncKey(telegramId));
     const now = Date.now();
@@ -194,21 +201,22 @@ const syncEarningsToDatabase = async (userId: number, telegramId: number | strin
 const IndexPageContent: FC = () => {
   // 1. Hooks & Basic State
   const { user, isLoading, error, updateUserData } = useAuth();
-  const [tonConnectUI] = useTonConnectUI();
+  // const [tonConnectUI] = useTonConnectUI(); // Commented out as unused
+  const tonAddress = useTonAddress();
   
   // Navigation State
-  const [activeBottomTab, setActiveBottomTab] = useState<BottomTab>('Mining');
+  const [activeBottomTab, setActiveBottomTab] = useState<BottomTab>('Wallet');
   // const [activeTopTab, setActiveTopTab] = useState<TopTab>('Mining');
-  const [activeCard] = useState<CardType>('stats');
+  // const [activeCard] = useState<CardType>('stats'); // Commented out since not used
   
   // // Data State
   // const [miningState, setMiningState] = useState<MiningState>(INITIAL_STATE);
   // const [walletBalance, setWalletBalance] = useState<string>('0');
-  const [userFriendlyAddress, setUserFriendlyAddress] = useState<string | null>(null);
+  // const [userFriendlyAddress, setUserFriendlyAddress] = useState<string | null>(null);
   const [tonPrice, setTonPrice] = useState(0);
   const [, setTonPriceChange] = useState(0);
   const [currentROI] = useState<number>(0.0306);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  // const [activities, setActivities] = useState<Activity[]>([]); // Commented out since not used in current implementation
   
   // Interaction State
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -216,6 +224,7 @@ const IndexPageContent: FC = () => {
   const [showSponsorGate, setShowSponsorGate] = useState(false);
   const [hasSponsor, setHasSponsor] = useState<boolean | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+  const [showSponsorAlert, setShowSponsorAlert] = useState(false);
   // const [isDepositing, setIsDepositing] = useState(false);
   // const [depositStatus, setDepositStatus] = useState('idle');
   // const [customAmount, setCustomAmount] = useState('');
@@ -233,6 +242,12 @@ const IndexPageContent: FC = () => {
   // const [isStakingCompleted, setIsStakingCompleted] = useState(false);
   // const [stakingProgress, setStakingProgress] = useState(0);
   const [claimCooldown, setClaimCooldown] = useState(0);
+  
+  // Wallet Activation State
+  const [walletActivated, setWalletActivated] = useState<boolean>(false);
+  
+  // Admin State
+  const [isUserAdmin, setIsUserAdmin] = useState<boolean>(false);
   
   // NFT
   // const [showNFTMinterModal, setShowNFTMinterModal] = useState(false);
@@ -255,6 +270,57 @@ const IndexPageContent: FC = () => {
     isActive: false,
   });
 
+  // Mining State for AirdropView
+  // const [miningState] = useState<MiningState>({
+  //   isMining: false,
+  //   balance: 0,
+  //   miningBalance: 0,
+  //   validatedBalance: 0,
+  //   miningRatePerHour: 0,
+  //   sessionStartTime: Date.now(),
+  //   sessionEndTime: Date.now() + 24 * 60 * 60 * 1000,
+  //   maxSessionDuration: 24 * 60 * 60 * 1000,
+  //   referralCode: null,
+  //   streak: 0,
+  //   claimStatus: 'idle',
+  //   claimTimestamp: undefined
+  // });
+
+  // Mining data state to share between ArcadeMiningUI and AirdropView
+  // const [miningData, setMiningData] = useState<{
+  //   isMining: boolean;
+  //   currentSession: any | null;
+  //   sessionCountdown: string;
+  //   accumulatedRZC: number;
+  //   claimableRZC: number;
+  //   claimedRZC: number;
+  //   totalEarnedRZC: number;
+  //   sessionDurationHours: number | null;
+  //   canStartMining: boolean;
+  //   miningRateMultiplier: number;
+  //   userUpgrades: {
+  //     miningRigMk2: boolean;
+  //     extendedSession: boolean;
+  //     passiveIncomeBoostLevel: number;
+  //   };
+  // }>({
+  //   isMining: false,
+  //   currentSession: null,
+  //   sessionCountdown: '--:--:--',
+  //   accumulatedRZC: 0,
+  //   claimableRZC: 0,
+  //   claimedRZC: 0,
+  //   totalEarnedRZC: 0,
+  //   sessionDurationHours: null,
+  //   canStartMining: false,
+  //   miningRateMultiplier: 1.0,
+  //   userUpgrades: {
+  //     miningRigMk2: false,
+  //     extendedSession: false,
+  //     passiveIncomeBoostLevel: 0
+  //   }
+  // });
+
   // --- Utility Functions (Inside Component) ---
 
   const showSnackbar = useCallback(({ message, description = '', duration = SNACKBAR_DURATION }: SnackbarConfig) => {
@@ -264,6 +330,20 @@ const IndexPageContent: FC = () => {
     setSnackbarVisible(true);
     snackbarTimeoutRef.current = setTimeout(() => setSnackbarVisible(false), duration);
   }, []);
+
+  // Compatible showSnackbar for StoreUI
+  const showSnackbarForStore = useCallback((data: SnackbarData) => {
+    showSnackbar({ message: data.message, description: data.description || '' });
+  }, [showSnackbar]);
+
+  // Handle wallet activation navigation
+  const handleActivateWallet = useCallback(() => {
+    setActiveBottomTab('Wallet');
+    showSnackbar({ 
+      message: 'Navigate to Wallet', 
+      description: 'Complete wallet activation to unlock the store' 
+    });
+  }, [showSnackbar]);
 
   const saveEarningState = (userId: number | string, state: LocalEarningState) => {
     try {
@@ -310,23 +390,26 @@ const IndexPageContent: FC = () => {
   }, [user?.id, user?.sponsor_id]);
 
   const handleApplySponsorCode = useCallback(async (sponsorCode: string) => {
-    if (!user?.id || !sponsorCode.trim()) return;
+    if (!user?.id || !sponsorCode.trim()) {
+      throw new Error('Invalid input');
+    }
+    
     try {
       setIsApplying(true);
       
       // Basic validation logic
       const codeNum = Number(sponsorCode);
       if (isNaN(codeNum)) {
-         showSnackbar({ message: 'Invalid Code', description: 'Must be numeric.' });
-         return;
+        showSnackbar({ message: 'Invalid Code', description: 'Must be numeric.' });
+        throw new Error('Invalid code format');
       }
       
       // Perform DB Lookup
       const { data: sponsor } = await supabase.from('users').select('id, username').or(`telegram_id.eq.${codeNum},id.eq.${codeNum}`).maybeSingle();
       
       if (!sponsor || sponsor.id === user.id) {
-          showSnackbar({ message: 'Invalid Sponsor', description: 'Cannot find user or self-referral.' });
-          return;
+        showSnackbar({ message: 'Invalid Sponsor', description: 'Cannot find user or self-referral.' });
+        throw new Error('Invalid sponsor');
       }
 
       await supabase.from('referrals').insert({ sponsor_id: sponsor.id, referred_id: user.id, status: 'active', created_at: new Date().toISOString() });
@@ -340,10 +423,20 @@ const IndexPageContent: FC = () => {
       showSnackbar({ message: 'Joined Team!', description: `Joined ${sponsor.username}'s team!` });
       setHasSponsor(true);
       setShowSponsorGate(false);
+      
+      // Show sponsor success alert
+      setShowSponsorAlert(true);
+      setTimeout(() => setShowSponsorAlert(false), 4000);
 
     } catch (e) {
       console.error(e);
-      showSnackbar({ message: 'Error', description: 'Failed to apply code.' });
+      if (e instanceof Error && (e.message === 'Invalid code format' || e.message === 'Invalid sponsor')) {
+        // Re-throw validation errors for SponsorGate to handle
+        throw e;
+      } else {
+        showSnackbar({ message: 'Error', description: 'Failed to apply code.' });
+        throw new Error('Failed to apply code');
+      }
     } finally {
       setIsApplying(false);
     }
@@ -402,18 +495,50 @@ const IndexPageContent: FC = () => {
       
       // Check Sponsor Status
       checkSponsorStatus();
+      
+      // Check Admin Status
+      checkAdminStatus();
     }
   }, [user, checkSponsorStatus]);
 
-  // 3. Wallet Address
-  useEffect(() => {
-    if (tonConnectUI.account) {
-      const rawAddress = tonConnectUI.account.address;
-      setUserFriendlyAddress(toUserFriendlyAddress(rawAddress));
-    } else {
-      setUserFriendlyAddress(null);
+  // Check admin status
+  const checkAdminStatus = useCallback(async () => {
+    if (!user?.id) {
+      setIsUserAdmin(false);
+      return;
     }
-  }, [tonConnectUI.account]);
+
+    try {
+      // Check environment variables first (for development)
+      const envAdminIds = process.env.VITE_SUPER_ADMIN_IDS?.split(',').map(id => parseInt(id.trim())) || [];
+      const envTelegramIds = process.env.VITE_SUPER_ADMIN_TELEGRAM_IDS?.split(',').map(id => parseInt(id.trim())) || [];
+      
+      const userIdNum = parseInt(user.id);
+      const userTelegramId = user.telegram_id;
+      
+      if (envAdminIds.includes(userIdNum) || (userTelegramId && envTelegramIds.includes(userTelegramId))) {
+        setIsUserAdmin(true);
+        return;
+      }
+
+      // Check database admin status
+      const adminStatus = await AdminAuthService.checkAdminStatus(userIdNum);
+      setIsUserAdmin(adminStatus.isAdmin);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsUserAdmin(false);
+    }
+  }, [user?.id, user?.telegram_id]);
+
+  // 3. Wallet Address (commented out since not used)
+  // useEffect(() => {
+  //   if (tonConnectUI.account) {
+  //     const rawAddress = tonConnectUI.account.address;
+  //     setUserFriendlyAddress(toUserFriendlyAddress(rawAddress));
+  //   } else {
+  //     setUserFriendlyAddress(null);
+  //   }
+  // }, [tonConnectUI.account]);
 
   // 4. Wallet Balance Polling
   // useEffect(() => {
@@ -452,45 +577,45 @@ const IndexPageContent: FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 6. Activities Fetching & Subscription
-  useEffect(() => {
-    const fetchActivities = async () => {
-      if (!user?.id) return;
-      try {
-        const { data, error } = await supabase
-          .from('activities')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
+  // 6. Activities Fetching & Subscription (commented out since not used)
+  // useEffect(() => {
+  //   const fetchActivities = async () => {
+  //     if (!user?.id) return;
+  //     try {
+  //       const { data, error } = await supabase
+  //         .from('activities')
+  //         .select('*')
+  //         .eq('user_id', user.id)
+  //         .order('created_at', { ascending: false })
+  //         .limit(10);
 
-        if (error) throw error;
-        setActivities(data || []);
-      } catch (error) {
-        console.error('Error fetching activities:', error);
-      }
-    };
+  //       if (error) throw error;
+  //       setActivities(data || []);
+  //     } catch (error) {
+  //       console.error('Error fetching activities:', error);
+  //     }
+  //   };
 
-    if (activeCard === 'activity' || activeBottomTab === 'Mining') {
-      fetchActivities();
-      const activitiesSubscription = supabase
-        .channel('activities-channel')
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'activities', filter: `user_id=eq.${user?.id}` },
-          (payload) => {
-            if (payload.eventType === 'INSERT') {
-              setActivities(prev => [payload.new as Activity, ...prev].slice(0, 10));
-            } else if (payload.eventType === 'UPDATE') {
-              setActivities(prev => prev.map(a => a.id === payload.new.id ? payload.new as Activity : a));
-            } else if (payload.eventType === 'DELETE') {
-              setActivities(prev => prev.filter(a => a.id !== payload.old.id));
-            }
-          }
-        )
-        .subscribe();
-      return () => { supabase.removeChannel(activitiesSubscription); };
-    }
-  }, [user?.id, activeCard, activeBottomTab]);
+  //   if (activeCard === 'activity' || activeBottomTab === 'Mining') {
+  //     fetchActivities();
+  //     const activitiesSubscription = supabase
+  //       .channel('activities-channel')
+  //       .on('postgres_changes', 
+  //         { event: '*', schema: 'public', table: 'activities', filter: `user_id=eq.${user?.id}` },
+  //         (payload) => {
+  //           if (payload.eventType === 'INSERT') {
+  //             setActivities(prev => [payload.new as Activity, ...prev].slice(0, 10));
+  //           } else if (payload.eventType === 'UPDATE') {
+  //             setActivities(prev => prev.map(a => a.id === payload.new.id ? payload.new as Activity : a));
+  //           } else if (payload.eventType === 'DELETE') {
+  //             setActivities(prev => prev.filter(a => a.id !== payload.old.id));
+  //           }
+  //         }
+  //       )
+  //       .subscribe();
+  //     return () => { supabase.removeChannel(activitiesSubscription); };
+  //   }
+  // }, [user?.id, activeCard, activeBottomTab]);
 
   // 7. Onboarding & Sponsor Fallback
   useEffect(() => {
@@ -614,7 +739,7 @@ const IndexPageContent: FC = () => {
           
           // Sync update back to server
           await supabase.from('user_earnings').upsert({
-            user_id: user.id,
+            user_id: user.id, // Keep as string since that's what the DB expects
             current_earnings: accumulatedEarnings,
             last_update: new Date(now).toISOString(),
             start_date: new Date(startDate).toISOString()
@@ -631,7 +756,7 @@ const IndexPageContent: FC = () => {
           };
           
           await supabase.from('user_earnings').insert({
-            user_id: user.id,
+            user_id: user.id, // Keep as string since that's what the DB expects
             current_earnings: localEarnings,
             last_update: new Date(now).toISOString(),
             start_date: new Date(now).toISOString()
@@ -731,6 +856,14 @@ const IndexPageContent: FC = () => {
     arcadeRef.current.refreshBalance();
   }
 };
+
+  // Remove unused callback
+  // const handleClaimAirdrop = useCallback((liquid: number, locked: number) => {
+  //   showSnackbar({
+  //     message: 'Airdrop Claimed!',
+  //     description: `Claimed ${liquid.toFixed(2)} liquid + ${locked.toFixed(2)} locked RZC`
+  //   });
+  // }, [showSnackbar]);
 
 
   // const handlePurchase = (cost: number, type: string): boolean => {
@@ -838,60 +971,56 @@ const IndexPageContent: FC = () => {
       case 'Mining':
         return (
           <ArcadeMiningUI
-          ref={arcadeRef}
-          balanceTon={user?.balance || 0}
-          tonPrice={tonPrice || 0}
-          currentEarningsTon={earningState?.currentEarnings || 0}
-          isClaiming={false}
-          claimCooldown={0}
-          cooldownText={''}
-          onClaim={() => {}}
-          // onOpenDeposit={[]}
-          potentialEarningsTon={0}
-          airdropBalanceNova={0}
-          totalWithdrawnTon={user?.total_withdrawn || 0}
-          activities={activities}
-          withdrawals={[]}
-          // isLoadingActivities={isLoadingActivities}
-          userId={user?.id}
-          userUsername={user?.username}
-          referralCode={userReferralCode}
-          estimatedDailyTapps={0}
-          showSnackbar={showSnackbar}
-        />
+            ref={arcadeRef}
+            balanceTon={user?.balance || 0}
+            tonPrice={tonPrice || 0}
+            currentEarningsTon={earningState?.currentEarnings || 0}
+            isClaiming={false}
+            claimCooldown={claimCooldown}
+            cooldownText={claimCooldown > 0 ? `${Math.floor(claimCooldown / 60)}:${String(claimCooldown % 60).padStart(2, '0')}` : ''}
+            onClaim={() => {}}
+            potentialEarningsTon={0}
+            airdropBalanceNova={0}
+            totalWithdrawnTon={0}
+            userId={user?.id ? parseInt(user.id) : undefined}
+            userUsername={user?.username}
+            referralCode={userReferralCode}
+            showSnackbar={showSnackbar}
+          />
         );
       case 'Task':
         return <SocialTasks 
         showSnackbar={showSnackbar}
-        userId={user?.id}
+        userId={user?.id ? parseInt(user.id) : undefined}
         onRewardClaimed={handleRewardClaimed}
         // onNavigateToReferralContest={() => setShowReferralContest(true)}
       />;
       case 'Wallet':
-        return <NativeWalletUI
-                ref={arcadeRef}
+        return   <NativeWalletUI
+          ref={arcadeRef}
           balanceTon={user?.balance || 0}
           tonPrice={tonPrice || 0}
-          currentEarningsTon={earningState?.currentEarnings || 0}
-          isClaiming={false}
-          claimCooldown={0}
-          cooldownText={''}
-          onClaim={() => {}}
-          // onOpenDeposit={[]}
-          potentialEarningsTon={0}
-          airdropBalanceNova={0}
-          totalWithdrawnTon={user?.total_withdrawn || 0}
-          activities={activities}
-          withdrawals={[]}
-          // isLoadingActivities={isLoadingActivities}
-          userId={user?.id}
+          userId={user?.id ? parseInt(user.id) : undefined}
           userUsername={user?.username}
           referralCode={userReferralCode}
-          estimatedDailyTapps={0}
           showSnackbar={showSnackbar}
-          tonAddress={userFriendlyAddress}
-        />;
+          totalEarnedRZC={earningState?.currentEarnings || 0}
+          onWalletActivationChange={setWalletActivated}
+          />;
       
+      case 'Store':
+        return <StoreUI
+          tonPrice={tonPrice || 0}
+          tonAddress={tonAddress}
+          showSnackbar={showSnackbarForStore}
+          walletActivated={walletActivated}
+          onActivateWallet={handleActivateWallet}
+          onPurchaseComplete={() => {
+            // Handle purchase completion if needed
+            showSnackbar({ message: 'Purchase Complete', description: 'Your purchase has been processed successfully!' });
+          }}
+        />;
+        
         case 'Friends':
           return <ReferralSystem />;
           
@@ -902,6 +1031,29 @@ const IndexPageContent: FC = () => {
         return (
           <SettingsComponent/>
         );
+
+      case 'Admin':
+        // Only show admin panel in development mode and if user is admin
+        if (process.env.NODE_ENV === 'development' && isUserAdmin) {
+          return <AdminPanel showSnackbar={showSnackbar} />;
+        }
+        // Show access denied message if not admin
+        if (process.env.NODE_ENV === 'development' && !isUserAdmin) {
+          return (
+            <div className="flex items-center justify-center min-h-[60vh] text-center p-6">
+              <div>
+                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Icons.Lock size={32} className="text-red-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Admin Access Required</h3>
+                <p className="text-zinc-400 mb-4">You need admin privileges to access this panel.</p>
+                <p className="text-sm text-zinc-500">Contact a super admin or check the setup guide.</p>
+              </div>
+            </div>
+          );
+        }
+        return null;
+
       default:
         return null;
     }
@@ -940,6 +1092,45 @@ const IndexPageContent: FC = () => {
                 {snackbarMessage}
             </Snackbar>
         )}
+
+        {/* Sponsor Success Alert */}
+        {showSponsorAlert && (
+          <div className="fixed top-20 left-4 right-4 z-50">
+            <div className="bg-green-500/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl text-center shadow-lg border border-green-400/30 animate-in slide-in-from-top-4 duration-300">
+              <div className="flex items-center justify-center gap-2">
+                <Icons.Check size={16} />
+                <span className="text-sm font-bold">Successfully Joined Team!</span>
+              </div>
+              <p className="text-xs opacity-90 mt-1">Welcome to your sponsor's squad</p>
+            </div>
+          </div>
+        )}
+
+        {/* CSS Styles for Animations */}
+        <style>{`
+          @keyframes slide-in-from-top-4 {
+            from {
+              transform: translateY(-1rem);
+              opacity: 0;
+            }
+            to {
+              transform: translateY(0);
+              opacity: 1;
+            }
+          }
+          
+          .animate-in {
+            animation-fill-mode: both;
+          }
+          
+          .slide-in-from-top-4 {
+            animation-name: slide-in-from-top-4;
+          }
+          
+          .duration-300 {
+            animation-duration: 300ms;
+          }
+        `}</style>
       </div>
       
     </div>

@@ -43,23 +43,33 @@ export const Header: React.FC<HeaderProps> = ({ user }) => {
         </div>
       </div>
       
-      <button className="flex items-center gap-1 bg-rzc-dark border border-rzc-green/30 rounded-xl px-3 py-1.5 text-xs font-mono text-rzc-green hover:bg-rzc-green/10 transition-colors">
-      <Icons.Globe size={14} />
-        <select
-          value={lang}
-          onChange={(e) => setLang(e.target.value as LangCode)}
-          className="bg-transparent text-green-300 text-sm font-medium border-none outline-none cursor-pointer"
-        >
-          <option value="en">EN</option>
-          <option value="es">ES</option>
-          <option value="fr">FR</option>
-          <option value="de">DE</option>
-          <option value="pt">PT</option>
-          <option value="ru">RU</option>
-          <option value="tr">TR</option>
-          <option value="ar">AR</option>
-        </select>
-      </button>
+      <div className="flex items-center gap-3">
+        {/* Development Mode Indicator */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/30 rounded-lg px-2 py-1">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+            <span className="text-red-400 text-xs font-mono font-bold">DEV</span>
+          </div>
+        )}
+        
+        <button className="flex items-center gap-1 bg-rzc-dark border border-rzc-green/30 rounded-xl px-3 py-1.5 text-xs font-mono text-rzc-green hover:bg-rzc-green/10 transition-colors">
+        <Icons.Globe size={14} />
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value as LangCode)}
+            className="bg-transparent text-green-300 text-sm font-medium border-none outline-none cursor-pointer"
+          >
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+            <option value="fr">FR</option>
+            <option value="de">DE</option>
+            <option value="pt">PT</option>
+            <option value="ru">RU</option>
+            <option value="tr">TR</option>
+            <option value="ar">AR</option>
+          </select>
+        </button>
+      </div>
     </div>
   );
 };

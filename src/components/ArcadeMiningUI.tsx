@@ -10,6 +10,8 @@ import {
   manualCompleteMiningSession,
   getUserRZCBalance,
   claimRZCRewards,
+  claimAllSeasonRZC,
+  createAirdropClaimRequest,
   getMiningHistory,
   getFreeMiningStatus,
   initializeFreeMiningPeriod,
@@ -20,7 +22,13 @@ import {
   MiningSession,
   generatePassiveIncome,
   // getPassiveIncomeBoostCost,
-  purchaseUpgrade
+  purchaseUpgrade,
+  getUserAirdropBalance,
+  claimTotalEarnedToAirdrop,
+  createAirdropWithdrawal,
+  getUserAirdropWithdrawals,
+  AirdropBalance,
+  AirdropWithdrawal
 } from '../lib/supabaseClient';
 import { Icons } from './Icon';
 
@@ -55,6 +63,23 @@ interface ArcadeMiningUIProps {
   referralCode?: string;
   estimatedDailyTapps?: number;
   showSnackbar?: (data: { message: string; description?: string }) => void;
+  onMiningDataUpdate?: (data: {
+    isMining: boolean;
+    currentSession: any | null;
+    sessionCountdown: string;
+    accumulatedRZC: number;
+    claimableRZC: number;
+    claimedRZC: number;
+    totalEarnedRZC: number;
+    sessionDurationHours: number | null;
+    canStartMining: boolean;
+    miningRateMultiplier: number;
+    userUpgrades: {
+      miningRigMk2: boolean;
+      extendedSession: boolean;
+      passiveIncomeBoostLevel: number;
+    };
+  }) => void;
 }
 
 export type ArcadeMiningUIHandle = {
@@ -77,7 +102,7 @@ export type ArcadeMiningUIHandle = {
 //   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 // };
 
-type TopTab = 'Mining' | 'Boost' | 'Rank' | 'Activity';
+type TopTab = 'Mining' | 'Boost' | 'Rank' | 'Activity' | 'Airdrop';
 
 const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(function ArcadeMiningUI(props, ref) {
   const { t } = useI18n();
@@ -90,9 +115,10 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     userUsername,
     referralCode,
     showSnackbar,
+    onMiningDataUpdate,
   } = props;
 
-  const [activeTab, setActiveTab] = useState<'mining' | 'activity' | 'upgrades' | 'leaderboard' | 'balances'>('mining');
+  const [activeTab, setActiveTab] = useState<'mining' | 'activity' | 'upgrades' | 'leaderboard' | 'balances' | 'airdrop'>('mining');
   const [sponsorCode, setSponsorCode] = useState<string | null>(null);
   const [, setSponsorInfo] = useState<SponsorInfo | null>(null);
   const [, setReferralStats] = useState<ReferralStats>({ active: 0, total: 0 });
@@ -106,7 +132,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   // const [lastLiveUpdate, setLastLiveUpdate] = useState('');
   const [accumulatedRZC, setAccumulatedRZC] = useState(0);
   const [claimableRZC, setClaimableRZC] = useState(0);
-  const [, setTotalEarnedRZC] = useState(0);
+  const [totalEarnedRZC, setTotalEarnedRZC] = useState(0);
   const [claimedRZC, setClaimedRZC] = useState(0);
   const [, setMiningHistory] = useState<MiningSession[]>([]);
   
@@ -153,8 +179,23 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
   const [lastClaimTime, setLastClaimTime] = useState<Date | null>(null);
   const [claimCooldownRemaining, setClaimCooldownRemaining] = useState(0);
   
+  const [showSeasonEndModal, setShowSeasonEndModal] = useState(false);
+  const [airdropWalletAddress, setAirdropWalletAddress] = useState('');
+  const [nodeAlias, setNodeAlias] = useState('');
+  const [isProcessingSeasonClaim, setIsProcessingSeasonClaim] = useState(false);
   const [showTelegramPopup, setShowTelegramPopup] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+
+  // Airdrop Balance System
+  const [airdropBalance, setAirdropBalance] = useState<AirdropBalance | null>(null);
+  const [airdropWithdrawals, setAirdropWithdrawals] = useState<AirdropWithdrawal[]>([]);
+  const [showAirdropModal, setShowAirdropModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawAddress, setWithdrawAddress] = useState('');
+  const [withdrawNetwork, setWithdrawNetwork] = useState('ethereum');
+  const [isProcessingAirdropClaim, setIsProcessingAirdropClaim] = useState(false);
+  const [isProcessingWithdraw, setIsProcessingWithdraw] = useState(false);
 
   const RZC_PER_DAY = 50;
   const RZC_PER_SECOND = (RZC_PER_DAY * miningRateMultiplier) / (24 * 60 * 60);
@@ -342,6 +383,27 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     }
   };
 
+  const loadAirdropBalance = async () => {
+    if (!userId) return;
+    
+    try {
+      const [balanceResult, withdrawalsResult] = await Promise.all([
+        getUserAirdropBalance(userId),
+        getUserAirdropWithdrawals(userId)
+      ]);
+
+      if (balanceResult.success && balanceResult.balance) {
+        setAirdropBalance(balanceResult.balance);
+      }
+
+      if (withdrawalsResult.success && withdrawalsResult.withdrawals) {
+        setAirdropWithdrawals(withdrawalsResult.withdrawals);
+      }
+    } catch (error) {
+      console.error('Error loading airdrop balance:', error);
+    }
+  };
+
   useEffect(() => {
     if (!userId) return;
 
@@ -355,6 +417,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         setSponsorCode(code);
 
         await loadUserUpgrades();
+        await loadAirdropBalance();
 
         const [
           rzcBalance,
@@ -813,6 +876,38 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     }
   }, [currentSession, sessionDurationHours, userUpgrades.extendedSession]);
 
+  // Update parent component with mining data changes
+  useEffect(() => {
+    if (onMiningDataUpdate) {
+      onMiningDataUpdate({
+        isMining,
+        currentSession,
+        sessionCountdown,
+        accumulatedRZC,
+        claimableRZC,
+        claimedRZC,
+        totalEarnedRZC,
+        sessionDurationHours,
+        canStartMining,
+        miningRateMultiplier,
+        userUpgrades
+      });
+    }
+  }, [
+    isMining,
+    currentSession,
+    sessionCountdown,
+    accumulatedRZC,
+    claimableRZC,
+    claimedRZC,
+    totalEarnedRZC,
+    sessionDurationHours,
+    canStartMining,
+    miningRateMultiplier,
+    userUpgrades,
+    onMiningDataUpdate
+  ]);
+
   const maybeAutoStartMining = async () => {
     if (!userId || isMining) return;
     try {
@@ -1023,6 +1118,28 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       return;
     }
 
+    // Import security service
+    const ClaimSecurityService = (await import('../services/ClaimSecurityService')).default;
+    const securityService = ClaimSecurityService.getInstance();
+
+    // Check user's security status
+    const securityStatus = securityService.getUserSecurityStatus(userId);
+    if (securityStatus.isBlocked) {
+      showSnackbar?.({
+        message: 'Account Temporarily Blocked',
+        description: `${securityStatus.blockReason}. Try again in ${Math.ceil(securityStatus.blockTimeRemaining! / 1000)} seconds.`
+      });
+      return;
+    }
+
+    if (securityStatus.isLocked) {
+      showSnackbar?.({
+        message: 'Claim In Progress',
+        description: 'Another claim operation is already in progress. Please wait.'
+      });
+      return;
+    }
+
     const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
 
     if (availableBalance <= 0) {
@@ -1042,6 +1159,15 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     }
 
     if (isClaiming) return;
+
+    // Prevent threshold claiming during manual claims
+    if (thresholdClaimingRef.current) {
+      showSnackbar?.({
+        message: 'Claim In Progress',
+        description: 'Automatic threshold claiming is in progress. Please wait.'
+      });
+      return;
+    }
 
     try {
       setIsLoadingBalance(true);
@@ -1069,6 +1195,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         return;
       }
 
+      // Handle accumulated RZC during mining
       if ((bulkClaim || claimSource === 'mining_session') && isMining && accumulatedRZC > 0) {
         try {
           const miningAmount = bulkClaim ? accumulatedRZC : amountToClaim;
@@ -1077,6 +1204,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
             type: 'mining_complete',
             amount: miningAmount,
             status: 'completed',
+            security_validated: true,
             created_at: new Date().toISOString()
           });
 
@@ -1091,6 +1219,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
         }
       }
 
+      // Use secure claiming function
       const result = await claimRZCRewards(userId, amountToClaim);
 
       if (result.success) {
@@ -1132,10 +1261,35 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
           }
         }, 1000);
       } else {
-        showSnackbar?.({
-          message: 'Claim Failed',
-          description: result.error || 'Failed to claim RZC rewards.'
-        });
+        // Handle specific security errors
+        if (result.error?.includes('blocked') || result.error?.includes('rate limit')) {
+          showSnackbar?.({
+            message: 'Security Alert',
+            description: result.error
+          });
+        } else if (result.error?.includes('already processed')) {
+          showSnackbar?.({
+            message: 'Claim Already Processed',
+            description: 'This claim has already been processed. Please refresh your balance.'
+          });
+          
+          // Refresh balance to show current state
+          setTimeout(async () => {
+            try {
+              const updatedBalance = await getUserRZCBalance(userId);
+              setClaimableRZC(updatedBalance.claimableRZC);
+              setTotalEarnedRZC(updatedBalance.totalEarned);
+              setClaimedRZC(updatedBalance.claimedRZC);
+            } catch (error) {
+              console.error('Error refreshing balance after duplicate claim:', error);
+            }
+          }, 500);
+        } else {
+          showSnackbar?.({
+            message: 'Claim Failed',
+            description: result.error || 'Failed to claim RZC rewards.'
+          });
+        }
       }
     } catch (error) {
       console.error('Error claiming rewards:', error);
@@ -1164,6 +1318,210 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       showSnackbar?.({ message: t('copy_success') });
     } catch (error) {
       showSnackbar?.({ message: t('copy_failed') });
+    }
+  };
+
+  const handleSeasonEndClaim = async () => {
+    if (!userId) return;
+    
+    setIsProcessingSeasonClaim(true);
+    try {
+      // First claim all available RZC
+      const claimResult = await claimAllSeasonRZC(userId);
+      
+      if (!claimResult.success) {
+        showSnackbar?.({
+          message: 'Season Claim Failed',
+          description: claimResult.error || 'Failed to claim season RZC'
+        });
+        return;
+      }
+
+      // If wallet address provided, create airdrop claim request
+      if (airdropWalletAddress.trim()) {
+        const airdropResult = await createAirdropClaimRequest(
+          userId, 
+          airdropWalletAddress.trim(), 
+          nodeAlias.trim() || undefined
+        );
+
+        if (airdropResult.success) {
+          showSnackbar?.({
+            message: 'Season End Claim Successful!',
+            description: `Claimed ${claimResult.totalClaimed?.toFixed(6)} RZC and created airdrop request. Check your activities for updates.`
+          });
+          setShowSeasonEndModal(false);
+          setAirdropWalletAddress('');
+          setNodeAlias('');
+        } else {
+          showSnackbar?.({
+            message: 'Partial Success',
+            description: `Claimed ${claimResult.totalClaimed?.toFixed(6)} RZC but failed to create airdrop request: ${airdropResult.error}`
+          });
+        }
+      } else {
+        showSnackbar?.({
+          message: 'Season RZC Claimed!',
+          description: `Successfully claimed ${claimResult.totalClaimed?.toFixed(6)} RZC to your account balance.`
+        });
+        setShowSeasonEndModal(false);
+      }
+
+      // Refresh balance
+      await fetchBalance();
+    } catch (error) {
+      console.error('Season end claim error:', error);
+      showSnackbar?.({
+        message: 'Season Claim Failed',
+        description: 'An unexpected error occurred during season end claim.'
+      });
+    } finally {
+      setIsProcessingSeasonClaim(false);
+    }
+  };
+
+  const handleClaimToAirdrop = async () => {
+    if (!userId) return;
+    
+    // Import security service
+    const ClaimSecurityService = (await import('../services/ClaimSecurityService')).default;
+    const securityService = ClaimSecurityService.getInstance();
+
+    // Check user's security status
+    const securityStatus = securityService.getUserSecurityStatus(userId);
+    if (securityStatus.isBlocked) {
+      showSnackbar?.({
+        message: 'Account Temporarily Blocked',
+        description: `${securityStatus.blockReason}. Try again in ${Math.ceil(securityStatus.blockTimeRemaining! / 1000)} seconds.`
+      });
+      return;
+    }
+
+    if (securityStatus.isLocked) {
+      showSnackbar?.({
+        message: 'Claim In Progress',
+        description: 'Another claim operation is already in progress. Please wait.'
+      });
+      return;
+    }
+    
+    setIsProcessingAirdropClaim(true);
+    try {
+      const result = await claimTotalEarnedToAirdrop(userId);
+      
+      if (result.success) {
+        showSnackbar?.({
+          message: 'Claimed to Airdrop Balance!',
+          description: `Successfully claimed ${result.claimedAmount?.toFixed(6)} RZC to your airdrop balance.`
+        });
+        
+        // Refresh all balances to reflect the reset
+        const updatedBalance = await getUserRZCBalance(userId);
+        setClaimableRZC(updatedBalance.claimableRZC);
+        setTotalEarnedRZC(updatedBalance.totalEarned);
+        setClaimedRZC(updatedBalance.claimedRZC);
+        
+        // Reset accumulated RZC if currently mining (since it's been moved to airdrop)
+        if (isMining) {
+          setAccumulatedRZC(0);
+          setLastClaimDuringMining(new Date()); // Mark as claimed during mining
+        }
+        
+        // Refresh airdrop balance
+        await loadAirdropBalance();
+        setShowAirdropModal(false);
+      } else {
+        // Handle specific security errors
+        if (result.error?.includes('blocked') || result.error?.includes('rate limit')) {
+          showSnackbar?.({
+            message: 'Security Alert',
+            description: result.error
+          });
+        } else if (result.error?.includes('already processed')) {
+          showSnackbar?.({
+            message: 'Claim Already Processed',
+            description: 'This airdrop claim has already been processed. Please refresh your balance.'
+          });
+          
+          // Refresh balances to show current state
+          setTimeout(async () => {
+            try {
+              const updatedBalance = await getUserRZCBalance(userId);
+              setClaimableRZC(updatedBalance.claimableRZC);
+              setTotalEarnedRZC(updatedBalance.totalEarned);
+              setClaimedRZC(updatedBalance.claimedRZC);
+              await loadAirdropBalance();
+            } catch (error) {
+              console.error('Error refreshing balance after duplicate airdrop claim:', error);
+            }
+          }, 500);
+        } else {
+          showSnackbar?.({
+            message: 'Claim Failed',
+            description: result.error || 'Failed to claim to airdrop balance'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Airdrop claim error:', error);
+      showSnackbar?.({
+        message: 'Claim Failed',
+        description: 'An unexpected error occurred while claiming to airdrop balance.'
+      });
+    } finally {
+      setIsProcessingAirdropClaim(false);
+    }
+  };
+
+  const handleWithdrawFromAirdrop = async () => {
+    if (!userId || !withdrawAmount || !withdrawAddress) return;
+    
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      showSnackbar?.({
+        message: 'Invalid Amount',
+        description: 'Please enter a valid withdrawal amount.'
+      });
+      return;
+    }
+
+    if (!airdropBalance || airdropBalance.available_balance < amount) {
+      showSnackbar?.({
+        message: 'Insufficient Balance',
+        description: 'Not enough balance in your airdrop account.'
+      });
+      return;
+    }
+    
+    setIsProcessingWithdraw(true);
+    try {
+      const result = await createAirdropWithdrawal(userId, amount, withdrawAddress, withdrawNetwork);
+      
+      if (result.success) {
+        showSnackbar?.({
+          message: 'Withdrawal Request Created!',
+          description: `Your withdrawal of ${amount.toFixed(6)} RZC has been submitted for processing.`
+        });
+        
+        // Refresh airdrop balance and withdrawals
+        await loadAirdropBalance();
+        setShowWithdrawModal(false);
+        setWithdrawAmount('');
+        setWithdrawAddress('');
+      } else {
+        showSnackbar?.({
+          message: 'Withdrawal Failed',
+          description: result.error || 'Failed to create withdrawal request'
+        });
+      }
+    } catch (error) {
+      console.error('Withdrawal error:', error);
+      showSnackbar?.({
+        message: 'Withdrawal Failed',
+        description: 'An unexpected error occurred while creating withdrawal request.'
+      });
+    } finally {
+      setIsProcessingWithdraw(false);
     }
   };
 
@@ -1344,7 +1702,26 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       thresholdClaimingRef.current = true;
       (async () => {
         try {
+          // Import security service for threshold claiming
+          const ClaimSecurityService = (await import('../services/ClaimSecurityService')).default;
+          const securityService = ClaimSecurityService.getInstance();
+
+          // Check user's security status before threshold claiming
+          const securityStatus = securityService.getUserSecurityStatus(userId);
+          if (securityStatus.isBlocked || securityStatus.isLocked) {
+            console.log('Threshold claiming blocked due to security restrictions:', securityStatus);
+            return;
+          }
+
+          // Record this as an automatic threshold claim attempt
+          securityService.recordClaimAttempt(userId, accumulatedRZC, 'threshold_claim', false);
+
           await claimRewards();
+          
+          // Update the attempt record to successful
+          securityService.recordClaimAttempt(userId, accumulatedRZC, 'threshold_claim', true);
+        } catch (error) {
+          console.error('Error in threshold claiming:', error);
         } finally {
           thresholdClaimingRef.current = false;
         }
@@ -1352,12 +1729,13 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
     }
   }, [userId, isMining, accumulatedRZC, claimCooldownRemaining, isClaiming, isLoadingBalance, claimableRZC]);
 
-  const mapTabToInternal = (tab: TopTab): 'mining' | 'upgrades' | 'leaderboard' | 'activity' => {
+  const mapTabToInternal = (tab: TopTab): 'mining' | 'upgrades' | 'leaderboard' | 'activity' | 'airdrop' => {
     switch (tab) {
       case 'Mining': return 'mining';
       case 'Boost': return 'upgrades';
       case 'Rank': return 'leaderboard';
       case 'Activity': return 'activity';
+      case 'Airdrop': return 'airdrop';
       default: return 'mining';
     }
   };
@@ -1372,6 +1750,7 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       case 'upgrades': return 'Boost';
       case 'leaderboard': return 'Rank';
       case 'activity': return 'Activity';
+      case 'airdrop': return 'Airdrop';
       default: return 'Mining';
     }
   };
@@ -1383,24 +1762,25 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
       
       {/* Top Tabs */}
       <div className="mx-4 mt-2 bg-rzc-gray/30 rounded-2xl p-1 flex justify-between items-center border border-white/5 backdrop-blur-sm">
-        {(['Mining', 'Boost', 'Rank', 'Activity'] as TopTab[]).map((tab) => {
+        {(['Mining', 'Boost', 'Rank', 'Activity', 'Airdrop'] as TopTab[]).map((tab) => {
            let Icon = Icons.Energy;
            if (tab === 'Boost') Icon = Icons.Boost;
            if (tab === 'Rank') Icon = Icons.Rank;
-           if (tab === 'Activity') Icon = Icons.History; // Assuming History icon exists or fallback
+           if (tab === 'Activity') Icon = Icons.History;
+           if (tab === 'Airdrop') Icon = Icons.Wallet;
 
            const isActive = activeTopTab === tab;
            return (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
-              className={`flex items-center justify-center gap-2 flex-1 py-2 rounded-xl text-xs font-medium transition-all duration-300 ${
+              className={`flex items-center justify-center gap-1 flex-1 py-2 rounded-xl text-[10px] font-medium transition-all duration-300 ${
                 isActive 
                   ? 'bg-rzc-dark text-rzc-green shadow-lg border border-rzc-green/20' 
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={12} />
               {tab}
             </button>
            );
@@ -1500,15 +1880,36 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
                 <p className="text-gray-500 font-mono text-xs mt-1">Session: {sessionCountdown}</p>
             </div>
 
-            {/* Stats Card */}
+            {/* Stats Card - Simplified to show direct flow */}
             <div className="w-full bg-rzc-dark border border-rzc-gray rounded-2xl p-5 mb-6">
                 <div className="flex justify-between items-center mb-3">
-                    <span className="text-rzc-green text-sm font-medium">Mining:</span>
+                    <span className="text-rzc-green text-sm font-medium">Current Mining:</span>
                     <span className="text-white font-mono font-bold">{(isMining ? accumulatedRZC : 0).toFixed(6)} RZC</span>
                 </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-purple-400 text-sm font-medium">Validated:</span>
-                    <span className="text-white font-mono font-bold">{claimedRZC.toFixed(6)} RZC</span>
+                <div className="flex justify-between items-center mb-3">
+                    <span className="text-blue-400 text-sm font-medium">Pending Claim:</span>
+                    <span className="text-white font-mono font-bold">{claimableRZC.toFixed(6)} RZC</span>
+                </div>
+                <div className="flex justify-between items-center mb-3">
+                    <span className="text-orange-400 text-sm font-medium">Total Earned:</span>
+                    <span className="text-orange-300 font-mono font-bold">{totalEarnedRZC.toFixed(6)} RZC</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-700/50 pt-3">
+                    <span className="text-emerald-400 text-sm font-medium">Airdrop Balance:</span>
+                    <span className="text-emerald-300 font-mono font-bold">{(airdropBalance?.available_balance || 0).toFixed(6)} RZC</span>
+                </div>
+                
+                {/* Total Claimable Indicator */}
+                <div className="mt-4 pt-3 border-t border-emerald-500/20 bg-emerald-500/5 rounded-lg p-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-emerald-300 text-sm font-bold">Ready to Claim:</span>
+                        <span className="text-emerald-200 font-mono font-bold text-lg">
+                            {((isMining ? accumulatedRZC : 0) + claimableRZC + claimedRZC + totalEarnedRZC).toFixed(6)} RZC
+                        </span>
+                    </div>
+                    <div className="text-center text-emerald-400/80 text-xs mt-1">
+                        → Direct to Airdrop Balance
+                    </div>
                 </div>
             </div>
 
@@ -1539,14 +1940,210 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
               </button>
             )}
 
-            {/* Claim Button - Only visible if there are rewards
-            {(claimableRZC > 0 || (isMining && accumulatedRZC > 0)) && !isMining && (
+            {/* Direct Claim to Airdrop Button - Simplified Flow */}
+            <button 
+              onClick={async () => {
+                if (!userId) {
+                  showSnackbar?.({
+                    message: 'Error',
+                    description: 'User not found.'
+                  });
+                  return;
+                }
+
+                setIsProcessingAirdropClaim(true);
+                
+                try {
+                  // Step 1: Complete any active mining session first
+                  if (isMining && accumulatedRZC > 0) {
+                    const { error: activityError } = await supabase.from('activities').insert({
+                      user_id: userId,
+                      type: 'mining_complete',
+                      amount: accumulatedRZC,
+                      status: 'completed',
+                      created_at: new Date().toISOString()
+                    });
+
+                    if (activityError) throw activityError;
+                  }
+
+                  // Step 2: Claim any pending claimable RZC to validated balance first
+                  const currentClaimable = claimableRZC + (isMining ? accumulatedRZC : 0);
+                  if (currentClaimable > 0) {
+                    const claimResult = await claimRZCRewards(userId, currentClaimable);
+                    if (!claimResult.success) {
+                      throw new Error(claimResult.error || 'Failed to claim mining rewards');
+                    }
+                  }
+
+                  // Step 3: Now transfer total earned to airdrop balance
+                  const airdropResult = await claimTotalEarnedToAirdrop(userId);
+                  
+                  if (!airdropResult.success) {
+                    // Check if this is because everything is already claimed to airdrop
+                    if (airdropResult.error?.includes('No new RZC to claim to airdrop balance')) {
+                      // Check if user has any current mining/claimable balance
+                      const currentAvailable = claimableRZC + (isMining ? accumulatedRZC : 0) + claimedRZC;
+                      
+                      if (currentAvailable > 0) {
+                        // User has some balance but it's already been claimed to airdrop
+                        showSnackbar?.({
+                          message: 'Already Claimed to Airdrop ✅',
+                          description: 'Your RZC has already been moved to airdrop balance. Check the Airdrop tab to withdraw!'
+                        });
+                        
+                        // Still reset the mining balances for fresh start
+                        setClaimableRZC(0);
+                        setAccumulatedRZC(0);
+                        setClaimedRZC(0);
+                        setTotalEarnedRZC(0);
+                        setLastClaimDuringMining(null);
+                        
+                        // Refresh balances
+                        const [updatedBalance] = await Promise.all([
+                          getUserRZCBalance(userId),
+                          loadAirdropBalance()
+                        ]);
+                        
+                        setClaimableRZC(updatedBalance.claimableRZC);
+                        setTotalEarnedRZC(updatedBalance.totalEarned);
+                        setClaimedRZC(updatedBalance.claimedRZC);
+                        
+                        updateClaimedRZC(updatedBalance.claimedRZC);
+                        updateMiningBalance(updatedBalance.claimableRZC);
+                        
+                        return; // Exit successfully
+                      } else {
+                        throw new Error('No RZC to claim. Start mining to earn RZC first!');
+                      }
+                    } else {
+                      throw new Error(airdropResult.error || 'Failed to transfer RZC to airdrop balance');
+                    }
+                  }
+
+                  const transferredAmount = airdropResult.claimedAmount || 0;
+
+                  // Step 4: Reset ALL mining balances for fresh start
+                  setClaimableRZC(0);
+                  setAccumulatedRZC(0);
+                  setClaimedRZC(0);
+                  setTotalEarnedRZC(0);
+                  setLastClaimDuringMining(null);
+
+                  // Step 5: Refresh balances from database to ensure accuracy
+                  const [updatedBalance] = await Promise.all([
+                    getUserRZCBalance(userId),
+                    loadAirdropBalance()
+                  ]);
+                  
+                  // Update local states with fresh data
+                  setClaimableRZC(updatedBalance.claimableRZC);
+                  setTotalEarnedRZC(updatedBalance.totalEarned);
+                  setClaimedRZC(updatedBalance.claimedRZC);
+                  
+                  // Update context for parent components
+                  updateClaimedRZC(updatedBalance.claimedRZC);
+                  updateMiningBalance(updatedBalance.claimableRZC);
+
+                  // Success feedback
+                  playSound('claim');
+                  triggerCelebration();
+
+                  showSnackbar?.({
+                    message: 'All RZC Claimed to Airdrop! 🎉',
+                    description: `${transferredAmount.toFixed(6)} RZC moved to Airdrop Balance. Mining reset for fresh start!`
+                  });
+
+                } catch (error) {
+                  console.error('Claim error:', error);
+                  showSnackbar?.({
+                    message: 'Claim Failed',
+                    description: error instanceof Error ? error.message : 'An unexpected error occurred during the claim process.'
+                  });
+                } finally {
+                  setIsProcessingAirdropClaim(false);
+                }
+              }}
+              disabled={(() => {
+                const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
+                const hasAnyBalance = availableBalance > 0 || claimedRZC > 0 || totalEarnedRZC > 0;
+                
+                return isClaiming || isProcessingAirdropClaim || isLoadingBalance || !hasAnyBalance;
+              })()}
+              className="w-full sm:w-2/3 bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-500 hover:via-green-500 hover:to-teal-500 border border-emerald-400/50 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] py-3 rounded-lg text-xs font-bold tracking-widest flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {(isClaiming || isProcessingAirdropClaim) ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span>CLAIMING...</span>
+                </div>
+              ) : (
+                <>
+                  <Icons.Wallet size={16} />
+                  {(() => {
+                    const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
+                    const totalVisible = availableBalance + claimedRZC + totalEarnedRZC;
+                    
+                    if (totalVisible > 0) {
+                      // Show the total that user can see, even if some might already be in airdrop
+                      return `CLAIM ALL ${totalVisible.toFixed(4)} RZC`;
+                    } else {
+                      return `CLAIM TO AIRDROP`;
+                    }
+                  })()}
+                </>
+              )}
+            </button>
+
+            {/* Simplified Flow Indicator - Direct to Airdrop */}
+            <div className="w-full sm:w-2/3 mb-6">
+              {(() => {
+                const availableBalance = claimableRZC + (isMining ? accumulatedRZC : 0);
+                const totalVisible = availableBalance + claimedRZC + totalEarnedRZC;
+                
+                if (totalVisible > 0) {
+                  return (
+                    <div className="bg-gray-900/50 border border-gray-700/50 rounded-lg p-3">
+                      <div className="text-center text-xs text-gray-400 mb-2">Direct Claim Flow</div>
+                      <div className="flex items-center justify-center gap-2 text-xs">
+                        <div className="flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20">
+                          <Icons.Energy size={10} />
+                          <span>All Mining RZC</span>
+                        </div>
+                        <Icons.ChevronRight size={12} className="text-gray-500" />
+                        <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20">
+                          <Icons.Wallet size={10} />
+                          <span>Airdrop Balance</span>
+                        </div>
+                      </div>
+                      <div className="text-center text-xs text-gray-500 mt-2">
+                        {totalVisible.toFixed(4)} RZC will be processed for airdrop
+                      </div>
+                      <div className="text-center text-xs text-gray-600 mt-1">
+                        ✨ One click processes everything and resets mining
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            {/* Season End Claim Button - Special button for final claims
+            {(claimableRZC > 0 || (isMining && accumulatedRZC > 0) || claimedRZC > 0) && (
                <button 
-               onClick={() => claimRewards(true)}
-               disabled={isClaiming || isLoadingBalance}
-               className="w-full sm:w-2/3 bg-blue-600/20 border border-blue-500/50 text-blue-400 hover:bg-blue-600/30 py-3 rounded-lg text-xs font-bold tracking-widest flex items-center justify-center gap-2 mb-6 transition-all"
+               onClick={() => setShowSeasonEndModal(true)}
+               disabled={isProcessingSeasonClaim}
+               className="w-full sm:w-2/3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 border border-orange-400/50 text-white shadow-[0_0_20px_rgba(251,146,60,0.3)] py-3 rounded-lg text-xs font-bold tracking-widest flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
              >
-               {isClaiming ? 'CLAIMING...' : `CLAIM ${((isMining ? accumulatedRZC : 0) + claimableRZC).toFixed(4)} RZC`}
+               {isProcessingSeasonClaim ? (
+                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+               ) : (
+                 <>
+                   <Icons.Rank size={16} />
+                   SEASON END CLAIM
+                 </>
+               )}
              </button>
             )} */}
 
@@ -1750,6 +2347,235 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
            </div>
         )}
 
+        {activeTab === 'airdrop' && (
+           <div className="w-full space-y-4">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold text-white mb-2">Airdrop Balance</h2>
+                <p className="text-gray-400 text-sm">Manage your airdrop balance and withdrawals</p>
+              </div>
+              
+              {/* Airdrop Balance Card */}
+              <div className="w-full bg-rzc-dark border border-rzc-gray rounded-2xl p-5 mb-6">
+                 <div className="text-center mb-4">
+                    <div className="text-3xl font-bold text-purple-400 mb-2">
+                       {airdropBalance ? airdropBalance.available_balance.toFixed(6) : '0.000000'}
+                    </div>
+                    <div className="text-gray-400 text-sm">Available for Withdrawal</div>
+                 </div>
+                 
+                 <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                       <span className="text-gray-400 text-sm">Total Claimed to Airdrop:</span>
+                       <span className="text-white font-mono">
+                          {airdropBalance ? airdropBalance.total_claimed_to_airdrop.toFixed(6) : '0.000000'} RZC
+                       </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="text-gray-400 text-sm">Migrated to Mainnet:</span>
+                       <span className="text-white font-mono">
+                          {airdropBalance ? airdropBalance.withdrawn_balance.toFixed(6) : '0.000000'} RZC
+                       </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                       <span className="text-gray-400 text-sm">Claimed RZC (Mining):</span>
+                       <span className="text-green-400 font-mono">
+                          {claimedRZC.toFixed(6)} RZC
+                       </span>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Mainnet Checklist */}
+              <div className="w-full bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-2xl p-5 mb-6">
+                 <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                       <Icons.Check size={16} className="text-white" />
+                    </div>
+                    <h3 className="text-lg font-bold text-white">Mainnet Readiness Checklist</h3>
+                 </div>
+                 
+                 <div className="space-y-3">
+                    {/* Checklist Items */}
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
+                       <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                          totalEarnedRZC > 0 ? 'bg-green-500' : 'bg-gray-600'
+                       }`}>
+                          {totalEarnedRZC > 0 ? (
+                             <Icons.Check size={12} className="text-white" />
+                          ) : (
+                             <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          )}
+                       </div>
+                       <div className="flex-1">
+                          <div className="text-white text-sm font-medium">Unverifed Balance</div>
+                          <div className="text-gray-400 text-xs">
+                             {totalEarnedRZC > 0 ? `${totalEarnedRZC.toFixed(4)} RZC` : 'Start mining to earn RZC tokens'}
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
+                       <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                          airdropBalance && airdropBalance.total_claimed_to_airdrop > 0 ? 'bg-green-500' : 'bg-gray-600'
+                       }`}>
+                          {airdropBalance && airdropBalance.total_claimed_to_airdrop > 0 ? (
+                             <Icons.Check size={12} className="text-white" />
+                          ) : (
+                             <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          )}
+                       </div>
+                       <div className="flex-1">
+                          <div className="text-white text-sm font-medium">Transferable Balance</div>
+                          <div className="text-gray-400 text-xs">
+                             {airdropBalance && airdropBalance.total_claimed_to_airdrop > 0 
+                                ? `${airdropBalance.total_claimed_to_airdrop.toFixed(4)} RZC` 
+                                : 'Move your earned RZC to airdrop balance'
+                             }
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
+                       <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                          referralCode ? 'bg-green-500' : 'bg-gray-600'
+                       }`}>
+                          {referralCode ? (
+                             <Icons.Check size={12} className="text-white" />
+                          ) : (
+                             <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          )}
+                       </div>
+                       <div className="flex-1">
+                          <div className="text-white text-sm font-medium">Sponsor Code</div>
+                          <div className="text-gray-400 text-xs">
+                             {referralCode ? `${referralCode}` : 'Generate your unique referral code'}
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
+                       <div className="w-5 h-5 rounded-full flex items-center justify-center bg-yellow-500">
+                          <Icons.Calendar size={12} className="text-white" />
+                       </div>
+                       <div className="flex-1">
+                          <div className="text-white text-sm font-medium">Mainnet Launch</div>
+                          <div className="text-gray-400 text-xs">
+                             🚀 Coming Soon - Stay tuned for mainnet announcement
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
+                       <div className="w-5 h-5 rounded-full flex items-center justify-center bg-gray-600">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                       </div>
+                       <div className="flex-1">
+                          <div className="text-white text-sm font-medium">Token Distribution</div>
+                          <div className="text-gray-400 text-xs">
+                             Automatic distribution to eligible wallets after mainnet
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Progress Bar */}
+                 <div className="mt-4 pt-4 border-t border-white/10">
+                    <div className="flex items-center justify-between mb-2">
+                       <span className="text-gray-400 text-sm">Readiness Progress</span>
+                       <span className="text-white text-sm font-bold">
+                          {(() => {
+                             let completed = 0;
+                             if (totalEarnedRZC > 0) completed++;
+                             if (airdropBalance && airdropBalance.total_claimed_to_airdrop > 0) completed++;
+                             if (referralCode) completed++;
+                             return `${completed}/3`;
+                          })()}
+                       </span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                       <div 
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+                          style={{ 
+                             width: `${(() => {
+                                let completed = 0;
+                                if (totalEarnedRZC > 0) completed++;
+                                if (airdropBalance && airdropBalance.total_claimed_to_airdrop > 0) completed++;
+                                if (referralCode) completed++;
+                                return (completed / 3) * 100;
+                             })()}%` 
+                          }}
+                       ></div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                 {(totalEarnedRZC > 0 || claimableRZC > 0 || (isMining && accumulatedRZC > 0) || claimedRZC > 0) && (
+                    <button 
+                    onClick={() => {
+                      // Switch to mining tab and trigger the main claim flow
+                      setActiveTab('mining');
+                      showSnackbar?.({
+                        message: 'Switched to Mining Tab',
+                        description: 'Use the main CLAIM button to move all RZC to airdrop balance'
+                      });
+                    }}
+                    className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 border border-purple-400/50 text-white shadow-[0_0_20px_rgba(147,51,234,0.3)] py-3 rounded-lg text-sm font-bold tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                  >
+                    <Icons.Wallet size={16} />
+                    GO TO MINING TAB TO CLAIM
+                  </button>
+                 )}
+                 
+                 {airdropBalance && airdropBalance.available_balance > 0 && (
+                    <button 
+                    onClick={() => setShowWithdrawModal(true)}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 border border-green-400/50 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)] py-3 rounded-lg text-sm font-bold tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                  >
+                    <Icons.Send size={16} />
+                    WITHDRAW TO WALLET
+                  </button>
+                 )}
+              </div>
+
+              {/* Withdrawal History */}
+              {airdropWithdrawals.length > 0 && (
+                 <div className="mt-8">
+                    <h3 className="text-lg font-bold text-white mb-4">Withdrawal History</h3>
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                       {airdropWithdrawals.map((withdrawal) => (
+                          <div key={withdrawal.id} className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-4">
+                             <div className="flex items-center justify-between mb-2">
+                                <div className="text-white font-medium">{withdrawal.amount.toFixed(6)} RZC</div>
+                                <div className={`px-2 py-1 rounded text-xs font-bold ${
+                                   withdrawal.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                   withdrawal.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' :
+                                   withdrawal.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                                   'bg-gray-500/20 text-gray-400'
+                                }`}>
+                                   {withdrawal.status.toUpperCase()}
+                                </div>
+                             </div>
+                             <div className="text-gray-400 text-xs">
+                                To: {withdrawal.destination_address.slice(0, 10)}...{withdrawal.destination_address.slice(-8)}
+                             </div>
+                             <div className="text-gray-500 text-xs mt-1">
+                                {new Date(withdrawal.created_at).toLocaleString()}
+                             </div>
+                             {withdrawal.transaction_hash && (
+                                <div className="text-blue-400 text-xs mt-1">
+                                   TX: {withdrawal.transaction_hash.slice(0, 10)}...{withdrawal.transaction_hash.slice(-8)}
+                                </div>
+                             )}
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+              )}
+           </div>
+        )}
+
       </div>
 
       {showCelebration && (
@@ -1843,8 +2669,519 @@ const ArcadeMiningUI = forwardRef<ArcadeMiningUIHandle, ArcadeMiningUIProps>(fun
            </div>
         </div>
       )}
+
+      {/* Season End Claim Modal */}
+      {showSeasonEndModal && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowSeasonEndModal(false)}></div>
+           
+           <div className="bg-rzc-dark border-2 border-orange-500/50 rounded-2xl p-6 w-full max-w-md relative z-10 overflow-hidden shadow-[0_0_50px_rgba(251,146,60,0.3)]">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Icons.Rank size={32} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Season End Claim</h3>
+                <p className="text-gray-400 text-sm">
+                  Claim all your RZC and optionally request airdrop to external wallet
+                </p>
+              </div>
+
+              {/* Balance Summary */}
+              <div className="bg-black/40 rounded-xl p-4 mb-6 border border-white/10">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-400 text-sm">Available to Claim:</span>
+                  <span className="text-orange-400 font-bold">
+                    {((claimableRZC || 0) + (isMining ? accumulatedRZC : 0)).toFixed(6)} RZC
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-400 text-sm">Already Claimed:</span>
+                  <span className="text-green-400 font-bold">{(claimedRZC || 0).toFixed(6)} RZC</span>
+                </div>
+                <div className="border-t border-white/10 pt-2 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-white font-medium">Total Balance:</span>
+                    <span className="text-white font-bold text-lg">
+                      {((claimableRZC || 0) + (isMining ? accumulatedRZC : 0) + (claimedRZC || 0)).toFixed(6)} RZC
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Airdrop Options */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Wallet Address (Optional - for airdrop request)
+                  </label>
+                  <input
+                    type="text"
+                    value={airdropWalletAddress}
+                    onChange={(e) => setAirdropWalletAddress(e.target.value)}
+                    placeholder="Enter your wallet address for airdrop"
+                    className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-orange-500/50 focus:outline-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Node Alias (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={nodeAlias}
+                    onChange={(e) => setNodeAlias(e.target.value)}
+                    placeholder="Enter your preferred node name"
+                    className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-orange-500/50 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-6">
+                <p className="text-orange-300 text-xs leading-relaxed">
+                  <strong>Note:</strong> This will claim all your available RZC. If you provide a wallet address, 
+                  an airdrop request will be created with 30% liquid tokens and 70% locked in vault for network stability.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowSeasonEndModal(false)}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-sm font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSeasonEndClaim}
+                  disabled={isProcessingSeasonClaim}
+                  className="flex-1 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white py-3 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+                >
+                  {isProcessingSeasonClaim ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Processing...
+                    </div>
+                  ) : (
+                    'Claim Season RZC'
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Claim to Airdrop Modal */}
+      {showAirdropModal && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowAirdropModal(false)}></div>
+           
+           <div className="bg-rzc-dark border-2 border-purple-500/50 rounded-2xl p-6 w-full max-w-md relative z-10 overflow-hidden shadow-[0_0_50px_rgba(147,51,234,0.3)]">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Icons.Wallet size={32} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Claim to Airdrop Balance</h3>
+                <p className="text-gray-400 text-sm">
+                  Move your total earned RZC to your airdrop balance for withdrawal
+                </p>
+              </div>
+
+              {/* Balance Summary */}
+              <div className="bg-black/40 rounded-xl p-4 mb-6 border border-white/10">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-400 text-sm">Total Earned RZC:</span>
+                  <span className="text-purple-400 font-bold">{Math.max(totalEarnedRZC, 0).toFixed(6)} RZC</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 text-sm">Current Airdrop Balance:</span>
+                  <span className="text-green-400 font-bold">
+                    {airdropBalance ? airdropBalance.available_balance.toFixed(6) : '0.000000'} RZC
+                  </span>
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 mb-6">
+                <p className="text-purple-300 text-xs leading-relaxed">
+                  <strong>Claim:</strong> This will move all your earned RZC to your airdrop balance. 
+                  From there, you can withdraw to any external wallet address.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowAirdropModal(false)}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-sm font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                
+                {/* Always show claim button - no reclaim option */}
+                <button 
+                  onClick={handleClaimToAirdrop}
+                  disabled={isProcessingAirdropClaim}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white py-3 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+                >
+                  {isProcessingAirdropClaim ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Processing...
+                    </div>
+                  ) : (
+                    'Claim to Airdrop'
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Withdraw from Airdrop Modal */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowWithdrawModal(false)}></div>
+           
+           <div className="bg-rzc-dark border-2 border-green-500/50 rounded-2xl p-6 w-full max-w-md relative z-10 overflow-hidden shadow-[0_0_50px_rgba(34,197,94,0.3)]">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <Icons.Send size={32} className="text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">Withdraw to Wallet</h3>
+                <p className="text-gray-400 text-sm">
+                  Withdraw RZC from your airdrop balance to an external wallet
+                </p>
+              </div>
+
+              {/* Balance Display */}
+              <div className="bg-black/40 rounded-xl p-4 mb-6 border border-white/10 text-center">
+                <div className="text-gray-400 text-sm mb-1">Available Balance</div>
+                <div className="text-green-400 font-bold text-xl">
+                  {airdropBalance ? airdropBalance.available_balance.toFixed(6) : '0.000000'} RZC
+                </div>
+              </div>
+
+              {/* Withdrawal Form */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Amount to Withdraw
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="0.000000"
+                      step="0.000001"
+                      min="0"
+                      max={airdropBalance?.available_balance || 0}
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-green-500/50 focus:outline-none pr-16"
+                    />
+                    <button
+                      onClick={() => setWithdrawAmount(airdropBalance?.available_balance.toString() || '0')}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-400 text-xs font-bold hover:text-green-300"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Destination Address
+                  </label>
+                  <input
+                    type="text"
+                    value={withdrawAddress}
+                    onChange={(e) => setWithdrawAddress(e.target.value)}
+                    placeholder="0x..."
+                    className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:border-green-500/50 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Network
+                  </label>
+                  <select
+                    value={withdrawNetwork}
+                    onChange={(e) => setWithdrawNetwork(e.target.value)}
+                    className="w-full bg-black/40 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:border-green-500/50 focus:outline-none"
+                  >
+                    <option value="ethereum">Ethereum</option>
+                    <option value="polygon">Polygon</option>
+                    <option value="bsc">BSC</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mb-6">
+                <p className="text-green-300 text-xs leading-relaxed">
+                  <strong>Note:</strong> Withdrawals are processed manually and may take 24-48 hours. 
+                  Gas fees will be deducted from the withdrawal amount.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    setShowWithdrawModal(false);
+                    setWithdrawAmount('');
+                    setWithdrawAddress('');
+                  }}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-sm font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleWithdrawFromAirdrop}
+                  disabled={isProcessingWithdraw || !withdrawAmount || !withdrawAddress}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white py-3 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+                >
+                  {isProcessingWithdraw ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Processing...
+                    </div>
+                  ) : (
+                    'Create Withdrawal'
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 });
 
 export default ArcadeMiningUI;
+            {activeTab === 'rewards' && (
+              <div className="flex flex-col animate-in fade-in duration-300">
+     /* Status Badge */}
+                <div className="flex justify-center mb-6">
+                  <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-1.5">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div>
+                    <span className="text-green-500 text-[10px] font-black uppercase tracking-[0.2em] font-mono">Claim Phase</span>
+                  </div>
+                </div>
+
+                {/* Announcement Section */}
+                <div className="bg-gradient-to-r from-green-600/10 via-green-500/5 to-transparent border border-green-500/20 rounded-3xl p-6 mb-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-3 opacity-20">
+                    <svg className="w-12 h-12 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                  </div>
+                  <div className="flex flex-col relative z-10">
+                    <h3 className="text-green-400 text-xs font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                      <Icons.Info size={14} className="text-green-500" />
+                      Official Announcement
+                    </h3>
+                    <h4 className="text-white text-lg font-black tracking-tight mb-2">Pre-Mining Season Completed</h4>
+                    <p className="text-gray-400 text-[11px] leading-relaxed font-medium max-w-[90%]">
+                      The Genesis mining phase has officially ended. All miners have successfully transitioned to the Claim Phase. 
+                      Secure your RZC assets today to ensure eligibility for the Q1 2026 Mainnet Airdrop.
+                    </p>
+                    <div className="mt-4 flex items-center gap-3">
+                      <span className="bg-green-500/20 text-green-500 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
+                        Phase 4 Active
+                      </span>
+                      <div className="h-px flex-1 bg-green-500/20"></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hero Balance Card */}
+                <div className="relative mb-6 rounded-3xl overflow-hidden bg-gradient-to-br from-green-500/10 to-transparent border border-white/5 p-8 text-center shadow-2xl">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-green-500/5 blur-[60px] rounded-full -mt-24"></div>
+                  <p className="text-gray-500 text-[11px] font-black uppercase tracking-widest mb-2">Total Available to Claim</p>
+                  <div className="flex items-end justify-center gap-2 mb-1">
+                    <h2 className="text-5xl font-black text-white tracking-tighter drop-shadow-2xl">
+                      {formatRZC(displayBalance)}
+                    </h2>
+                    <span className="text-green-500 font-black text-lg mb-2">RZC</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-gray-400 text-xs font-medium">Ready for Mainnet Airdrop</p>
+                  </div>
+                </div>
+
+                {/* Dynamic Burn Warning Notification */}
+                <div className="bg-red-950/20 border border-red-500/30 rounded-2xl p-4 mb-6 flex items-start gap-4 shadow-[0_10px_30px_-15px_rgba(239,68,68,0.3)]">
+                  <div className="p-2.5 bg-red-500/20 rounded-xl shrink-0">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-red-400 text-[10px] font-black uppercase tracking-wider">Burn Deadline</span>
+                      <span className="text-red-400 text-[11px] font-mono font-bold bg-red-500/10 px-2 py-0.5 rounded leading-none">
+                        {countdown.days}d {countdown.hours}h {countdown.minutes}m {countdown.seconds}s
+                      </span>
+                    </div>
+                    <p className="text-gray-300 text-[11px] leading-tight mb-3">
+                      Rewards will be <span className="text-red-400 font-bold">permanently burnt</span> in {countdown.days} days.
+                    </p>
+                    <div className="w-full bg-black/40 h-2 rounded-full overflow-hidden border border-white/5 relative">
+                      <div 
+                        className="bg-gradient-to-r from-red-600 via-red-500 to-orange-400 h-full rounded-full transition-all duration-1000 ease-linear shadow-[0_0_12px_rgba(239,68,68,0.4)]" 
+                        style={{ width: `${countdown.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action Button */}
+                {hasClaimedToAirdrop ? (
+                  /* Already Claimed Indicator */
+                  <div className="w-full mb-8 rounded-2xl border-2 border-green-500/30 bg-green-500/5 p-6 text-center">
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <Icons.CheckCircle size={16} className="text-green-500" />
+                      </div>
+                      <span className="text-green-500 font-black uppercase tracking-[0.15em] text-sm">
+                        Rewards Claimed
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-gray-400 text-xs">
+                        Total Claimed: <span className="text-green-500 font-mono font-bold">{formatRZC(airdropBalance?.total_claimed_to_airdrop || 0)} RZC</span>
+                      </p>
+                      <p className="text-gray-400 text-xs">
+                        Available Balance: <span className="text-white font-mono font-bold">{formatRZC(airdropBalance?.available_balance || 0)} RZC</span>
+                      </p>
+                      {airdropBalance?.withdrawn_balance > 0 && (
+                        <p className="text-gray-400 text-xs">
+                          Withdrawn: <span className="text-orange-400 font-mono font-bold">{formatRZC(airdropBalance.withdrawn_balance)} RZC</span>
+                        </p>
+                      )}
+                      {airdropBalance?.last_claim_from_mining && (
+                        <p className="text-gray-500 text-[10px] mt-2">
+                          Last Claim: {new Date(airdropBalance.last_claim_from_mining).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">
+                        Visit Rhiza Wallet tab to manage your balance
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* Claim Button */
+                  <button 
+                    onClick={async () => {
+                      if (!userId) return;
+                      setIsProcessingAirdropClaim(true);
+                      
+                      try {
+                        if (totalAvailableToClaim <= 0) {
+                          showSnackbar?.({ 
+                            message: 'No Rewards', 
+                            description: 'Your claimable balance is empty.' 
+                          });
+                          return;
+                        }
+
+                        // If there's accumulated RZC from active mining, complete it first
+                        if (isMining && accumulatedRZC > 0) {
+                          const { error: activityError } = await supabase.from('activities').insert({
+                            user_id: userId,
+                            type: 'mining_complete',
+                            amount: accumulatedRZC,
+                            status: 'completed',
+                            created_at: new Date().toISOString()
+                          });
+
+                          if (activityError) throw activityError;
+                        }
+
+                        // Claim all RZC rewards first
+                        if (claimableRZC > 0 || accumulatedRZC > 0) {
+                          const claimAmount = claimableRZC + (isMining ? accumulatedRZC : 0);
+                          const claimResult = await claimRZCRewards(userId, claimAmount);
+                          if (!claimResult.success) {
+                            throw new Error(claimResult.error || 'Failed to claim mining rewards');
+                          }
+                        }
+
+                        const airdropResult = await claimTotalEarnedToAirdrop(userId);
+                        
+                        if (airdropResult.success) {
+                          showSnackbar?.({ 
+                            message: 'Success!', 
+                            description: `${formatRZC(totalAvailableToClaim)} RZC claimed to airdrop.` 
+                          });
+                          
+                          setClaimableRZC(0);
+                          setTotalEarnedRZC(0);
+                          setAccumulatedRZC(0);
+                          setDisplayBalance(0);
+                          setIsMining(false);
+                          setCurrentSession(null);
+                          
+                          fetchBalance();
+                        } else {
+                          throw new Error(airdropResult.error || 'Failed to transfer to airdrop');
+                        }
+                      } catch (err) {
+                        showSnackbar?.({ 
+                          message: 'Claim Failed', 
+                          description: err instanceof Error ? err.message : 'System error.' 
+                        });
+                      } finally {
+                        setIsProcessingAirdropClaim(false);
+                      }
+                    }}
+                    disabled={isProcessingAirdropClaim || (totalAvailableToClaim === 0)}
+                    className="group relative w-full mb-8 overflow-hidden rounded-2xl shadow-[0_20px_40px_-10px_rgba(34,197,94,0.4)] active:scale-[0.98] transition-all disabled:opacity-50"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-green-500 via-emerald-600 to-green-500 animate-gradient-x bg-[length:200%_100%]"></div>
+                    <div className="relative flex items-center justify-center gap-3 py-5 text-black font-black uppercase tracking-[0.15em] text-sm">
+                      {isProcessingAirdropClaim ? (
+                        <div className="w-5 h-5 border-[3px] border-black/30 border-t-black rounded-full animate-spin"></div>
+                      ) : (
+                        <>
+                          <Icons.Wallet size={20} />
+                          <span>Claim RZC Rewards</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                )}
+
+                {/* Referral Link Simplified */}
+                <div className="mb-8">
+                  <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-3 px-1 text-center">
+                    Referral Node Active
+                  </p>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-white/5 border border-white/10 rounded-xl flex items-center px-4 py-3 group hover:border-green-500/30 transition-all cursor-pointer">
+                      <span className="text-gray-400 text-xs truncate font-mono tracking-tight">
+                        {`t.me/rhizacore_bot?startapp=${referralCode || sponsorCode}`}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={handleCopy}
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-90 ${
+                        copyFeedback 
+                          ? 'bg-green-500 text-black' 
+                          : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Icons.Copy size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}

@@ -30,7 +30,15 @@ import {
   Dices,
   Hammer,
   CircuitBoard,
-  Lock
+  Lock,
+  RefreshCw,
+  X,
+  Bell,
+  ArrowUpDown,
+  BarChart3,
+  Eye,
+  EyeOff,
+  Search
 } from 'lucide-react';
 
 export const Icons = {
@@ -65,5 +73,13 @@ export const Icons = {
   Chance: Dices,
   Mint: Hammer,
   Chip: CircuitBoard,
-  Lock: Lock
-};
+  Lock: Lock,
+  Refresh: RefreshCw,
+  X: X,
+  Bell: Bell,
+  Swap: ArrowUpDown,
+  Trending: BarChart3,
+  Eye: Eye,
+  EyeOff: EyeOff,
+  Search: Search
+} as const;

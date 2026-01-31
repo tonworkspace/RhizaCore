@@ -134,7 +134,7 @@ export type IconProps = {
 
 import { Icons } from "@/uicomponents/Icons";
 
-export type BottomTab = 'Mining' | 'Task' | 'Wallet' | 'Core' | 'More' | 'Friends';
+export type BottomTab = 'Mining' | 'Task' | 'Wallet' | 'Store' | 'Core' | 'More' | 'Friends' | 'Admin';
 export type TopTab = 'Mining' | 'Boost' | 'Rank';
 
 export interface MiningState {

@@ -11,7 +11,7 @@ export interface AuthUser extends User {
   has_nft?: boolean;
   referrer_username?: string;
   referrer_rank?: string;
-  sponsor_id?: number;
+  sponsor_id?: string; // Changed to string to match User interface
   sponsor_code?: string;
   total_sbt?: number;
   claimed_milestones?: number[];
@@ -53,7 +53,7 @@ let syncCount = 0;
 let lastSyncReset = Date.now();
 
 // Update the sync function with better rate limiting
-const syncEarnings = async (userId: number, earnings: number): Promise<boolean> => {
+const syncEarnings = async (userId: string, earnings: number): Promise<boolean> => {
   try {
     const now = Date.now();
 
@@ -95,7 +95,7 @@ const syncEarnings = async (userId: number, earnings: number): Promise<boolean> 
 };
 
 // Simplify validation function to remove stake-related checks
-const validateAndSyncData = async (userId: number) => {
+const validateAndSyncData = async (userId: string) => {
   try {
     const { data: dbUser } = await supabase
       .from('users')

@@ -30,7 +30,11 @@ export const RewardHistory = () => {
       
       try {
         setIsLoading(true);
-        const data = await getRewardHistory(user.id);
+        const numericUserId = parseInt(user.id);
+        if (isNaN(numericUserId)) {
+          throw new Error('Invalid user ID format');
+        }
+        const data = await getRewardHistory(numericUserId);
         setRewards(data);
       } catch (err) {
         setError('Failed to load rewards');

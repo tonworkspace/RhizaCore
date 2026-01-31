@@ -30,7 +30,18 @@ import {
   Dices,
   Hammer,
   CircuitBoard,
-  Lock
+  Lock,
+  QrCode,
+  RefreshCw,
+  Network,
+  Bell,
+  X,
+  Download,
+  CheckCircle,
+  Clock,
+  Info,
+  LogOut,
+  DollarSign
 } from 'lucide-react';
 
 export const Icons = {
@@ -65,5 +76,17 @@ export const Icons = {
   Chance: Dices,
   Mint: Hammer,
   Chip: CircuitBoard,
-  Lock: Lock
+  Lock: Lock,
+  QrCode: QrCode,
+  Refresh: RefreshCw,
+  Network: Network,
+  Bell: Bell,
+  X: X,
+  Download: Download,
+  TrendingUp: TrendingUp,
+  CheckCircle: CheckCircle,
+  Clock: Clock,
+  Info: Info,
+  Logout: LogOut,
+  Currency: DollarSign
 };

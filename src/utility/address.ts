@@ -1,6 +1,10 @@
+import { Address } from "@ton/core";
+
 export function isValidAddress(address: string): boolean {
   try {
-    return address.length === 48 && /^[0-9A-Za-z_-]*$/.test(address);
+    // Try to parse the address using TON's Address class
+    Address.parse(address);
+    return true;
   } catch {
     return false;
   }

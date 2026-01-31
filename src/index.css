@@ -19,6 +19,40 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+  
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.3s ease;
+  }
+  
+  .thin-scrollbar:hover,
+  .thin-scrollbar.scrolling {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }
+  
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 3px;
+  }
+  
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 2px;
+    transition: background 0.3s ease;
+  }
+  
+  .thin-scrollbar:hover::-webkit-scrollbar-thumb,
+  .thin-scrollbar.scrolling::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5) !important;
+  }
 }
 
 @keyframes gradient {
