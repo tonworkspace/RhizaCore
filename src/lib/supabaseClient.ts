@@ -2742,3 +2742,518 @@ export const getUserActivities = async (
     return [];
   }
 };
+
+export const addRZCFromDEXPurchase = async (
+  userId: number,
+  rzcAmount: number,
+  paymentAmount: number,
+  transactionHash: string
+): Promise<{ success: boolean; newBalance?: number; error?: string }> => {
+  try {
+    // Record the DEX purchase activity
+    const { error: activityError } = await supabase.from('activities').insert({
+      user_id: userId,
+      type: 'dex_purchase',
+      amount: rzcAmount,
+      status: 'completed',
+      metadata: {
+        payment_amount: paymentAmount,
+        transaction_hash: transactionHash,
+        source: 'dex_swap'
+      },
+      created_at: new Date().toISOString()
+    });
+
+    if (activityError) throw activityError;
+
+    // Get current user balance to return new balance
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('available_balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError) throw userError;
+
+    const newBalance = (user?.available_balance || 0) + rzcAmount;
+
+    // Update user's available balance
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        available_balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
+
+    return { success: true, newBalance };
+  } catch (error: any) {
+    console.error('Error adding RZC from DEX purchase:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ==========================================
+// AIRDROP BALANCE SYSTEM
+// ==========================================
+
+export interface AirdropBalance {
+  user_id: number;
+  available_balance: number;
+  staked_balance: number;
+  total_claimed_to_airdrop: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserTransfer {
+  id: number;
+  from_user_id: number;
+  to_user_id: number;
+  amount: number;
+  message?: string;
+  status: 'pending' | 'completed' | 'failed';
+  created_at: string;
+  from_user?: {
+    id: number;
+    username?: string;
+    display_name?: string;
+  };
+  to_user?: {
+    id: number;
+    username?: string;
+    display_name?: string;
+  };
+}
+
+export interface UserSearchResult {
+  id: number;
+  username?: string;
+  display_name?: string;
+  telegram_id?: number;
+}
+
+export const getUserAirdropBalance = async (userId: number): Promise<{
+  success: boolean;
+  balance?: AirdropBalance;
+  error?: string;
+}> => {
+  try {
+    const { data, error } = await supabase
+      .from('airdrop_balances')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching airdrop balance:', error);
+      return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      // Create initial airdrop balance record
+      const { data: newBalance, error: createError } = await supabase
+        .from('airdrop_balances')
+        .insert({
+          user_id: userId,
+          available_balance: 0,
+          staked_balance: 0,
+          total_claimed_to_airdrop: 0
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating airdrop balance:', createError);
+        return { success: false, error: createError.message };
+      }
+
+      return { success: true, balance: newBalance };
+    }
+
+    return { success: true, balance: data };
+  } catch (error: any) {
+    console.error('Error in getUserAirdropBalance:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const unstakeAirdropBalance = async (userId: number): Promise<{
+  success: boolean;
+  unstakedAmount?: number;
+  error?: string;
+}> => {
+  try {
+    const { data: balance, error: fetchError } = await supabase
+      .from('airdrop_balances')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching airdrop balance for unstaking:', fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
+    if (!balance || balance.staked_balance <= 0) {
+      return { success: false, error: 'No staked balance to unstake' };
+    }
+
+    // Check if user can unstake (considering lock periods)
+    const canUnstakeResult = await canUserUnstake(userId, balance.staked_balance);
+    if (!canUnstakeResult.canUnstake) {
+      return { 
+        success: false, 
+        error: `Cannot unstake: ${canUnstakeResult.lockedAmount} RZC is still locked. Available: ${canUnstakeResult.availableAmount} RZC` 
+      };
+    }
+
+    const unstakedAmount = canUnstakeResult.availableAmount;
+
+    // Move staked balance to available balance
+    const { error: updateError } = await supabase
+      .from('airdrop_balances')
+      .update({
+        available_balance: balance.available_balance + unstakedAmount,
+        staked_balance: balance.staked_balance - unstakedAmount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error updating airdrop balance for unstaking:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true, unstakedAmount };
+  } catch (error: any) {
+    console.error('Error in unstakeAirdropBalance:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const createAirdropWithdrawal = async (
+  userId: number,
+  amount: number,
+  walletAddress: string,
+  network: string
+): Promise<{
+  success: boolean;
+  withdrawalId?: number;
+  error?: string;
+}> => {
+  try {
+    const { data: balance, error: fetchError } = await supabase
+      .from('airdrop_balances')
+      .select('available_balance')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching airdrop balance for withdrawal:', fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
+    if (!balance || balance.available_balance < amount) {
+      return { success: false, error: 'Insufficient available balance' };
+    }
+
+    // Create withdrawal request
+    const { data: withdrawal, error: withdrawalError } = await supabase
+      .from('airdrop_withdrawals')
+      .insert({
+        user_id: userId,
+        amount: amount,
+        wallet_address: walletAddress,
+        network: network,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (withdrawalError) {
+      console.error('Error creating withdrawal request:', withdrawalError);
+      return { success: false, error: withdrawalError.message };
+    }
+
+    // Deduct from available balance
+    const { error: updateError } = await supabase
+      .from('airdrop_balances')
+      .update({
+        available_balance: balance.available_balance - amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error updating balance for withdrawal:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true, withdrawalId: withdrawal.id };
+  } catch (error: any) {
+    console.error('Error in createAirdropWithdrawal:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const sendRZCToUser = async (
+  fromUserId: number,
+  toUserId: number,
+  amount: number,
+  message?: string
+): Promise<{
+  success: boolean;
+  transferId?: number;
+  error?: string;
+}> => {
+  try {
+    // Check sender's balance
+    const { data: senderBalance, error: senderError } = await supabase
+      .from('airdrop_balances')
+      .select('available_balance')
+      .eq('user_id', fromUserId)
+      .single();
+
+    if (senderError) {
+      console.error('Error fetching sender balance:', senderError);
+      return { success: false, error: senderError.message };
+    }
+
+    if (!senderBalance || senderBalance.available_balance < amount) {
+      return { success: false, error: 'Insufficient balance' };
+    }
+
+    // Check if recipient exists
+    const { data: recipient, error: recipientError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', toUserId)
+      .single();
+
+    if (recipientError || !recipient) {
+      return { success: false, error: 'Recipient not found' };
+    }
+
+    // Ensure recipient has airdrop balance record
+    await getUserAirdropBalance(toUserId);
+
+    // Create transfer record
+    const { data: transfer, error: transferError } = await supabase
+      .from('user_transfers')
+      .insert({
+        from_user_id: fromUserId,
+        to_user_id: toUserId,
+        amount: amount,
+        message: message,
+        status: 'completed',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (transferError) {
+      console.error('Error creating transfer record:', transferError);
+      return { success: false, error: transferError.message };
+    }
+
+    // Update sender balance
+    const { error: senderUpdateError } = await supabase
+      .from('airdrop_balances')
+      .update({
+        available_balance: senderBalance.available_balance - amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', fromUserId);
+
+    if (senderUpdateError) {
+      console.error('Error updating sender balance:', senderUpdateError);
+      return { success: false, error: senderUpdateError.message };
+    }
+
+    // Update recipient balance
+    const { data: recipientBalance } = await supabase
+      .from('airdrop_balances')
+      .select('available_balance')
+      .eq('user_id', toUserId)
+      .single();
+
+    const { error: recipientUpdateError } = await supabase
+      .from('airdrop_balances')
+      .update({
+        available_balance: (recipientBalance?.available_balance || 0) + amount,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', toUserId);
+
+    if (recipientUpdateError) {
+      console.error('Error updating recipient balance:', recipientUpdateError);
+      return { success: false, error: recipientUpdateError.message };
+    }
+
+    return { success: true, transferId: transfer.id };
+  } catch (error: any) {
+    console.error('Error in sendRZCToUser:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getUserTransferHistory = async (userId: number): Promise<UserTransfer[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_transfers')
+      .select(`
+        *,
+        from_user:users!from_user_id(id, username, display_name),
+        to_user:users!to_user_id(id, username, display_name)
+      `)
+      .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error fetching transfer history:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getUserTransferHistory:', error);
+    return [];
+  }
+};
+
+export const searchUsersForTransfer = async (query: string, currentUserId: number): Promise<UserSearchResult[]> => {
+  try {
+    if (query.length < 2) return [];
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, display_name, telegram_id')
+      .or(`username.ilike.%${query}%,display_name.ilike.%${query}%,id.eq.${parseInt(query) || 0}`)
+      .neq('id', currentUserId)
+      .limit(10);
+
+    if (error) {
+      console.error('Error searching users:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in searchUsersForTransfer:', error);
+    return [];
+  }
+};
+
+export const canUserUnstake = async (userId: number, amount: number): Promise<{
+  canUnstake: boolean;
+  lockedAmount: number;
+  availableAmount: number;
+  lockDetails?: any[];
+}> => {
+  try {
+    const { data, error } = await supabase.rpc('check_user_unstake_eligibility', {
+      p_user_id: userId,
+      p_amount: amount
+    });
+
+    if (error) {
+      console.error('Error checking unstake eligibility:', error);
+      return { canUnstake: false, lockedAmount: amount, availableAmount: 0 };
+    }
+
+    const result = data?.[0];
+    if (!result) {
+      return { canUnstake: true, lockedAmount: 0, availableAmount: amount };
+    }
+
+    return {
+      canUnstake: result.can_unstake,
+      lockedAmount: result.locked_amount || 0,
+      availableAmount: result.available_amount || 0,
+      lockDetails: result.lock_details || []
+    };
+  } catch (error) {
+    console.error('Error in canUserUnstake:', error);
+    return { canUnstake: false, lockedAmount: amount, availableAmount: 0 };
+  }
+};
+
+export const getUserStakingLocksSummary = async (userId: number): Promise<{
+  totalLocked: number;
+  totalUnlocked: number;
+  activeLocks: number;
+  nextUnlockDate?: string;
+  lockDetails: any[];
+} | null> => {
+  try {
+    const { data, error } = await supabase.rpc('get_user_staking_locks_summary', {
+      p_user_id: userId
+    });
+
+    if (error) {
+      console.error('Error fetching staking locks summary:', error);
+      return null;
+    }
+
+    const result = data?.[0];
+    if (!result) {
+      return {
+        totalLocked: 0,
+        totalUnlocked: 0,
+        activeLocks: 0,
+        lockDetails: []
+      };
+    }
+
+    return {
+      totalLocked: result.total_locked || 0,
+      totalUnlocked: result.total_unlocked || 0,
+      activeLocks: result.active_locks || 0,
+      nextUnlockDate: result.next_unlock_date,
+      lockDetails: result.lock_details || []
+    };
+  } catch (error) {
+    console.error('Error in getUserStakingLocksSummary:', error);
+    return null;
+  }
+};
+
+// ==========================================
+// WALLET ACTIVATION SYSTEM
+// ==========================================
+
+export const checkWalletActivation = async (userId: number): Promise<{
+  wallet_activated: boolean;
+  activation_date?: string;
+  activation_transaction?: string;
+}> => {
+  try {
+    // Use the database function for consistent results
+    const { data, error } = await supabase.rpc('get_wallet_activation_status', {
+      p_user_id: userId
+    });
+
+    if (error) {
+      console.error('Error checking wallet activation:', error);
+      return { wallet_activated: false };
+    }
+
+    if (!data?.success) {
+      return { wallet_activated: false };
+    }
+
+    return {
+      wallet_activated: data.wallet_activated || false,
+      activation_date: data.wallet_activated_at,
+      activation_transaction: data.activation_details?.transaction_hash
+    };
+  } catch (error) {
+    console.error('Error in checkWalletActivation:', error);
+    return { wallet_activated: false };
+  }
+};
